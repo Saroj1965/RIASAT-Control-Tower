@@ -499,7 +499,51 @@ async function runMigration() {
     WHERE department_id = 3;
   `);
 
-  // 4. Verification
+  // 4. Cybersecurity Milestone (WS-01)
+  await pg.query(`
+    INSERT INTO workstreams (
+      item_id, department_id, category, deliverable, infrastructure_partnership,
+      target_date, status, capex, revenue_pipeline, owner,
+      risks_blockers, decision_action, updated_by
+    ) VALUES (
+      'WS-01', 4, 'Equipment & Tooling', 'Enterprise Simulation Cyber Range (100 Student Seats)',
+      'Fortinet / Palo Alto Networks / Dell Server Stack', '2026-10-30', 'On Track',
+      '₹ 5.2 Cr', '₹ 25.0 Cr', 'Cybersecurity Head',
+      'Dedicated 10 Gbps ISP fiber pipe required for attack simulation',
+      'VC approval required for annual leased line ISP contract', 'Cybersecurity Head'
+    );
+  `);
+  await pg.query(`
+    UPDATE department_overview
+    SET rag_status = 'GREEN', readiness_percentage = 30,
+        key_focus = 'VC approval required for annual leased line ISP contract',
+        submission_status = 'SUBMITTED', last_updated = CURRENT_TIMESTAMP, updated_by = 'Cybersecurity Head'
+    WHERE department_id = 4;
+  `);
+
+  // 5. MedTech Milestone (WS-01)
+  await pg.query(`
+    INSERT INTO workstreams (
+      item_id, department_id, category, deliverable, infrastructure_partnership,
+      target_date, status, capex, revenue_pipeline, owner,
+      risks_blockers, decision_action, updated_by
+    ) VALUES (
+      'WS-01', 5, 'Infrastructure', 'Hospital Bio-Telemetry & Patient Simulator Facility',
+      'Ramaiah Medical College & Hospital Simulation Ward', '2026-10-28', 'Delayed',
+      '₹ 9.0 Cr', '₹ 19.0 Cr', 'MedTech Head',
+      'Hospital ward plumbing and medical gas line retrofit delayed',
+      'VC liaison requested with Medical Director for work order sign-off', 'MedTech Head'
+    );
+  `);
+  await pg.query(`
+    UPDATE department_overview
+    SET rag_status = 'AMBER', readiness_percentage = 20,
+        key_focus = 'VC liaison requested with Medical Director for work order sign-off',
+        submission_status = 'SUBMITTED', last_updated = CURRENT_TIMESTAMP, updated_by = 'MedTech Head'
+    WHERE department_id = 5;
+  `);
+
+  // 6. Verification
   const totalSecs = await pg.query("SELECT COUNT(*) as cnt FROM form_sections");
   const totalFields = await pg.query("SELECT COUNT(*) as cnt FROM form_fields");
   const totalVals = await pg.query("SELECT COUNT(*) as cnt FROM department_form_values");
