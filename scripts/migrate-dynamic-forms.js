@@ -565,7 +565,29 @@ async function runMigration() {
     WHERE department_id = 6;
   `);
 
-  // 7. Verification
+  // 7. Communications Milestone (WS-01)
+  await pg.query(`
+    INSERT INTO workstreams (
+      item_id, department_id, category, deliverable, infrastructure_partnership,
+      target_date, status, capex, revenue_pipeline, owner,
+      risks_blockers, decision_action, updated_by
+    ) VALUES (
+      'WS-01', 8, 'Alliances & Outreach', 'National Advanced Skills Summit & Industry Round Table',
+      'CII / FICCI / IESA Industry Alliances', '2026-11-28', 'In Progress',
+      '₹ 1.5 Cr', '₹ 5.0 Cr', 'Communications Head',
+      'Keynote confirmations pending from 4 semiconductor CEOs',
+      'VC invitation letter dispatch to 20 Chief Executive Officers', 'Communications Head'
+    );
+  `);
+  await pg.query(`
+    UPDATE department_overview
+    SET rag_status = 'GREEN', readiness_percentage = 20,
+        key_focus = 'VC invitation letter dispatch to 20 Chief Executive Officers',
+        submission_status = 'SUBMITTED', last_updated = CURRENT_TIMESTAMP, updated_by = 'Communications Head'
+    WHERE department_id = 8;
+  `);
+
+  // 8. Verification
   const totalSecs = await pg.query("SELECT COUNT(*) as cnt FROM form_sections");
   const totalFields = await pg.query("SELECT COUNT(*) as cnt FROM form_fields");
   const totalVals = await pg.query("SELECT COUNT(*) as cnt FROM department_form_values");
