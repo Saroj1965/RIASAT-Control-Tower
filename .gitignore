@@ -2,3 +2,8 @@ node_modules/
 .next/
 .data/
 *.log
+.env
+.env*.local
+.neon
+.neon/
+cloudflared.exe
