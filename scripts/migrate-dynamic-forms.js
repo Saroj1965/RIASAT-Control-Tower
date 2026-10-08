@@ -477,7 +477,29 @@ async function runMigration() {
     WHERE department_id = 2;
   `);
 
-  // 3. Verification
+  // 3. Space Milestone (WS-01)
+  await pg.query(`
+    INSERT INTO workstreams (
+      item_id, department_id, category, deliverable, infrastructure_partnership,
+      target_date, status, capex, revenue_pipeline, owner,
+      risks_blockers, decision_action, updated_by
+    ) VALUES (
+      'WS-01', 3, 'Infrastructure', 'Ground Station & CubeSat Telemetry Dish Installation',
+      'ISRO IN-SPACe / Dhruva Space', '2026-11-10', 'On Track',
+      '₹ 6.0 Cr', '₹ 12.0 Cr', 'Space Head',
+      'Rooftop civil reinforcement load-bearing audit complete',
+      'VC signature required on IN-SPACe Master Authorization', 'Space Head'
+    );
+  `);
+  await pg.query(`
+    UPDATE department_overview
+    SET rag_status = 'GREEN', readiness_percentage = 25,
+        key_focus = 'VC signature required on IN-SPACe Master Authorization',
+        submission_status = 'SUBMITTED', last_updated = CURRENT_TIMESTAMP, updated_by = 'Space Head'
+    WHERE department_id = 3;
+  `);
+
+  // 4. Verification
   const totalSecs = await pg.query("SELECT COUNT(*) as cnt FROM form_sections");
   const totalFields = await pg.query("SELECT COUNT(*) as cnt FROM form_fields");
   const totalVals = await pg.query("SELECT COUNT(*) as cnt FROM department_form_values");

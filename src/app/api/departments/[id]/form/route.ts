@@ -95,9 +95,17 @@ export async function PUT(req: Request, { params }: Params) {
     const { values, status } = body; // status: 'DRAFT' or 'SUBMITTED'
     const submissionStatus = status === "DRAFT" ? "DRAFT" : "SUBMITTED";
 
-    let readinessScore: number | null = body.readiness_percentage !== undefined ? parseFloat(body.readiness_percentage) : null;
+    let readinessScore: number | null = body.readiness_percentage !== undefined 
+      ? parseFloat(body.readiness_percentage) 
+      : body.readiness_score !== undefined 
+      ? parseFloat(body.readiness_score) 
+      : null;
     let ragStatus: string | null = body.rag_status ? String(body.rag_status).toUpperCase() : null;
-    let vcDecisionFocus: string | null = body.key_focus !== undefined ? String(body.key_focus) : null;
+    let vcDecisionFocus: string | null = body.key_focus !== undefined 
+      ? String(body.key_focus) 
+      : body.vc_focus_decision !== undefined 
+      ? String(body.vc_focus_decision) 
+      : null;
 
     // Save dynamic field values
     if (values && typeof values === "object") {
