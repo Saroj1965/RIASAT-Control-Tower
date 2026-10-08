@@ -103,23 +103,22 @@ async function runTests() {
   // ------------------------------------------------------------------
   // TEST 4: Semicon Head updates a workstream.
   // ------------------------------------------------------------------
-  let wsToUpdate = semiconViewData.items && semiconViewData.items.length > 0 ? semiconViewData.items[0] : null;
-  if (!wsToUpdate) {
-    const createWs = await fetch(`${BASE_URL}/api/workstreams`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Cookie: semiconCookie },
-      body: JSON.stringify({
-        department_id: 1,
-        category: "Infrastructure",
-        deliverable: "Cleanroom Facility Setup Initial",
-        status: "In Progress",
-        capex: "₹ 10.0 Cr",
-        revenue_pipeline: "₹ 20.0 Cr",
-      }),
-    });
-    const cwData = await createWs.json();
-    wsToUpdate = cwData.workstream;
-  }
+  // Create a dedicated test workstream to verify update and persistence while preserving authentic WS-01
+  const createWs = await fetch(`${BASE_URL}/api/workstreams`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: semiconCookie },
+    body: JSON.stringify({
+      department_id: 1,
+      category: "Infrastructure",
+      deliverable: "Temporary Acceptance Test Workstream",
+      status: "In Progress",
+      capex: "₹ 10.0 Cr",
+      revenue_pipeline: "₹ 20.0 Cr",
+    }),
+  });
+  const cwData = await createWs.json();
+  let wsToUpdate = cwData.workstream;
+
   const newDeliverableText = `Cleanroom Facility ISO-5/6 HVAC Commissioning (Verified ${Date.now()})`;
   const updateWsRes = await fetch(`${BASE_URL}/api/workstreams/${wsToUpdate.id}`, {
     method: "PUT",
@@ -147,7 +146,7 @@ async function runTests() {
   }
 
   // ------------------------------------------------------------------
-  // TEST 5: The update is stored in Neon PostgreSQL.
+  // TEST 5: The update is stored in PostgreSQL database.
   // ------------------------------------------------------------------
   console.log("\nTEST 5: The update is stored in PostgreSQL database...");
   const verifyDbRes = await fetch(`${BASE_URL}/api/departments/1`, {
@@ -161,6 +160,12 @@ async function runTests() {
   } else {
     console.error("[FAIL] TEST 5:", updatedItem);
   }
+
+  // Clean up temporary test workstream to preserve authentic records
+  await fetch(`${BASE_URL}/api/workstreams/${wsToUpdate.id}`, {
+    method: "DELETE",
+    headers: { Cookie: semiconCookie },
+  });
 
   // ------------------------------------------------------------------
   // TEST 6: Executive logs in.
