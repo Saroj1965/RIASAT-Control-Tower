@@ -3,7 +3,7 @@ import path from "path";
 import bcrypt from "bcryptjs";
 
 async function runMigration() {
-  const dataDir = path.resolve(process.cwd(), ".data/riasat_pg");
+  const dataDir = path.resolve(process.cwd(), ".data/riasat_db");
   console.log(`Running migration on database at: ${dataDir}`);
   const pg = new PGlite(dataDir);
   await pg.waitReady;
@@ -46,6 +46,7 @@ async function runMigration() {
 
     CREATE TABLE IF NOT EXISTS workstreams (
       id SERIAL PRIMARY KEY,
+      item_id TEXT,
       department_id INTEGER NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
       category TEXT NOT NULL,
       deliverable TEXT NOT NULL,
@@ -428,6 +429,53 @@ async function runMigration() {
     }
     console.log(`✓ Seeded ${spec.name} (${spec.fields.length} configurable fields).`);
   }
+
+  // Clear any existing workstreams and insert authentic milestones requested by leadership
+  await pg.query("DELETE FROM workstreams;");
+
+  // 1. Semicon Milestone (WS-01)
+  await pg.query(`
+    INSERT INTO workstreams (
+      item_id, department_id, category, deliverable, infrastructure_partnership,
+      target_date, status, capex, revenue_pipeline, owner,
+      risks_blockers, decision_action, updated_by
+    ) VALUES (
+      'WS-01', 1, 'Infrastructure', 'Cleanroom ISO-5/6 HVAC Commissioning & Certification',
+      'Cadence / Applied Materials clean air filtration', '2026-11-15', 'Delayed',
+      '₹ 14.5 Cr', '₹ 28.0 Cr', 'Semicon Head',
+      'HEPA filtration vendor delivery delayed by 2 weeks',
+      'VC approval requested for expedited air shipping waiver', 'Semicon Head'
+    );
+  `);
+  await pg.query(`
+    UPDATE department_overview
+    SET rag_status = 'AMBER', readiness_percentage = 20,
+        key_focus = 'VC approval requested for expedited air shipping waiver',
+        submission_status = 'SUBMITTED', last_updated = CURRENT_TIMESTAMP, updated_by = 'Semicon Head'
+    WHERE department_id = 1;
+  `);
+
+  // 2. Aerospace & Defence Milestone (WS-01)
+  await pg.query(`
+    INSERT INTO workstreams (
+      item_id, department_id, category, deliverable, infrastructure_partnership,
+      target_date, status, capex, revenue_pipeline, owner,
+      risks_blockers, decision_action, updated_by
+    ) VALUES (
+      'WS-01', 2, 'Infrastructure', 'Avionics Hardware-in-the-Loop (HIL) Flight Simulator Lab',
+      'HAL Avionics Division / National Instruments', '2026-11-20', 'On Track',
+      '₹ 8.5 Cr', '₹ 18.0 Cr', 'Aerospace & Defence Head',
+      'Component customs clearance pending at Bengaluru airport',
+      'Duty exemption certificate submitted for VC signature', 'Aerospace & Defence Head'
+    );
+  `);
+  await pg.query(`
+    UPDATE department_overview
+    SET rag_status = 'GREEN', readiness_percentage = 25,
+        key_focus = 'Duty exemption certificate submitted for VC signature',
+        submission_status = 'SUBMITTED', last_updated = CURRENT_TIMESTAMP, updated_by = 'Aerospace & Defence Head'
+    WHERE department_id = 2;
+  `);
 
   // 3. Verification
   const totalSecs = await pg.query("SELECT COUNT(*) as cnt FROM form_sections");

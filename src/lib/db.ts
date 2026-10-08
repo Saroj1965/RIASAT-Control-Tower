@@ -56,7 +56,7 @@ async function getClient() {
   }
 
   // Local Embedded PostgreSQL (PGlite) for instant setup and local development
-  const dataDir = path.join(process.cwd(), ".data", "riasat_pg");
+  const dataDir = path.join(process.cwd(), ".data", "riasat_db");
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
