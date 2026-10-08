@@ -543,7 +543,29 @@ async function runMigration() {
     WHERE department_id = 5;
   `);
 
-  // 6. Verification
+  // 6. Advanced Manufacturing Milestone (WS-01)
+  await pg.query(`
+    INSERT INTO workstreams (
+      item_id, department_id, category, deliverable, infrastructure_partnership,
+      target_date, status, capex, revenue_pipeline, owner,
+      risks_blockers, decision_action, updated_by
+    ) VALUES (
+      'WS-01', 6, 'Equipment & Tooling', 'Direct Metal Laser Sintering (DMLS) 3D Printing Lab',
+      'EOS GmbH / Renishaw Metrology', '2026-10-18', 'On Track',
+      '₹ 11.0 Cr', '₹ 32.0 Cr', 'Advanced Manufacturing Head',
+      'Argon gas delivery pipeline manifold installation',
+      'None', 'Advanced Manufacturing Head'
+    );
+  `);
+  await pg.query(`
+    UPDATE department_overview
+    SET rag_status = 'GREEN', readiness_percentage = 30,
+        key_focus = 'None',
+        submission_status = 'SUBMITTED', last_updated = CURRENT_TIMESTAMP, updated_by = 'Advanced Manufacturing Head'
+    WHERE department_id = 6;
+  `);
+
+  // 7. Verification
   const totalSecs = await pg.query("SELECT COUNT(*) as cnt FROM form_sections");
   const totalFields = await pg.query("SELECT COUNT(*) as cnt FROM form_fields");
   const totalVals = await pg.query("SELECT COUNT(*) as cnt FROM department_form_values");
