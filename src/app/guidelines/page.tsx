@@ -307,6 +307,132 @@ export default function PublicGuidelinesPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Real-World Department Row Templates */}
+          <div className="pt-4 border-t border-slate-100 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                Official Milestone Templates Across Strategic Verticals
+              </h3>
+              <span className="text-[11px] font-semibold text-indigo-600">
+                7 Real-World Reference Rows
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              {/* Semicon */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-indigo-700">1. Semicon (SEM-WS-01)</span>
+                  <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-bold border border-amber-200 text-[10px]">Delayed</span>
+                </div>
+                <div className="text-slate-800 font-semibold">Cleanroom ISO-5/6 HVAC Commissioning & Certification</div>
+                <div className="text-[11px] text-slate-500">Partner: Cadence / Applied Materials clean air filtration</div>
+                <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200">
+                  <span>Capex: <strong>₹ 14.5 Cr</strong> | Rev: <strong>₹ 28.0 Cr</strong></span>
+                  <span className="text-slate-500">Date: 2026-11-15</span>
+                </div>
+                <div className="text-[11px] text-rose-700 font-medium">Risk: HEPA filtration vendor delivery delayed by 2 weeks</div>
+                <div className="text-[11px] text-indigo-800 font-semibold">VC Action: VC approval requested for expedited air shipping waiver</div>
+              </div>
+
+              {/* Aerospace & Defence */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-indigo-700">2. Aerospace & Defence (AERO-WS-01)</span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 text-[10px]">On Track</span>
+                </div>
+                <div className="text-slate-800 font-semibold">Avionics Hardware-in-the-Loop (HIL) Flight Simulator Lab</div>
+                <div className="text-[11px] text-slate-500">Partner: HAL Avionics Division / National Instruments</div>
+                <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200">
+                  <span>Capex: <strong>₹ 8.5 Cr</strong> | Rev: <strong>₹ 18.0 Cr</strong></span>
+                  <span className="text-slate-500">Date: 2026-11-20</span>
+                </div>
+                <div className="text-[11px] text-slate-600">Risk: Component customs clearance pending at Bengaluru airport</div>
+                <div className="text-[11px] text-indigo-800 font-semibold">VC Action: Duty exemption certificate submitted for VC signature</div>
+              </div>
+
+              {/* Space */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-indigo-700">3. Space (SPC-WS-01)</span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 text-[10px]">On Track</span>
+                </div>
+                <div className="text-slate-800 font-semibold">Ground Station & CubeSat Telemetry Dish Installation</div>
+                <div className="text-[11px] text-slate-500">Partner: ISRO IN-SPACe / Dhruva Space</div>
+                <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200">
+                  <span>Capex: <strong>₹ 6.0 Cr</strong> | Rev: <strong>₹ 12.0 Cr</strong></span>
+                  <span className="text-slate-500">Date: 2026-11-10</span>
+                </div>
+                <div className="text-[11px] text-slate-600">Risk: Rooftop civil reinforcement load-bearing audit complete</div>
+                <div className="text-[11px] text-indigo-800 font-semibold">VC Action: VC signature required on IN-SPACe Master Authorization</div>
+              </div>
+
+              {/* Cybersecurity */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-indigo-700">4. Cybersecurity (CYB-WS-01)</span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 text-[10px]">On Track</span>
+                </div>
+                <div className="text-slate-800 font-semibold">Enterprise Simulation Cyber Range (100 Student Seats)</div>
+                <div className="text-[11px] text-slate-500">Partner: Fortinet / Palo Alto Networks / Dell Server Stack</div>
+                <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200">
+                  <span>Capex: <strong>₹ 5.2 Cr</strong> | Rev: <strong>₹ 25.0 Cr</strong></span>
+                  <span className="text-slate-500">Date: 2026-10-30</span>
+                </div>
+                <div className="text-[11px] text-slate-600">Risk: Dedicated 10 Gbps ISP fiber pipe required for attack simulation</div>
+                <div className="text-[11px] text-indigo-800 font-semibold">VC Action: VC approval required for annual leased line ISP contract</div>
+              </div>
+
+              {/* MedTech */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-indigo-700">5. MedTech (MED-WS-01)</span>
+                  <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-bold border border-amber-200 text-[10px]">Delayed</span>
+                </div>
+                <div className="text-slate-800 font-semibold">Hospital Bio-Telemetry & Patient Simulator Facility</div>
+                <div className="text-[11px] text-slate-500">Partner: Ramaiah Medical College & Hospital Simulation Ward</div>
+                <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200">
+                  <span>Capex: <strong>₹ 9.0 Cr</strong> | Rev: <strong>₹ 19.0 Cr</strong></span>
+                  <span className="text-slate-500">Date: 2026-10-28</span>
+                </div>
+                <div className="text-[11px] text-rose-700 font-medium">Risk: Hospital ward plumbing and medical gas line retrofit delayed</div>
+                <div className="text-[11px] text-indigo-800 font-semibold">VC Action: VC liaison requested with Medical Director for work order sign-off</div>
+              </div>
+
+              {/* Advanced Manufacturing */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-indigo-700">6. Advanced Manufacturing (MFG-WS-01)</span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 text-[10px]">On Track</span>
+                </div>
+                <div className="text-slate-800 font-semibold">Direct Metal Laser Sintering (DMLS) 3D Printing Lab</div>
+                <div className="text-[11px] text-slate-500">Partner: EOS GmbH / Renishaw Metrology</div>
+                <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200">
+                  <span>Capex: <strong>₹ 11.0 Cr</strong> | Rev: <strong>₹ 32.0 Cr</strong></span>
+                  <span className="text-slate-500">Date: 2026-10-18</span>
+                </div>
+                <div className="text-[11px] text-slate-600">Risk: Argon gas delivery pipeline manifold installation</div>
+                <div className="text-[11px] text-slate-500 font-semibold">VC Action: None</div>
+              </div>
+
+              {/* Communications */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 md:col-span-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-indigo-700">8. Communications (COMM-WS-01)</span>
+                  <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-200 text-[10px]">In Progress</span>
+                </div>
+                <div className="text-slate-800 font-semibold">National Advanced Skills Summit & Industry Round Table</div>
+                <div className="text-[11px] text-slate-500">Partner: CII / FICCI / IESA Industry Alliances</div>
+                <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200">
+                  <span>Capex: <strong>₹ 1.5 Cr</strong> | Rev: <strong>₹ 5.0 Cr</strong></span>
+                  <span className="text-slate-500">Date: 2026-11-28</span>
+                </div>
+                <div className="text-[11px] text-slate-600">Risk: Keynote confirmations pending from 4 semiconductor CEOs</div>
+                <div className="text-[11px] text-indigo-800 font-semibold">VC Action: VC invitation letter dispatch to 20 Chief Executive Officers</div>
+              </div>
+            </div>
+          </div>
         </section>
 
         {/* SECTION 3: VERTICAL-BY-VERTICAL CONFIGURABLE HEADINGS */}
