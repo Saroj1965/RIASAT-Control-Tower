@@ -35,6 +35,7 @@ export async function PUT(req: Request, { params }: Params) {
 
     const body = await req.json();
     const {
+      item_id,
       category,
       deliverable,
       infrastructure_partnership,
@@ -49,21 +50,23 @@ export async function PUT(req: Request, { params }: Params) {
 
     const updatedRes = await query(
       `UPDATE workstreams SET
-        category = COALESCE($1, category),
-        deliverable = COALESCE($2, deliverable),
-        infrastructure_partnership = COALESCE($3, infrastructure_partnership),
-        target_date = COALESCE($4, target_date),
-        status = COALESCE($5, status),
-        capex = COALESCE($6, capex),
-        revenue_pipeline = COALESCE($7, revenue_pipeline),
-        owner = COALESCE($8, owner),
-        risks_blockers = COALESCE($9, risks_blockers),
-        decision_action = COALESCE($10, decision_action),
+        item_id = COALESCE($1, item_id),
+        category = COALESCE($2, category),
+        deliverable = COALESCE($3, deliverable),
+        infrastructure_partnership = COALESCE($4, infrastructure_partnership),
+        target_date = COALESCE($5, target_date),
+        status = COALESCE($6, status),
+        capex = COALESCE($7, capex),
+        revenue_pipeline = COALESCE($8, revenue_pipeline),
+        owner = COALESCE($9, owner),
+        risks_blockers = COALESCE($10, risks_blockers),
+        decision_action = COALESCE($11, decision_action),
         updated_at = CURRENT_TIMESTAMP,
-        updated_by = $11
-      WHERE id = $12
+        updated_by = $12
+      WHERE id = $13
       RETURNING *`,
       [
+        item_id !== undefined ? (item_id || null) : null,
         category,
         deliverable,
         infrastructure_partnership,

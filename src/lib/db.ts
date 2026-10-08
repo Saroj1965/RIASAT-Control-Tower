@@ -134,6 +134,7 @@ export async function ensureDbInitialized() {
   await client.query(`
     CREATE TABLE IF NOT EXISTS workstreams (
       id SERIAL PRIMARY KEY,
+      item_id TEXT,
       department_id INTEGER NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
       category TEXT NOT NULL,
       deliverable TEXT NOT NULL,
@@ -149,6 +150,10 @@ export async function ensureDbInitialized() {
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       updated_by TEXT
     );
+  `);
+
+  await client.query(`
+    ALTER TABLE workstreams ADD COLUMN IF NOT EXISTS item_id TEXT;
   `);
 
   await client.query(`

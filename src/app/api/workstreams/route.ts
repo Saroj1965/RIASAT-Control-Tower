@@ -11,6 +11,7 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const {
+      item_id,
       department_id,
       category,
       deliverable,
@@ -41,15 +42,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Category and Deliverable/Milestone are required" }, { status: 400 });
     }
 
+    // Auto-generate Item_ID if not supplied
+    let finalItemId = (item_id || "").trim();
+    if (!finalItemId) {
+      const countRes = await query("SELECT COUNT(*) as count FROM workstreams WHERE department_id = $1", [deptId]);
+      const currentCount = parseInt(countRes.rows[0]?.count || "0", 10);
+      finalItemId = `WS-${String(currentCount + 1).padStart(2, "0")}`;
+    }
+
     // Insert workstream
     const insertRes = await query(
       `INSERT INTO workstreams (
-        department_id, category, deliverable, infrastructure_partnership, 
+        item_id, department_id, category, deliverable, infrastructure_partnership, 
         target_date, status, capex, revenue_pipeline, owner, 
         risks_blockers, decision_action, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *`,
       [
+        finalItemId,
         deptId,
         category.trim(),
         deliverable.trim(),

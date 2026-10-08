@@ -61,11 +61,13 @@ export default function DepartmentPage() {
   const [recVcFilter, setRecVcFilter] = useState<string>("ALL");
   const [recSearch, setRecSearch] = useState<string>("");
 
-  // Modal state for Workstream (Technical / Comm)
+  // Modal & inline state for Workstream (Technical / Comm)
   const [showWsModal, setShowWsModal] = useState(false);
+  const [showInlineWsForm, setShowInlineWsForm] = useState(true);
   const [editingWs, setEditingWs] = useState<any>(null);
   const [wsForm, setWsForm] = useState({
-    category: "",
+    item_id: "WS-01",
+    category: "Infrastructure",
     deliverable: "",
     infrastructure_partnership: "",
     target_date: "",
@@ -194,7 +196,9 @@ export default function DepartmentPage() {
   // Open modal for new Workstream
   const openNewWsModal = () => {
     setEditingWs(null);
+    const nextIdx = (items?.length || 0) + 1;
     setWsForm({
+      item_id: `WS-${String(nextIdx).padStart(2, "0")}`,
       category: "Infrastructure",
       deliverable: "",
       infrastructure_partnership: "",
@@ -202,7 +206,7 @@ export default function DepartmentPage() {
       status: "In Progress",
       capex: "",
       revenue_pipeline: "",
-      owner: "",
+      owner: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
       risks_blockers: "",
       decision_action: "",
     });
@@ -213,7 +217,8 @@ export default function DepartmentPage() {
   const openEditWsModal = (ws: any) => {
     setEditingWs(ws);
     setWsForm({
-      category: ws.category || "",
+      item_id: ws.item_id || `WS-${String(ws.id).padStart(2, "0")}`,
+      category: ws.category || "Infrastructure",
       deliverable: ws.deliverable || "",
       infrastructure_partnership: ws.infrastructure_partnership || "",
       target_date: ws.target_date || "",
@@ -228,8 +233,8 @@ export default function DepartmentPage() {
   };
 
   // Save Workstream (Create or Update)
-  const handleSaveWorkstream = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveWorkstream = async (e?: React.FormEvent) => {
+    if (e && e.preventDefault) e.preventDefault();
     setError(null);
 
     try {
@@ -249,6 +254,24 @@ export default function DepartmentPage() {
       if (!res.ok) throw new Error(data.error || "Failed to save workstream");
 
       setShowWsModal(false);
+      setEditingWs(null);
+
+      // Prepare wsForm for the next entry
+      const nextIdx = (items?.length || 0) + 2;
+      setWsForm({
+        item_id: `WS-${String(nextIdx).padStart(2, "0")}`,
+        category: "Infrastructure",
+        deliverable: "",
+        infrastructure_partnership: "",
+        target_date: new Date().toISOString().split("T")[0],
+        status: "In Progress",
+        capex: "",
+        revenue_pipeline: "",
+        owner: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
+        risks_blockers: "",
+        decision_action: "",
+      });
+
       setSuccessMsg(editingWs ? "Workstream updated successfully!" : "New workstream added successfully!");
       setTimeout(() => setSuccessMsg(null), 4000);
       fetchDepartment();
@@ -902,15 +925,244 @@ export default function DepartmentPage() {
             </p>
           </div>
           {canEdit && (
-            <button
-              onClick={isHR ? openNewRecModal : openNewWsModal}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg transition"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>{isHR ? "+ ADD POSITION" : "+ ADD WORKSTREAM"}</span>
-            </button>
+            <div className="flex items-center gap-2">
+              {!isHR && (
+                <button
+                  type="button"
+                  onClick={() => setShowInlineWsForm(!showInlineWsForm)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg transition"
+                >
+                  <span>{showInlineWsForm ? "Hide Data-Entry Form" : "Show Data-Entry Form"}</span>
+                </button>
+              )}
+              <button
+                onClick={isHR ? openNewRecModal : openNewWsModal}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg transition"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>{isHR ? "+ ADD POSITION" : "+ ADD WORKSTREAM (MODAL)"}</span>
+              </button>
+            </div>
           )}
         </div>
+
+        {/* ========================================================================= */}
+        {/* INLINE WORKSTREAM DATA ENTRY FORM (ALL 11 OFFICIAL HEADINGS) */}
+        {/* ========================================================================= */}
+        {!isHR && canEdit && showInlineWsForm && (
+          <div className="mx-6 p-5 bg-gradient-to-r from-slate-50 via-indigo-50/20 to-slate-50 rounded-2xl border border-indigo-100 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                  WORKSTREAM DATA-ENTRY FORM
+                </h3>
+                <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-md">
+                  11 Standard Headings
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-500 italic">
+                Enter milestone details below to add directly to {dept.name}
+              </span>
+            </div>
+
+            <form onSubmit={handleSaveWorkstream} className="space-y-3.5 text-xs">
+              {/* Row 1: Item_ID, Workstream_Category, Status and Actions */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Item_ID
+                  </label>
+                  <input
+                    type="text"
+                    value={wsForm.item_id}
+                    onChange={(e) => setWsForm({ ...wsForm, item_id: e.target.value })}
+                    required
+                    placeholder="e.g. WS-01"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-mono font-bold text-indigo-700 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Workstream_Category
+                  </label>
+                  <input
+                    type="text"
+                    value={wsForm.category}
+                    onChange={(e) => setWsForm({ ...wsForm, category: e.target.value })}
+                    required
+                    placeholder="e.g. Infrastructure, Curriculum, Lab"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Status and Actions
+                  </label>
+                  <select
+                    value={wsForm.status}
+                    onChange={(e) => setWsForm({ ...wsForm, status: e.target.value })}
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  >
+                    {WORKSTREAM_STATUSES.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 2: Deliverable_Milestone */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Deliverable_Milestone
+                </label>
+                <input
+                  type="text"
+                  value={wsForm.deliverable}
+                  onChange={(e) => setWsForm({ ...wsForm, deliverable: e.target.value })}
+                  required
+                  placeholder="e.g. Cleanroom ISO-5/6 HVAC Commissioning & Certification"
+                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                />
+              </div>
+
+              {/* Row 3: Key_Assets_Partnerships_Infrastructure, Target_Date */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Key_Assets_Partnerships_Infrastructure
+                  </label>
+                  <input
+                    type="text"
+                    value={wsForm.infrastructure_partnership}
+                    onChange={(e) => setWsForm({ ...wsForm, infrastructure_partnership: e.target.value })}
+                    placeholder="e.g. Cadence / Applied Materials clean air filtration"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Target_Date
+                  </label>
+                  <input
+                    type="date"
+                    value={wsForm.target_date}
+                    onChange={(e) => setWsForm({ ...wsForm, target_date: e.target.value })}
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Row 4: Capex_Budget_Cr, Revenue_Pipeline_Cr, Lead_Owner */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Capex_Budget_Cr
+                  </label>
+                  <input
+                    type="text"
+                    value={wsForm.capex}
+                    onChange={(e) => setWsForm({ ...wsForm, capex: e.target.value })}
+                    placeholder="e.g. ₹ 14.5 Cr"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 font-semibold focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Revenue_Pipeline_Cr
+                  </label>
+                  <input
+                    type="text"
+                    value={wsForm.revenue_pipeline}
+                    onChange={(e) => setWsForm({ ...wsForm, revenue_pipeline: e.target.value })}
+                    placeholder="e.g. ₹ 28.0 Cr"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 font-semibold focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Lead_Owner
+                  </label>
+                  <input
+                    type="text"
+                    value={wsForm.owner}
+                    onChange={(e) => setWsForm({ ...wsForm, owner: e.target.value })}
+                    placeholder="e.g. Semicon Head"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Row 5: Risks_Operational_Blockers */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Risks_Operational_Blockers
+                </label>
+                <input
+                  type="text"
+                  value={wsForm.risks_blockers}
+                  onChange={(e) => setWsForm({ ...wsForm, risks_blockers: e.target.value })}
+                  placeholder="e.g. HEPA filtration vendor delivery delayed by 2 weeks"
+                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                />
+              </div>
+
+              {/* Row 6: Vice_Chairman_Decision_Action */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Vice_Chairman_Decision_Action
+                </label>
+                <input
+                  type="text"
+                  value={wsForm.decision_action}
+                  onChange={(e) => setWsForm({ ...wsForm, decision_action: e.target.value })}
+                  placeholder="e.g. VC approval requested for expedited air shipping waiver"
+                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextIdx = (items?.length || 0) + 1;
+                    setWsForm({
+                      item_id: `WS-${String(nextIdx).padStart(2, "0")}`,
+                      category: "Infrastructure",
+                      deliverable: "",
+                      infrastructure_partnership: "",
+                      target_date: new Date().toISOString().split("T")[0],
+                      status: "In Progress",
+                      capex: "",
+                      revenue_pipeline: "",
+                      owner: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
+                      risks_blockers: "",
+                      decision_action: "",
+                    });
+                  }}
+                  className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-semibold rounded-xl hover:bg-white/80 border border-transparent hover:border-slate-300 transition"
+                >
+                  Clear Form
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-sm transition"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Workstream to Table</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* FILTER BUTTONS CONTROLS */}
         {!isHR ? (
@@ -1085,20 +1337,20 @@ export default function DepartmentPage() {
         {!isHR ? (
           <div className="overflow-x-auto border-t border-slate-200">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-100/70 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200 whitespace-nowrap">
+              <thead className="bg-[#0b1329] text-white uppercase text-[11px] font-bold tracking-wider border-b border-slate-800 whitespace-nowrap">
                 <tr>
-                  <th className="px-3 py-3">Item_ID</th>
-                  <th className="px-4 py-3">Workstream_Category</th>
-                  <th className="px-4 py-3">Deliverable_Milestone</th>
-                  <th className="px-4 py-3">Key_Assets_Partnerships_Infrastructure</th>
-                  <th className="px-4 py-3">Target_Date</th>
-                  <th className="px-4 py-3">Status and Actions</th>
-                  <th className="px-4 py-3">Capex_Budget_Cr</th>
-                  <th className="px-4 py-3">Revenue_Pipeline_Cr</th>
-                  <th className="px-4 py-3">Lead_Owner</th>
-                  <th className="px-4 py-3">Risks_Operational_Blockers</th>
-                  <th className="px-4 py-3">Vice_Chairman_Decision_Action</th>
-                  {canEdit && <th className="px-4 py-3 text-right">Actions</th>}
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Item_ID</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Workstream_Category</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Deliverable_Milestone</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Key_Assets_Partnerships_Infrastructure</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Target_Date</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Status and Actions</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Capex_Budget_Cr</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Revenue_Pipeline_Cr</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Lead_Owner</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Risks_Operational_Blockers</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Vice_Chairman_Decision_Action</th>
+                  {canEdit && <th className="px-4 py-3.5 text-right font-bold tracking-wider text-slate-100">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -1111,10 +1363,10 @@ export default function DepartmentPage() {
                 ) : (
                   filteredWorkstreams.map((ws: any) => (
                     <tr key={ws.id} className="hover:bg-slate-50/80 transition">
-                      <td className="px-3 py-3 font-mono font-bold text-indigo-700 whitespace-nowrap">
-                        WS-{String(ws.id).padStart(2, "0")}
+                      <td className="px-4 py-3.5 font-mono font-bold text-indigo-700 whitespace-nowrap">
+                        {ws.item_id || `WS-${String(ws.id).padStart(2, "0")}`}
                       </td>
-                      <td className="px-4 py-3 font-semibold text-slate-900 whitespace-nowrap">
+                      <td className="px-4 py-3.5 font-semibold text-slate-900 whitespace-nowrap">
                         {ws.category}
                       </td>
                       <td className="px-4 py-3 font-medium text-slate-800 min-w-[200px]">
@@ -1321,7 +1573,19 @@ export default function DepartmentPage() {
             </p>
 
             <form onSubmit={handleSaveWorkstream} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Item_ID</label>
+                  <input
+                    type="text"
+                    value={wsForm.item_id}
+                    onChange={(e) => setWsForm({ ...wsForm, item_id: e.target.value })}
+                    required
+                    placeholder="e.g. WS-01"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-mono font-bold text-indigo-700 focus:ring-2 focus:ring-indigo-600"
+                  />
+                </div>
+
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Workstream_Category</label>
                   <input
