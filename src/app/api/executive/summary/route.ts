@@ -1,12 +1,20 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { ROLES } from "@/lib/constants";
 
 export async function GET() {
   try {
     const user = await getSessionUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (user.role === ROLES.DEPARTMENT_HEAD || user.role === "Department Head") {
+      return NextResponse.json(
+        { error: "Forbidden: Department Heads do not have access to the Executive Tower." },
+        { status: 403 }
+      );
     }
 
     // 1. Fetch all departments and their current overview
@@ -97,7 +105,8 @@ export async function GET() {
       totalGlobalCapex += c;
       totalGlobalRevenue += r;
 
-      const isVcReq = ws.vc_decision_required === "Yes" || (ws.decision_action && ws.decision_action.trim().length > 0 && ws.decision_action.trim() !== "None");
+      const isVcReq = ws.vc_decision_required === "Yes" || 
+        (!ws.vc_decision_required && ws.decision_action && ws.decision_action.trim().length > 0 && ws.decision_action.trim() !== "None");
       if (isVcReq && st !== "Completed") {
         deptStatsMap[dId].pending_vc++;
       }

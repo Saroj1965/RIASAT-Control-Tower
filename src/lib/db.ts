@@ -336,6 +336,7 @@ export async function ensureDbInitialized() {
     { deptId: 6, readiness: 0, rag: "NOT STARTED", focus: "", by: null },
     { deptId: 7, readiness: 0, rag: "NOT STARTED", focus: "", by: null },
     { deptId: 8, readiness: 0, rag: "NOT STARTED", focus: "", by: null },
+    { deptId: 9, readiness: 0, rag: "NOT STARTED", focus: "", by: null },
   ];
 
   for (const ov of defaultOverviews) {
@@ -362,6 +363,7 @@ export async function ensureDbInitialized() {
     { name: "Advanced Manufacturing Head", email: "mfg.head@riasat.ac.in", pass: "Mfg@123", role: ROLES.DEPARTMENT_HEAD, deptId: 6, desig: "Head - Advanced Manufacturing", mobile: "" },
     { name: "HR & Recruitment Head", email: "hr.head@riasat.ac.in", pass: "Hr@123", role: ROLES.DEPARTMENT_HEAD, deptId: 7, desig: "Head - HR & Recruitment", mobile: "" },
     { name: "Communications Head", email: "comm.head@riasat.ac.in", pass: "Comm@123", role: ROLES.DEPARTMENT_HEAD, deptId: 8, desig: "Head - Communications", mobile: "" },
+    { name: "Strategy & Operations Head", email: "ops.head@riasat.ac.in", pass: "Ops@123", role: ROLES.DEPARTMENT_HEAD, deptId: 9, desig: "Head - Strategy & Operations", mobile: "" },
   ];
 
   for (const u of defaultUsers) {

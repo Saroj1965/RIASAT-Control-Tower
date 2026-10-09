@@ -49,7 +49,7 @@ export default function SidebarNav({ user }: { user: SessionUser }) {
   ) {
     navItems = [
       { label: "Executive Tower", href: "/executive", icon: LayoutDashboard },
-      { label: "All 8 Verticals", href: "/executive#departments", icon: Building2 },
+      { label: "All 9 Verticals", href: "/executive#departments", icon: Building2 },
       { label: "Decisions Required", href: "/executive#decisions", icon: Shield },
       { label: "User Management", href: "/admin", icon: Users },
       { label: "Reports & Audit", href: "/reports", icon: FileText },

@@ -55,7 +55,14 @@ export async function POST(req: Request) {
     const finalStatus = (status || "In Progress").trim();
     const finalRag = (rag_status || (["Delayed", "Blocked"].includes(finalStatus) ? "AMBER" : "GREEN")).trim().toUpperCase();
     const finalRemarks = (remarks || decision_action || risks_blockers || "").trim();
-    const finalVcReq = (vc_decision_required === "Yes" || vc_decision_required === true || (finalRemarks && finalRemarks.toLowerCase().includes("vc"))) ? "Yes" : "No";
+    let finalVcReq = "No";
+    if (vc_decision_required === "Yes" || vc_decision_required === true) {
+      finalVcReq = "Yes";
+    } else if (vc_decision_required === "No" || vc_decision_required === false) {
+      finalVcReq = "No";
+    } else if (finalRemarks && (finalRemarks.toLowerCase().includes("vc approval") || finalRemarks.toLowerCase().includes("vice chairman"))) {
+      finalVcReq = "Yes";
+    }
 
     // Auto-generate Item_ID if not supplied
     let finalItemId = (item_id || "").trim();

@@ -62,9 +62,10 @@ export async function POST(req: Request) {
 
     // Determine redirect destination
     let redirectUrl = "/executive";
-    if (user.role === ROLES.ADMIN || user.role === "Admin" || user.role === "System Administrator") {
-      redirectUrl = "/admin";
-    } else if (
+    if (
+      user.role === ROLES.ADMIN ||
+      user.role === "Admin" ||
+      user.role === "System Administrator" ||
       user.role === ROLES.VICE_CHAIRMAN ||
       user.role === "Vice Chairman" ||
       user.role === "Chairman" ||
@@ -72,7 +73,7 @@ export async function POST(req: Request) {
       user.role === "Executive"
     ) {
       redirectUrl = "/executive";
-    } else if (user.role === ROLES.DEPARTMENT_HEAD) {
+    } else if (user.role === ROLES.DEPARTMENT_HEAD || user.role === "Department Head") {
       redirectUrl = user.department_id ? `/department/${user.department_id}` : "/executive";
     }
 

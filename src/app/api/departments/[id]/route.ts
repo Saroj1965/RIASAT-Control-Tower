@@ -142,3 +142,39 @@ export async function PUT(req: Request, { params }: Params) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
+export async function DELETE(req: Request, { params }: Params) {
+  try {
+    const user = await getSessionUser();
+    if (!user || !hasFullAccess(user)) {
+      return NextResponse.json(
+        { error: "Access Denied: Vice Chairman or Admin required to delete departments." },
+        { status: 403 }
+      );
+    }
+
+    const deptId = parseInt(params.id, 10);
+    if (isNaN(deptId)) {
+      return NextResponse.json({ error: "Invalid department ID" }, { status: 400 });
+    }
+
+    if (deptId <= 9) {
+      return NextResponse.json(
+        { error: "Core RIASAT strategic verticals cannot be deleted." },
+        { status: 400 }
+      );
+    }
+
+    await query("DELETE FROM workstreams WHERE department_id = $1", [deptId]);
+    await query("DELETE FROM department_overview WHERE department_id = $1", [deptId]);
+    await query("DELETE FROM department_form_values WHERE department_id = $1", [deptId]);
+    await query("DELETE FROM form_fields WHERE department_id = $1", [deptId]);
+    await query("DELETE FROM form_sections WHERE department_id = $1", [deptId]);
+    await query("DELETE FROM departments WHERE id = $1", [deptId]);
+
+    return NextResponse.json({ success: true, message: `Department ${deptId} deleted successfully.` });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+

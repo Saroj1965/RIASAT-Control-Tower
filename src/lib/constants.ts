@@ -7,6 +7,7 @@ export const DEPARTMENTS = [
   { id: 6, name: "Advanced Manufacturing", code: "ADV_MFG", type: "technical" },
   { id: 7, name: "HR & Recruitment", code: "HR_REC", type: "recruitment" },
   { id: 8, name: "Communications", code: "COMM", type: "technical" },
+  { id: 9, name: "Strategy & Operations", code: "STRATEGY_OPS", type: "technical" },
 ] as const;
 
 export const ROLES = {

@@ -79,6 +79,7 @@ export default function ExecutiveControlTowerPage() {
   const [graphsData, setGraphsData] = useState<any>(null);
   const [attentionList, setAttentionList] = useState<AttentionItem[]>([]);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [error, setError] = useState<string | null>(null);
 
   // FILTER BUTTON STATES FOR VERTICAL CARDS
   const [ragFilter, setRagFilter] = useState<string>("ALL");
@@ -93,16 +94,21 @@ export default function ExecutiveControlTowerPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      setError(null);
       const res = await fetch("/api/executive/summary");
-      if (!res.ok) throw new Error("Failed to load executive summary");
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `Failed to load executive summary (HTTP ${res.status})`);
+      }
       const data = await res.json();
       setSummary(data.summary);
       setDepartments(data.departments);
       setGraphsData(data.graphs);
       setAttentionList(data.management_attention);
       setLastRefreshed(new Date());
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching summary:", err);
+      setError(err.message || "Failed to load executive summary");
     } finally {
       setLoading(false);
     }
@@ -213,7 +219,7 @@ export default function ExecutiveControlTowerPage() {
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Real-time management oversight across all 8 strategic segments • Single Source of Truth
+            Real-time management oversight across all 9 strategic verticals • Single Source of Truth
           </p>
         </div>
 
@@ -232,6 +238,27 @@ export default function ExecutiveControlTowerPage() {
           </button>
         </div>
       </div>
+
+      {/* ERROR BANNER */}
+      {error && (
+        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-3 shadow-xs">
+          <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+          <div className="text-xs">
+            <p className="font-bold text-rose-900">{error}</p>
+            <p className="text-slate-600 mt-1">
+              If you are logged in as a Department Head, please use the sidebar to open your specific department tracker.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* LOADING STATE */}
+      {loading && !summary && (
+        <div className="p-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 shadow-xs">
+          <RefreshCw className="w-8 h-8 animate-spin mx-auto text-indigo-600 mb-2" />
+          <p className="text-xs font-semibold text-slate-600">Loading live Executive Control Tower data...</p>
+        </div>
+      )}
 
       {/* KPI CARDS (6 HIGH LEVEL TILES) */}
       {summary && (
@@ -331,11 +358,11 @@ export default function ExecutiveControlTowerPage() {
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-indigo-600" />
               <h2 className="text-base font-bold text-slate-900 tracking-tight">
-                8 Strategic Verticals Overview
+                9 Strategic Verticals Overview
               </h2>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Showing {filteredDepartments.length} of {departments.length} departments
+              Showing {filteredDepartments.length} of {departments.length} verticals
             </p>
           </div>
 
@@ -486,25 +513,27 @@ export default function ExecutiveControlTowerPage() {
                   </div>
                 </div>
 
-                {/* Key Metrics: Capex, Pipeline, Deliverables */}
+                {/* Key Metrics: Open Actions, Delayed/Red, VC Decisions Required, Workstreams */}
                 <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <span className="text-[10px] text-slate-400 font-semibold block">CAPEX OUTLAY</span>
-                    <span className="font-bold text-indigo-700">₹ {dept.capex} Cr</span>
+                    <span className="text-[10px] text-slate-400 font-semibold block uppercase">Open Actions</span>
+                    <span className="font-bold text-indigo-700">{dept.open_items} Open</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-semibold block">REVENUE PIPELINE</span>
-                    <span className="font-bold text-emerald-700">₹ {dept.revenue} Cr</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-semibold block">DELIVERABLES</span>
-                    <span className="font-bold text-slate-800">{dept.total_items} Workstreams</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-semibold block">CRITICAL ISSUES</span>
+                    <span className="text-[10px] text-slate-400 font-semibold block uppercase">Delayed / Red</span>
                     <span className={`font-bold ${dept.critical_issues > 0 ? "text-rose-600" : "text-slate-600"}`}>
                       {dept.critical_issues} Items
                     </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-semibold block uppercase">VC Decisions</span>
+                    <span className={`font-black ${dept.pending_vc > 0 ? "text-rose-600" : "text-slate-600"}`}>
+                      {dept.pending_vc > 0 ? `⚠️ ${dept.pending_vc} Required` : "None"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-semibold block uppercase">Workstreams</span>
+                    <span className="font-bold text-slate-800">{dept.total_items} Total</span>
                   </div>
                 </div>
 
