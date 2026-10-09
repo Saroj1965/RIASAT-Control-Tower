@@ -52,7 +52,8 @@ export default function DepartmentPage() {
 
   // Workstream Filter states
   const [wsStatusFilter, setWsStatusFilter] = useState<string>("ALL");
-  const [wsCategoryFilter, setWsCategoryFilter] = useState<string>("ALL");
+  const [wsRagFilter, setWsRagFilter] = useState<string>("ALL");
+  const [wsVcFilter, setWsVcFilter] = useState<string>("ALL");
   const [wsSearch, setWsSearch] = useState<string>("");
 
   // Recruitment Filter states (HR)
@@ -61,22 +62,18 @@ export default function DepartmentPage() {
   const [recVcFilter, setRecVcFilter] = useState<string>("ALL");
   const [recSearch, setRecSearch] = useState<string>("");
 
-  // Modal & inline state for Workstream (Technical / Comm)
+  // Modal & inline state for Action Tracker (Technical / Comm)
   const [showWsModal, setShowWsModal] = useState(false);
   const [showInlineWsForm, setShowInlineWsForm] = useState(true);
   const [editingWs, setEditingWs] = useState<any>(null);
   const [wsForm, setWsForm] = useState({
-    item_id: "WS-01",
-    category: "Infrastructure",
-    deliverable: "",
-    infrastructure_partnership: "",
-    target_date: "",
+    action_point: "",
+    ownership: "",
+    timeline: "",
     status: "In Progress",
-    capex: "",
-    revenue_pipeline: "",
-    owner: "",
-    risks_blockers: "",
-    decision_action: "",
+    rag_status: "GREEN",
+    remarks: "",
+    vc_decision_required: "No",
   });
 
   // Modal state for Recruitment (HR)
@@ -193,46 +190,37 @@ export default function DepartmentPage() {
     }
   };
 
-  // Open modal for new Workstream
+  // Open modal for new Action Point
   const openNewWsModal = () => {
     setEditingWs(null);
-    const nextIdx = (items?.length || 0) + 1;
     setWsForm({
-      item_id: `WS-${String(nextIdx).padStart(2, "0")}`,
-      category: "Infrastructure",
-      deliverable: "",
-      infrastructure_partnership: "",
-      target_date: new Date().toISOString().split("T")[0],
+      action_point: "",
+      ownership: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
+      timeline: new Date().toISOString().split("T")[0],
       status: "In Progress",
-      capex: "",
-      revenue_pipeline: "",
-      owner: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
-      risks_blockers: "",
-      decision_action: "",
+      rag_status: "GREEN",
+      remarks: "",
+      vc_decision_required: "No",
     });
     setShowWsModal(true);
   };
 
-  // Open modal for editing Workstream
+  // Open modal for editing Action Point
   const openEditWsModal = (ws: any) => {
     setEditingWs(ws);
     setWsForm({
-      item_id: ws.item_id || `WS-${String(ws.id).padStart(2, "0")}`,
-      category: ws.category || "Infrastructure",
-      deliverable: ws.deliverable || "",
-      infrastructure_partnership: ws.infrastructure_partnership || "",
-      target_date: ws.target_date || "",
+      action_point: ws.action_point || ws.deliverable || "",
+      ownership: ws.ownership || ws.owner || "",
+      timeline: ws.timeline || ws.target_date || "",
       status: ws.status || "In Progress",
-      capex: ws.capex || "",
-      revenue_pipeline: ws.revenue_pipeline || "",
-      owner: ws.owner || "",
-      risks_blockers: ws.risks_blockers || "",
-      decision_action: ws.decision_action || "",
+      rag_status: (ws.rag_status || (["Delayed", "Blocked"].includes(ws.status) ? "AMBER" : "GREEN")).toUpperCase(),
+      remarks: ws.remarks || ws.decision_action || ws.risks_blockers || "",
+      vc_decision_required: ws.vc_decision_required === "Yes" ? "Yes" : "No",
     });
     setShowWsModal(true);
   };
 
-  // Save Workstream (Create or Update)
+  // Save Action Point (Create or Update)
   const handleSaveWorkstream = async (e?: React.FormEvent) => {
     if (e && e.preventDefault) e.preventDefault();
     setError(null);
@@ -251,28 +239,23 @@ export default function DepartmentPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save workstream");
+      if (!res.ok) throw new Error(data.error || "Failed to save action point");
 
       setShowWsModal(false);
       setEditingWs(null);
 
       // Prepare wsForm for the next entry
-      const nextIdx = (items?.length || 0) + 2;
       setWsForm({
-        item_id: `WS-${String(nextIdx).padStart(2, "0")}`,
-        category: "Infrastructure",
-        deliverable: "",
-        infrastructure_partnership: "",
-        target_date: new Date().toISOString().split("T")[0],
+        action_point: "",
+        ownership: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
+        timeline: new Date().toISOString().split("T")[0],
         status: "In Progress",
-        capex: "",
-        revenue_pipeline: "",
-        owner: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
-        risks_blockers: "",
-        decision_action: "",
+        rag_status: "GREEN",
+        remarks: "",
+        vc_decision_required: "No",
       });
 
-      setSuccessMsg(editingWs ? "Workstream updated successfully!" : "New workstream added successfully!");
+      setSuccessMsg(editingWs ? "Action point updated successfully!" : "New action point added successfully!");
       setTimeout(() => setSuccessMsg(null), 4000);
       fetchDepartment();
     } catch (err: any) {
@@ -419,18 +402,19 @@ export default function DepartmentPage() {
   // Extract distinct categories for workstreams
   const availableCategories = Array.from(new Set(items.map((x: any) => x.category).filter(Boolean))) as string[];
 
-  // Filter Workstreams based on interactive buttons & search
+  // Filter Action Points based on interactive buttons & search
   const filteredWorkstreams = items.filter((ws: any) => {
     if (wsStatusFilter !== "ALL" && ws.status !== wsStatusFilter) return false;
-    if (wsCategoryFilter !== "ALL" && ws.category !== wsCategoryFilter) return false;
+    const itemRag = (ws.rag_status || (["Delayed", "Blocked"].includes(ws.status) ? "AMBER" : "GREEN")).toUpperCase();
+    if (wsRagFilter !== "ALL" && itemRag !== wsRagFilter.toUpperCase()) return false;
+    if (wsVcFilter === "YES" && ws.vc_decision_required !== "Yes") return false;
     if (wsSearch.trim()) {
-      const q = wsSearch.toLowerCase();
-      const matchDeliv = ws.deliverable && ws.deliverable.toLowerCase().includes(q);
-      const matchOwner = ws.owner && ws.owner.toLowerCase().includes(q);
-      const matchPart = ws.infrastructure_partnership && ws.infrastructure_partnership.toLowerCase().includes(q);
-      const matchRisk = ws.risks_blockers && ws.risks_blockers.toLowerCase().includes(q);
-      const matchAction = ws.decision_action && ws.decision_action.toLowerCase().includes(q);
-      if (!matchDeliv && !matchOwner && !matchPart && !matchRisk && !matchAction) return false;
+      const q = wsSearch.toLowerCase().trim();
+      const matchAction = (ws.action_point || ws.deliverable || "").toLowerCase().includes(q);
+      const matchOwner = (ws.ownership || ws.owner || "").toLowerCase().includes(q);
+      const matchRemarks = (ws.remarks || ws.decision_action || ws.risks_blockers || "").toLowerCase().includes(q);
+      const matchTimeline = (ws.timeline || ws.target_date || "").toLowerCase().includes(q);
+      if (!matchAction && !matchOwner && !matchRemarks && !matchTimeline) return false;
     }
     return true;
   });
@@ -916,12 +900,12 @@ export default function DepartmentPage() {
         <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h2 className="text-base font-bold text-slate-900 tracking-tight uppercase">
-              {isHR ? "RECRUITMENT TRACKER" : "WORKSTREAMS"}
+              {isHR ? "RECRUITMENT TRACKER" : "ACTION TRACKER"}
             </h2>
             <p className="text-xs text-slate-500">
               {isHR
                 ? "Manage positions, sourcing pipelines, offers, and VC review items"
-                : "Milestones, Capex, Revenue Pipeline, Risks, and Decisions"}
+                : "Action Points, Ownership, Timelines, Status, RAG Status, Remarks, and VC Decisions"}
             </p>
           </div>
           {canEdit && (
@@ -940,14 +924,14 @@ export default function DepartmentPage() {
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg transition"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>{isHR ? "+ ADD POSITION" : "+ ADD WORKSTREAM (MODAL)"}</span>
+                <span>{isHR ? "+ ADD POSITION" : "+ ADD ACTION POINT"}</span>
               </button>
             </div>
           )}
         </div>
 
         {/* ========================================================================= */}
-        {/* INLINE WORKSTREAM DATA ENTRY FORM (ALL 11 OFFICIAL HEADINGS) */}
+        {/* INLINE ACTION TRACKER DATA ENTRY FORM (7 CORE COLUMNS) */}
         {/* ========================================================================= */}
         {!isHR && canEdit && showInlineWsForm && (
           <div className="mx-6 p-5 bg-gradient-to-r from-slate-50 via-indigo-50/20 to-slate-50 rounded-2xl border border-indigo-100 shadow-xs space-y-4">
@@ -955,175 +939,127 @@ export default function DepartmentPage() {
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse" />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  WORKSTREAM DATA-ENTRY FORM
+                  ACTION TRACKER DATA-ENTRY FORM
                 </h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-md">
-                  11 Standard Headings
+                  7 Core Columns
                 </span>
               </div>
               <span className="text-[11px] text-slate-500 italic">
-                Enter milestone details below to add directly to {dept.name}
+                Enter action point details below to add directly to {dept.name}
               </span>
             </div>
 
             <form onSubmit={handleSaveWorkstream} className="space-y-3.5 text-xs">
-              {/* Row 1: Item_ID, Workstream_Category, Status and Actions */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                <div>
+              {/* Row 1: Action Point, Ownership, Timeline */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+                <div className="md:col-span-6">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Item_ID
+                    1. Action Point <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
-                    value={wsForm.item_id}
-                    onChange={(e) => setWsForm({ ...wsForm, item_id: e.target.value })}
+                    value={wsForm.action_point}
+                    onChange={(e) => setWsForm({ ...wsForm, action_point: e.target.value })}
                     required
-                    placeholder="e.g. WS-01"
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-mono font-bold text-indigo-700 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                    placeholder="e.g. Commissioning of ISO-6 Cleanroom with Laminar Flow HVAC"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
 
-                <div>
+                <div className="md:col-span-3">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Workstream_Category
+                    2. Ownership <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
-                    value={wsForm.category}
-                    onChange={(e) => setWsForm({ ...wsForm, category: e.target.value })}
+                    value={wsForm.ownership}
+                    onChange={(e) => setWsForm({ ...wsForm, ownership: e.target.value })}
                     required
-                    placeholder="e.g. Infrastructure, Curriculum, Lab"
+                    placeholder="e.g. Semicon Head"
                     className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
 
+                <div className="md:col-span-3">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    3. Timeline
+                  </label>
+                  <input
+                    type="text"
+                    value={wsForm.timeline}
+                    onChange={(e) => setWsForm({ ...wsForm, timeline: e.target.value })}
+                    placeholder="e.g. 2026-11-28 or Q4 2026"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: Status, RAG Status, Vice Chairman Decision Required */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Status and Actions
+                    4. Status
                   </label>
                   <select
                     value={wsForm.status}
                     onChange={(e) => setWsForm({ ...wsForm, status: e.target.value })}
                     className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   >
-                    {WORKSTREAM_STATUSES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
+                    <option value="Not Started">Not Started</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="On Track">On Track</option>
+                    <option value="Delayed">Delayed</option>
+                    <option value="Blocked">Blocked</option>
+                    <option value="Completed">Completed</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    5. RAG Status
+                  </label>
+                  <select
+                    value={wsForm.rag_status}
+                    onChange={(e) => setWsForm({ ...wsForm, rag_status: e.target.value })}
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  >
+                    <option value="GREEN">GREEN - On Track</option>
+                    <option value="AMBER">AMBER - Needs Attention</option>
+                    <option value="RED">RED - Critical / Escalated</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1 flex items-center justify-between">
+                    <span>7. VC Decision Required</span>
+                    <span className="text-[10px] text-rose-600 font-bold">YES / NO</span>
+                  </label>
+                  <select
+                    value={wsForm.vc_decision_required}
+                    onChange={(e) => setWsForm({ ...wsForm, vc_decision_required: e.target.value })}
+                    className={`w-full px-3 py-2 bg-white rounded-xl border font-black focus:ring-2 focus:ring-indigo-600 focus:outline-none ${
+                      wsForm.vc_decision_required === "Yes"
+                        ? "border-rose-400 text-rose-700 bg-rose-50/50"
+                        : "border-slate-300 text-slate-800"
+                    }`}
+                  >
+                    <option value="No">No</option>
+                    <option value="Yes">Yes (Escalate to Executive Tower)</option>
                   </select>
                 </div>
               </div>
 
-              {/* Row 2: Deliverable_Milestone */}
+              {/* Row 3: Remarks */}
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                  Deliverable_Milestone
+                  6. Remarks
                 </label>
                 <input
                   type="text"
-                  value={wsForm.deliverable}
-                  onChange={(e) => setWsForm({ ...wsForm, deliverable: e.target.value })}
-                  required
-                  placeholder="e.g. Cleanroom ISO-5/6 HVAC Commissioning & Certification"
-                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                />
-              </div>
-
-              {/* Row 3: Key_Assets_Partnerships_Infrastructure, Target_Date */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Key_Assets_Partnerships_Infrastructure
-                  </label>
-                  <input
-                    type="text"
-                    value={wsForm.infrastructure_partnership}
-                    onChange={(e) => setWsForm({ ...wsForm, infrastructure_partnership: e.target.value })}
-                    placeholder="e.g. Cadence / Applied Materials clean air filtration"
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Target_Date
-                  </label>
-                  <input
-                    type="date"
-                    value={wsForm.target_date}
-                    onChange={(e) => setWsForm({ ...wsForm, target_date: e.target.value })}
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Row 4: Capex_Budget_Cr, Revenue_Pipeline_Cr, Lead_Owner */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Capex_Budget_Cr
-                  </label>
-                  <input
-                    type="text"
-                    value={wsForm.capex}
-                    onChange={(e) => setWsForm({ ...wsForm, capex: e.target.value })}
-                    placeholder="e.g. ₹ 14.5 Cr"
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 font-semibold focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Revenue_Pipeline_Cr
-                  </label>
-                  <input
-                    type="text"
-                    value={wsForm.revenue_pipeline}
-                    onChange={(e) => setWsForm({ ...wsForm, revenue_pipeline: e.target.value })}
-                    placeholder="e.g. ₹ 28.0 Cr"
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 font-semibold focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Lead_Owner
-                  </label>
-                  <input
-                    type="text"
-                    value={wsForm.owner}
-                    onChange={(e) => setWsForm({ ...wsForm, owner: e.target.value })}
-                    placeholder="e.g. Semicon Head"
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Row 5: Risks_Operational_Blockers */}
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                  Risks_Operational_Blockers
-                </label>
-                <input
-                  type="text"
-                  value={wsForm.risks_blockers}
-                  onChange={(e) => setWsForm({ ...wsForm, risks_blockers: e.target.value })}
-                  placeholder="e.g. HEPA filtration vendor delivery delayed by 2 weeks"
-                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                />
-              </div>
-
-              {/* Row 6: Vice_Chairman_Decision_Action */}
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                  Vice_Chairman_Decision_Action
-                </label>
-                <input
-                  type="text"
-                  value={wsForm.decision_action}
-                  onChange={(e) => setWsForm({ ...wsForm, decision_action: e.target.value })}
-                  placeholder="e.g. VC approval requested for expedited air shipping waiver"
+                  value={wsForm.remarks}
+                  onChange={(e) => setWsForm({ ...wsForm, remarks: e.target.value })}
+                  placeholder="e.g. VC approval required for final vendor selection / key blocker context"
                   className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                 />
               </div>
@@ -1133,19 +1069,14 @@ export default function DepartmentPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    const nextIdx = (items?.length || 0) + 1;
                     setWsForm({
-                      item_id: `WS-${String(nextIdx).padStart(2, "0")}`,
-                      category: "Infrastructure",
-                      deliverable: "",
-                      infrastructure_partnership: "",
-                      target_date: new Date().toISOString().split("T")[0],
+                      action_point: "",
+                      ownership: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
+                      timeline: new Date().toISOString().split("T")[0],
                       status: "In Progress",
-                      capex: "",
-                      revenue_pipeline: "",
-                      owner: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
-                      risks_blockers: "",
-                      decision_action: "",
+                      rag_status: "GREEN",
+                      remarks: "",
+                      vc_decision_required: "No",
                     });
                   }}
                   className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-semibold rounded-xl hover:bg-white/80 border border-transparent hover:border-slate-300 transition"
@@ -1157,7 +1088,7 @@ export default function DepartmentPage() {
                   className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-sm transition"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>Add Workstream to Table</span>
+                  <span>Add Action Point to Table</span>
                 </button>
               </div>
             </form>
@@ -1166,7 +1097,7 @@ export default function DepartmentPage() {
 
         {/* FILTER BUTTONS CONTROLS */}
         {!isHR ? (
-          /* WORKSTREAM FILTER CONTROLS */
+          /* ACTION TRACKER FILTER CONTROLS */
           <div className="px-6 space-y-3">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               {/* Status Filter Buttons */}
@@ -1177,6 +1108,7 @@ export default function DepartmentPage() {
                 {[
                   { id: "ALL", label: `All (${items.length})` },
                   { id: "In Progress", label: "In Progress" },
+                  { id: "On Track", label: "On Track" },
                   { id: "Delayed", label: "Delayed" },
                   { id: "Blocked", label: "Blocked" },
                   { id: "Completed", label: "Completed" },
@@ -1199,6 +1131,20 @@ export default function DepartmentPage() {
                     {item.label}
                   </button>
                 ))}
+
+                <span className="text-slate-300 mx-1">|</span>
+
+                {/* VC Decision Filter Button */}
+                <button
+                  onClick={() => setWsVcFilter(wsVcFilter === "YES" ? "ALL" : "YES")}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                    wsVcFilter === "YES"
+                      ? "bg-rose-700 text-white shadow-xs"
+                      : "bg-rose-50 text-rose-700 hover:bg-rose-100"
+                  }`}
+                >
+                  VC Decision Only
+                </button>
               </div>
 
               {/* Workstream Search */}
@@ -1206,7 +1152,7 @@ export default function DepartmentPage() {
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
                 <input
                   type="text"
-                  placeholder="Search deliverable, owner, risks..."
+                  placeholder="Search action point, owner, remarks..."
                   value={wsSearch}
                   onChange={(e) => setWsSearch(e.target.value)}
                   className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:bg-white"
@@ -1214,37 +1160,36 @@ export default function DepartmentPage() {
               </div>
             </div>
 
-            {/* Category Filter Buttons (if categories available) */}
-            {availableCategories.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-1">
-                  Category:
-                </span>
+            {/* RAG Filter Buttons */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-1">
+                RAG:
+              </span>
+              {[
+                { id: "ALL", label: "All RAG" },
+                { id: "GREEN", label: "GREEN" },
+                { id: "AMBER", label: "AMBER" },
+                { id: "RED", label: "RED" },
+              ].map((ragBtn) => (
                 <button
-                  onClick={() => setWsCategoryFilter("ALL")}
+                  key={ragBtn.id}
+                  onClick={() => setWsRagFilter(ragBtn.id)}
                   className={`px-2.5 py-0.5 rounded-md text-[11px] font-semibold transition ${
-                    wsCategoryFilter === "ALL"
-                      ? "bg-slate-800 text-white"
+                    wsRagFilter === ragBtn.id
+                      ? ragBtn.id === "GREEN"
+                        ? "bg-emerald-600 text-white"
+                        : ragBtn.id === "AMBER"
+                        ? "bg-amber-600 text-white"
+                        : ragBtn.id === "RED"
+                        ? "bg-rose-600 text-white"
+                        : "bg-slate-800 text-white"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
                 >
-                  All Categories
+                  {ragBtn.label}
                 </button>
-                {availableCategories.map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setWsCategoryFilter(cat)}
-                    className={`px-2.5 py-0.5 rounded-md text-[11px] font-semibold transition ${
-                      wsCategoryFilter === cat
-                        ? "bg-indigo-600 text-white"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            )}
+              ))}
+            </div>
           </div>
         ) : (
           /* HR RECRUITMENT FILTER CONTROLS */
@@ -1333,109 +1278,115 @@ export default function DepartmentPage() {
           </div>
         )}
 
-        {/* Technical / Comm Workstream Table */}
+        {/* Technical / Comm Action Tracker Table (Exactly 7 Columns) */}
         {!isHR ? (
           <div className="overflow-x-auto border-t border-slate-200">
             <table className="w-full text-left text-xs">
               <thead className="bg-[#0b1329] text-white uppercase text-[11px] font-bold tracking-wider border-b border-slate-800 whitespace-nowrap">
                 <tr>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Item_ID</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Workstream_Category</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Deliverable_Milestone</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Key_Assets_Partnerships_Infrastructure</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Target_Date</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Status and Actions</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Capex_Budget_Cr</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Revenue_Pipeline_Cr</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Lead_Owner</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Risks_Operational_Blockers</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Vice_Chairman_Decision_Action</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">1. Action Point</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">2. Ownership</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">3. Timeline</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">4. Status</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">5. RAG Status</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">6. Remarks</th>
+                  <th className="px-4 py-3.5 text-center font-bold tracking-wider text-slate-100">7. Vice Chairman Decision Required</th>
                   {canEdit && <th className="px-4 py-3.5 text-right font-bold tracking-wider text-slate-100">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {filteredWorkstreams.length === 0 ? (
                   <tr>
-                    <td colSpan={canEdit ? 12 : 11} className="px-6 py-8 text-center text-slate-400">
-                      No workstreams match the active filters. Click "+ Add Workstream" or clear filters.
+                    <td colSpan={canEdit ? 8 : 7} className="px-6 py-8 text-center text-slate-400">
+                      No action points match the active filters. Click "+ Add Action Point" or clear filters.
                     </td>
                   </tr>
                 ) : (
-                  filteredWorkstreams.map((ws: any) => (
-                    <tr key={ws.id} className="hover:bg-slate-50/80 transition">
-                      <td className="px-4 py-3.5 font-mono font-bold text-indigo-700 whitespace-nowrap">
-                        {ws.item_id || `WS-${String(ws.id).padStart(2, "0")}`}
-                      </td>
-                      <td className="px-4 py-3.5 font-semibold text-slate-900 whitespace-nowrap">
-                        {ws.category}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-slate-800 min-w-[200px]">
-                        {ws.deliverable}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 min-w-[160px]">
-                        {ws.infrastructure_partnership || "--"}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                        {ws.target_date || "--"}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span
-                          className={`px-2 py-0.5 text-[11px] font-bold rounded-md border ${
-                            ws.status === "Completed"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : ws.status === "Delayed"
-                              ? "bg-amber-50 text-amber-700 border-amber-200"
-                              : ws.status === "Blocked"
-                              ? "bg-rose-50 text-rose-700 border-rose-200"
-                              : "bg-blue-50 text-blue-700 border-blue-200"
-                          }`}
-                        >
-                          {ws.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 font-medium text-slate-700 whitespace-nowrap">
-                        {ws.capex || "--"}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-slate-700 whitespace-nowrap">
-                        {ws.revenue_pipeline || "--"}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                        {ws.owner || "--"}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 min-w-[180px]">
-                        {ws.risks_blockers ? (
-                          <span className="text-rose-600 font-medium">{ws.risks_blockers}</span>
-                        ) : (
-                          "--"
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 min-w-[180px]">
-                        {ws.decision_action ? (
-                          <span className="text-indigo-600 font-medium">{ws.decision_action}</span>
-                        ) : (
-                          "--"
-                        )}
-                      </td>
-                      {canEdit && (
-                        <td className="px-4 py-3 text-right whitespace-nowrap space-x-1">
-                          <button
-                            onClick={() => openEditWsModal(ws)}
-                            title="Edit"
-                            className="p-1 rounded text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteWorkstream(ws.id)}
-                            title="Delete"
-                            className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                  filteredWorkstreams.map((ws: any) => {
+                    const actionPoint = ws.action_point || ws.deliverable || "--";
+                    const ownership = ws.ownership || ws.owner || "--";
+                    const timeline = ws.timeline || ws.target_date || "--";
+                    const status = ws.status || "In Progress";
+                    const ragStatus = (ws.rag_status || (["Delayed", "Blocked"].includes(status) ? "AMBER" : "GREEN")).toUpperCase();
+                    const remarks = ws.remarks || ws.decision_action || ws.risks_blockers || "--";
+                    const isVcReq = ws.vc_decision_required === "Yes";
+
+                    return (
+                      <tr key={ws.id} className="hover:bg-slate-50/80 transition">
+                        <td className="px-4 py-3.5 font-bold text-slate-900 min-w-[240px]">
+                          {actionPoint}
                         </td>
-                      )}
-                    </tr>
-                  ))
+                        <td className="px-4 py-3.5 font-medium text-slate-700 whitespace-nowrap">
+                          {ownership}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-slate-600 whitespace-nowrap">
+                          {timeline}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span
+                            className={`px-2 py-0.5 text-[11px] font-bold rounded-md border ${
+                              status === "Completed"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : status === "Delayed"
+                                ? "bg-amber-50 text-amber-700 border-amber-200"
+                                : status === "Blocked"
+                                ? "bg-rose-50 text-rose-700 border-rose-200"
+                                : status === "On Track"
+                                ? "bg-blue-50 text-blue-700 border-blue-200"
+                                : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                            }`}
+                          >
+                            {status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span
+                            className={`px-2 py-0.5 text-[10px] font-black rounded-md border uppercase tracking-wider ${
+                              ragStatus === "GREEN"
+                                ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                                : ragStatus === "AMBER"
+                                ? "bg-amber-100 text-amber-800 border-amber-300"
+                                : "bg-rose-100 text-rose-800 border-rose-300"
+                            }`}
+                          >
+                            {ragStatus}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700 min-w-[200px] leading-relaxed">
+                          {remarks}
+                        </td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          {isVcReq ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-black rounded-lg bg-rose-600 text-white shadow-xs">
+                              YES
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 text-[11px] font-semibold text-slate-400">
+                              No
+                            </span>
+                          )}
+                        </td>
+                        {canEdit && (
+                          <td className="px-4 py-3 text-right whitespace-nowrap space-x-1">
+                            <button
+                              onClick={() => openEditWsModal(ws)}
+                              title="Edit Action Point"
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteWorkstream(ws.id)}
+                              title="Delete Action Point"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -1561,93 +1512,56 @@ export default function DepartmentPage() {
         )}
       </div>
 
-      {/* MODAL: ADD/EDIT WORKSTREAM */}
+      {/* MODAL: ADD/EDIT ACTION POINT */}
       {showWsModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full p-6 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900 mb-1">
-              {editingWs ? "Update Workstream" : "+ Add Workstream"}
+              {editingWs ? "Update Action Point" : "+ Add Action Point"}
             </h3>
             <p className="text-xs text-slate-500 mb-5">
-              Target deliverables and milestone tracking for {dept.name}
+              7-column Action Tracker for {dept.name}
             </p>
 
             <form onSubmit={handleSaveWorkstream} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Item_ID</label>
-                  <input
-                    type="text"
-                    value={wsForm.item_id}
-                    onChange={(e) => setWsForm({ ...wsForm, item_id: e.target.value })}
-                    required
-                    placeholder="e.g. WS-01"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-mono font-bold text-indigo-700 focus:ring-2 focus:ring-indigo-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Workstream_Category</label>
-                  <input
-                    type="text"
-                    value={wsForm.category}
-                    onChange={(e) => setWsForm({ ...wsForm, category: e.target.value })}
-                    required
-                    placeholder="e.g. Infrastructure, Curriculum, Lab"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Status and Actions</label>
-                  <select
-                    value={wsForm.status}
-                    onChange={(e) => setWsForm({ ...wsForm, status: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 font-medium"
-                  >
-                    {WORKSTREAM_STATUSES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Deliverable_Milestone</label>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  1. Action Point <span className="text-rose-500">*</span>
+                </label>
                 <input
                   type="text"
-                  value={wsForm.deliverable}
-                  onChange={(e) => setWsForm({ ...wsForm, deliverable: e.target.value })}
+                  value={wsForm.action_point}
+                  onChange={(e) => setWsForm({ ...wsForm, action_point: e.target.value })}
                   required
-                  placeholder="e.g. Cleanroom HVAC certification and clean bench setup"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
+                  placeholder="e.g. Commissioning of ISO-6 Cleanroom with Laminar Flow HVAC"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-medium focus:ring-2 focus:ring-indigo-600"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    Key_Assets_Partnerships_Infrastructure
+                    2. Ownership <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
-                    value={wsForm.infrastructure_partnership}
-                    onChange={(e) =>
-                      setWsForm({ ...wsForm, infrastructure_partnership: e.target.value })
-                    }
-                    placeholder="e.g. Applied Materials / Cadence"
+                    value={wsForm.ownership}
+                    onChange={(e) => setWsForm({ ...wsForm, ownership: e.target.value })}
+                    required
+                    placeholder="e.g. Semicon Head"
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Target_Date</label>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    3. Timeline
+                  </label>
                   <input
-                    type="date"
-                    value={wsForm.target_date}
-                    onChange={(e) => setWsForm({ ...wsForm, target_date: e.target.value })}
+                    type="text"
+                    value={wsForm.timeline}
+                    onChange={(e) => setWsForm({ ...wsForm, timeline: e.target.value })}
+                    placeholder="e.g. 2026-11-28 or Q4 2026"
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
                   />
                 </div>
@@ -1655,61 +1569,62 @@ export default function DepartmentPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Capex_Budget_Cr</label>
-                  <input
-                    type="text"
-                    value={wsForm.capex}
-                    onChange={(e) => setWsForm({ ...wsForm, capex: e.target.value })}
-                    placeholder="e.g. ₹ 14.5 Cr"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
-                  />
+                  <label className="block font-semibold text-slate-700 mb-1">4. Status</label>
+                  <select
+                    value={wsForm.status}
+                    onChange={(e) => setWsForm({ ...wsForm, status: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 font-medium"
+                  >
+                    <option value="Not Started">Not Started</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="On Track">On Track</option>
+                    <option value="Delayed">Delayed</option>
+                    <option value="Blocked">Blocked</option>
+                    <option value="Completed">Completed</option>
+                  </select>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Revenue_Pipeline_Cr</label>
-                  <input
-                    type="text"
-                    value={wsForm.revenue_pipeline}
-                    onChange={(e) => setWsForm({ ...wsForm, revenue_pipeline: e.target.value })}
-                    placeholder="e.g. ₹ 28.0 Cr"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
-                  />
+                  <label className="block font-semibold text-slate-700 mb-1">5. RAG Status</label>
+                  <select
+                    value={wsForm.rag_status}
+                    onChange={(e) => setWsForm({ ...wsForm, rag_status: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 font-medium"
+                  >
+                    <option value="GREEN">GREEN - On Track</option>
+                    <option value="AMBER">AMBER - Needs Attention</option>
+                    <option value="RED">RED - Critical</option>
+                  </select>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Lead_Owner</label>
-                  <input
-                    type="text"
-                    value={wsForm.owner}
-                    onChange={(e) => setWsForm({ ...wsForm, owner: e.target.value })}
-                    placeholder="e.g. Semicon Head"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
-                  />
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    7. VC Decision Required
+                  </label>
+                  <select
+                    value={wsForm.vc_decision_required}
+                    onChange={(e) => setWsForm({ ...wsForm, vc_decision_required: e.target.value })}
+                    className={`w-full px-3 py-2 rounded-lg border text-sm font-bold focus:ring-2 focus:ring-indigo-600 ${
+                      wsForm.vc_decision_required === "Yes"
+                        ? "border-rose-400 text-rose-700 bg-rose-50"
+                        : "border-slate-300 text-slate-800"
+                    }`}
+                  >
+                    <option value="No">No</option>
+                    <option value="Yes">Yes</option>
+                  </select>
                 </div>
               </div>
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  Risks_Operational_Blockers
+                  6. Remarks
                 </label>
-                <input
-                  type="text"
-                  value={wsForm.risks_blockers}
-                  onChange={(e) => setWsForm({ ...wsForm, risks_blockers: e.target.value })}
-                  placeholder="e.g. HVAC filtration vendor delivery delayed by 3 weeks"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Vice_Chairman_Decision_Action
-                </label>
-                <input
-                  type="text"
-                  value={wsForm.decision_action}
-                  onChange={(e) => setWsForm({ ...wsForm, decision_action: e.target.value })}
-                  placeholder="e.g. VC approval required for vendor penalty waiver"
+                <textarea
+                  rows={3}
+                  value={wsForm.remarks}
+                  onChange={(e) => setWsForm({ ...wsForm, remarks: e.target.value })}
+                  placeholder="e.g. VC approval required for final vendor selection / operational blocker context"
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
                 />
               </div>
@@ -1726,7 +1641,7 @@ export default function DepartmentPage() {
                   type="submit"
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-xs transition"
                 >
-                  Save Workstream
+                  Save Action Point
                 </button>
               </div>
             </form>

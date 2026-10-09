@@ -15,14 +15,20 @@ export async function POST(req: Request) {
       department_id,
       category,
       deliverable,
+      action_point,
       infrastructure_partnership,
       target_date,
+      timeline,
       status,
+      rag_status,
       capex,
       revenue_pipeline,
       owner,
+      ownership,
       risks_blockers,
       decision_action,
+      remarks,
+      vc_decision_required,
     } = body;
 
     const deptId = parseInt(department_id, 10);
@@ -38,9 +44,18 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!category || !deliverable) {
-      return NextResponse.json({ error: "Category and Deliverable/Milestone are required" }, { status: 400 });
+    const finalActionPoint = (action_point || deliverable || "").trim();
+    if (!finalActionPoint) {
+      return NextResponse.json({ error: "Action Point is required" }, { status: 400 });
     }
+
+    const finalCategory = (category || "General").trim();
+    const finalOwnership = (ownership || owner || user.name || "").trim();
+    const finalTimeline = (timeline || target_date || "").trim();
+    const finalStatus = (status || "In Progress").trim();
+    const finalRag = (rag_status || (["Delayed", "Blocked"].includes(finalStatus) ? "AMBER" : "GREEN")).trim().toUpperCase();
+    const finalRemarks = (remarks || decision_action || risks_blockers || "").trim();
+    const finalVcReq = (vc_decision_required === "Yes" || vc_decision_required === true || (finalRemarks && finalRemarks.toLowerCase().includes("vc"))) ? "Yes" : "No";
 
     // Auto-generate Item_ID if not supplied
     let finalItemId = (item_id || "").trim();
@@ -55,22 +70,29 @@ export async function POST(req: Request) {
       `INSERT INTO workstreams (
         item_id, department_id, category, deliverable, infrastructure_partnership, 
         target_date, status, capex, revenue_pipeline, owner, 
-        risks_blockers, decision_action, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        risks_blockers, decision_action, action_point, ownership, timeline,
+        rag_status, remarks, vc_decision_required, updated_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       RETURNING *`,
       [
         finalItemId,
         deptId,
-        category.trim(),
-        deliverable.trim(),
+        finalCategory,
+        finalActionPoint,
         infrastructure_partnership || "",
-        target_date || "",
-        status || "Not Started",
+        finalTimeline,
+        finalStatus,
         capex || "",
         revenue_pipeline || "",
-        owner || user.name,
+        finalOwnership,
         risks_blockers || "",
-        decision_action || "",
+        finalRemarks,
+        finalActionPoint,
+        finalOwnership,
+        finalTimeline,
+        finalRag,
+        finalRemarks,
+        finalVcReq,
         user.name,
       ]
     );

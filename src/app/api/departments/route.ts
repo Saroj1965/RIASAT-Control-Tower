@@ -96,18 +96,73 @@ export async function POST(req: Request) {
 
     const cleanCode = code.trim().toUpperCase().replace(/\s+/g, "_");
 
+    // Compute safe next ID to avoid sequence desynchronization
+    const nextIdRes = await query("SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM departments");
+    const nextId = parseInt(nextIdRes.rows[0].next_id, 10);
+
     const insertRes = await query(
-      "INSERT INTO departments (name, code, active) VALUES ($1, $2, TRUE) RETURNING *",
-      [name.trim(), cleanCode]
+      "INSERT INTO departments (id, name, code, active) VALUES ($1, $2, $3, TRUE) RETURNING *",
+      [nextId, name.trim(), cleanCode]
     );
 
     const newDept = insertRes.rows[0];
 
-    // Create default overview entry
+    // Synchronize sequence if present
+    try {
+      await query("SELECT setval(pg_get_serial_sequence('departments', 'id'), $1)", [nextId]);
+    } catch (e) {
+      try {
+        await query("SELECT setval('departments_id_seq', $1)", [nextId]);
+      } catch (err) {}
+    }
+
+    // Create default overview entry safely with next ID
+    const ovNextIdRes = await query("SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM department_overview");
+    const ovNextId = parseInt(ovNextIdRes.rows[0].next_id, 10);
+
     await query(
-      "INSERT INTO department_overview (department_id, readiness_percentage, rag_status, key_focus, updated_by) VALUES ($1, 0, 'NOT STARTED', 'Initial Setup', $2)",
-      [newDept.id, user.name]
+      "INSERT INTO department_overview (id, department_id, readiness_percentage, rag_status, key_focus, updated_by, submission_status) VALUES ($1, $2, 0, 'NOT STARTED', 'Initial Setup', $3, 'DRAFT')",
+      [ovNextId, newDept.id, user.name]
     );
+
+    try {
+      await query("SELECT setval(pg_get_serial_sequence('department_overview', 'id'), $1)", [ovNextId]);
+    } catch (e) {
+      try {
+        await query("SELECT setval('department_overview_id_seq', $1)", [ovNextId]);
+      } catch (err) {}
+    }
+
+    // Seed default overview section and 3 standard initial fields for the new department
+    try {
+      const secNextIdRes = await query("SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM form_sections");
+      const secNextId = parseInt(secNextIdRes.rows[0].next_id, 10);
+      const secRes = await query(
+        `INSERT INTO form_sections (id, department_id, section_key, title, display_order, active)
+         VALUES ($1, $2, 'overview_section', 'Sector Overview & Vice Chairman Focus / Decision Required', 1, TRUE)
+         RETURNING id`,
+        [secNextId, newDept.id]
+      );
+      const sectionId = secRes.rows[0]?.id || secNextId;
+
+      const defaultFields = [
+        { key: "readiness_score", label: "Readiness Score", type: "Percentage", req: true, order: 1, help: "0-100 percentage" },
+        { key: "rag_status", label: "RAG Status", type: "RAG Status", req: true, order: 2, help: "Current operational RAG status" },
+        { key: "vc_focus_decision", label: "Vice Chairman Focus / Decision", type: "Long Text", req: false, order: 3, help: "Direct decisions required from Vice Chairman" },
+      ];
+
+      for (const f of defaultFields) {
+        const fNextIdRes = await query("SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM form_fields");
+        const fNextId = parseInt(fNextIdRes.rows[0].next_id, 10);
+        await query(
+          `INSERT INTO form_fields (id, department_id, section_id, field_key, label, field_type, required, active, display_order, help_text)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, $8, $9)`,
+          [fNextId, newDept.id, sectionId, f.key, f.label, f.type, f.req, f.order, f.help]
+        );
+      }
+    } catch (formErr) {
+      console.warn("Could not seed default form fields for new department:", formErr);
+    }
 
     await logAudit({
       userId: user.id,

@@ -27,7 +27,8 @@ export async function GET() {
     // 2. Fetch all workstreams for calculations
     const allWsRes = await query(`
       SELECT id, department_id, deliverable, category, status, capex, revenue_pipeline, 
-             owner, risks_blockers, decision_action, target_date
+             owner, risks_blockers, decision_action, target_date,
+             action_point, ownership, timeline, rag_status, remarks, vc_decision_required
       FROM workstreams
       ORDER BY id ASC
     `);
@@ -96,7 +97,8 @@ export async function GET() {
       totalGlobalCapex += c;
       totalGlobalRevenue += r;
 
-      if (ws.decision_action && ws.decision_action.trim().length > 0 && st !== "Completed") {
+      const isVcReq = ws.vc_decision_required === "Yes" || (ws.decision_action && ws.decision_action.trim().length > 0 && ws.decision_action.trim() !== "None");
+      if (isVcReq && st !== "Completed") {
         deptStatsMap[dId].pending_vc++;
       }
     }
@@ -210,20 +212,31 @@ export async function GET() {
     });
 
     // Management Attention Items
+    // Management Attention Items: prioritizes VC Decision Required = 'Yes'
     const attentionWsRes = await query(`
-      SELECT w.id, w.deliverable as item, w.status, w.owner, w.target_date, 
-             COALESCE(w.risks_blockers, w.decision_action) as issue,
-             w.decision_action,
+      SELECT w.id, 
+             COALESCE(w.action_point, w.deliverable) as item, 
+             w.status, 
+             COALESCE(w.ownership, w.owner) as owner, 
+             COALESCE(w.timeline, w.target_date) as target_date, 
+             COALESCE(w.remarks, w.decision_action, w.risks_blockers) as issue,
+             COALESCE(w.remarks, w.decision_action) as decision_action,
+             COALESCE(w.rag_status, 'AMBER') as rag_status,
+             COALESCE(w.vc_decision_required, 'No') as vc_decision_required,
              d.name as department_name, d.id as department_id,
              w.capex, w.revenue_pipeline
       FROM workstreams w
       JOIN departments d ON w.department_id = d.id
-      WHERE (w.status IN ('Delayed', 'Blocked') OR (w.decision_action IS NOT NULL AND TRIM(w.decision_action) != ''))
+      WHERE (
+        w.vc_decision_required = 'Yes' 
+        OR (w.decision_action IS NOT NULL AND TRIM(w.decision_action) != '' AND w.decision_action != 'None')
+        OR w.status IN ('Delayed', 'Blocked')
+      )
         AND w.status != 'Completed'
       ORDER BY 
-        CASE WHEN w.status = 'Blocked' THEN 1 WHEN w.status = 'Delayed' THEN 2 ELSE 3 END,
+        CASE WHEN w.vc_decision_required = 'Yes' THEN 1 ELSE 2 END,
         w.id ASC
-      LIMIT 20
+      LIMIT 30
     `);
 
     const attentionHrRes = await query(`
@@ -231,11 +244,15 @@ export async function GET() {
              COALESCE(r.next_action, 'Critical leadership hiring attention') as issue,
              'VC Attention: Key leadership role pending approval' as decision_action,
              'HR & Recruitment' as department_name, 7 as department_id,
+             CASE WHEN r.priority = 'Critical' THEN 'RED' ELSE 'AMBER' END as rag_status,
+             CASE WHEN r.vc_attention = TRUE THEN 'Yes' ELSE 'No' END as vc_decision_required,
              r.budget as capex, r.target_ctc as revenue_pipeline
       FROM recruitment r
       WHERE (r.vc_attention = TRUE OR r.priority = 'Critical')
         AND r.status NOT IN ('Joined', 'Closed')
-      ORDER BY r.id ASC
+      ORDER BY 
+        CASE WHEN r.vc_attention = TRUE THEN 1 ELSE 2 END,
+        r.id ASC
       LIMIT 10
     `);
 

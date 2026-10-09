@@ -61,13 +61,52 @@ async function getClient() {
     fs.mkdirSync(dataDir, { recursive: true });
   }
 
+  // Clean stale lockfiles if left from abruptly terminated process
+  const pidFile = path.join(dataDir, "postmaster.pid");
+  if (fs.existsSync(pidFile)) {
+    try { fs.unlinkSync(pidFile); } catch (e) {}
+  }
+  const lockOut = path.join(dataDir, ".s.PGSQL.5432.lock.out");
+  if (fs.existsSync(lockOut)) {
+    try { fs.unlinkSync(lockOut); } catch (e) {}
+  }
+
   const { PGlite } = await import("@electric-sql/pglite");
-  const pgLite = new PGlite(dataDir);
+  let pgLite: any;
+  try {
+    pgLite = new PGlite(dataDir);
+    await pgLite.waitReady;
+  } catch (err) {
+    console.warn("PGlite failed to open data directory (possible WAL corruption). Recovering clean database...", err);
+    const backupDir = path.join(process.cwd(), ".data", `riasat_db_corrupt_${Date.now()}`);
+    try {
+      fs.renameSync(dataDir, backupDir);
+    } catch (renameErr) {
+      fs.rmSync(dataDir, { recursive: true, force: true });
+    }
+    fs.mkdirSync(dataDir, { recursive: true });
+    pgLite = new PGlite(dataDir);
+    await pgLite.waitReady;
+    isInitialized = false;
+  }
+
   dbInstance = {
     type: "pglite",
     query: async (text: string, params?: any[]): Promise<DbResult> => {
-      const res = await pgLite.query(text, params);
-      return { rows: res.rows as any[], rowCount: res.rows.length };
+      if (params && params.length > 0) {
+        const res = await pgLite.query(text, params);
+        return { rows: res.rows as any[], rowCount: res.rows.length };
+      }
+      try {
+        const res = await pgLite.query(text);
+        return { rows: res.rows as any[], rowCount: res.rows.length };
+      } catch (err: any) {
+        if (err.message && err.message.includes("cannot insert multiple commands")) {
+          await pgLite.exec(text);
+          return { rows: [], rowCount: 0 };
+        }
+        throw err;
+      }
     },
   };
   console.log("Connected to PostgreSQL via local PGlite engine at:", dataDir);
@@ -126,8 +165,67 @@ export async function ensureDbInitialized() {
       readiness_percentage INTEGER NOT NULL DEFAULT 0,
       rag_status TEXT NOT NULL DEFAULT 'NOT STARTED',
       key_focus TEXT,
+      submission_status TEXT NOT NULL DEFAULT 'SUBMITTED',
       last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       updated_by TEXT
+    );
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS form_sections (
+      id SERIAL PRIMARY KEY,
+      department_id INTEGER NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+      section_key TEXT NOT NULL,
+      title TEXT NOT NULL,
+      display_order INTEGER NOT NULL DEFAULT 1,
+      active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(department_id, section_key)
+    );
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS form_fields (
+      id SERIAL PRIMARY KEY,
+      department_id INTEGER NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+      section_id INTEGER NOT NULL REFERENCES form_sections(id) ON DELETE CASCADE,
+      field_key TEXT NOT NULL,
+      label TEXT NOT NULL,
+      field_type TEXT NOT NULL DEFAULT 'Short Text',
+      required BOOLEAN NOT NULL DEFAULT FALSE,
+      active BOOLEAN NOT NULL DEFAULT TRUE,
+      display_order INTEGER NOT NULL DEFAULT 1,
+      help_text TEXT,
+      default_value TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(department_id, field_key)
+    );
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS form_field_options (
+      id SERIAL PRIMARY KEY,
+      field_id INTEGER NOT NULL REFERENCES form_fields(id) ON DELETE CASCADE,
+      label TEXT NOT NULL,
+      value TEXT NOT NULL,
+      display_order INTEGER NOT NULL DEFAULT 1,
+      active BOOLEAN NOT NULL DEFAULT TRUE
+    );
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS department_form_values (
+      id SERIAL PRIMARY KEY,
+      department_id INTEGER NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+      field_id INTEGER NOT NULL REFERENCES form_fields(id) ON DELETE CASCADE,
+      text_value TEXT,
+      number_value NUMERIC,
+      status TEXT NOT NULL DEFAULT 'SUBMITTED',
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_by TEXT,
+      UNIQUE(department_id, field_id)
     );
   `);
 
@@ -152,9 +250,31 @@ export async function ensureDbInitialized() {
     );
   `);
 
-  await client.query(`
-    ALTER TABLE workstreams ADD COLUMN IF NOT EXISTS item_id TEXT;
-  `);
+  // Migrate tables schema safely
+  const migrations = [
+    "ALTER TABLE department_overview ADD COLUMN IF NOT EXISTS submission_status TEXT NOT NULL DEFAULT 'SUBMITTED';",
+    "ALTER TABLE workstreams ADD COLUMN IF NOT EXISTS item_id TEXT;",
+    "ALTER TABLE workstreams ADD COLUMN IF NOT EXISTS action_point TEXT;",
+    "ALTER TABLE workstreams ADD COLUMN IF NOT EXISTS ownership TEXT;",
+    "ALTER TABLE workstreams ADD COLUMN IF NOT EXISTS timeline TEXT;",
+    "ALTER TABLE workstreams ADD COLUMN IF NOT EXISTS rag_status TEXT DEFAULT 'GREEN';",
+    "ALTER TABLE workstreams ADD COLUMN IF NOT EXISTS remarks TEXT;",
+    "ALTER TABLE workstreams ADD COLUMN IF NOT EXISTS vc_decision_required TEXT DEFAULT 'No';",
+    "UPDATE workstreams SET action_point = deliverable WHERE action_point IS NULL OR action_point = '';",
+    "UPDATE workstreams SET ownership = owner WHERE ownership IS NULL OR ownership = '';",
+    "UPDATE workstreams SET timeline = target_date WHERE timeline IS NULL OR timeline = '';",
+    "UPDATE workstreams SET remarks = COALESCE(decision_action, risks_blockers, '') WHERE remarks IS NULL OR remarks = '';",
+    "UPDATE workstreams SET rag_status = CASE WHEN status IN ('Delayed', 'Blocked') THEN 'AMBER' WHEN status = 'Completed' THEN 'GREEN' ELSE 'GREEN' END WHERE rag_status IS NULL OR rag_status = '';",
+    "UPDATE workstreams SET vc_decision_required = CASE WHEN decision_action IS NOT NULL AND decision_action != '' AND decision_action != 'None' THEN 'Yes' ELSE 'No' END WHERE vc_decision_required IS NULL OR vc_decision_required = '';",
+  ];
+
+  for (const m of migrations) {
+    try {
+      await client.query(m);
+    } catch (mErr) {
+      // Continue if migration statement has already been applied
+    }
+  }
 
   await client.query(`
     CREATE TABLE IF NOT EXISTS recruitment (
@@ -266,6 +386,32 @@ export async function ensureDbInitialized() {
        VALUES 
        (1, 'System Administrator', 'SYSTEM_INIT', NULL, 'System', NULL, 'Database schema initialized with clean blank dashboard and forms for RIASAT Executive Control Tower.')`
     );
+  }
+
+  // Synchronize sequences with existing maximum IDs across all tables
+  const serialTables = [
+    'departments', 'users', 'department_overview', 'workstreams', 
+    'recruitment', 'audit_log', 'form_sections', 'form_fields', 
+    'form_field_options', 'department_form_values'
+  ];
+  for (const tbl of serialTables) {
+    try {
+      await client.query(`
+        SELECT setval(
+          pg_get_serial_sequence('${tbl}', 'id'), 
+          COALESCE((SELECT MAX(id) FROM ${tbl}), 1)
+        );
+      `);
+    } catch (e) {
+      try {
+        await client.query(`
+          SELECT setval(
+            '${tbl}_id_seq', 
+            COALESCE((SELECT MAX(id) FROM ${tbl}), 1)
+          );
+        `);
+      } catch (err) {}
+    }
   }
 
   isInitialized = true;
