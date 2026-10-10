@@ -188,9 +188,9 @@ export default function LoginPage() {
                 </button>
               </div>
 
-              {/* 8 Verticals / Department Heads */}
+              {/* 9 Verticals / Department Heads */}
               <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 pt-1">
-                8 Vertical Department Heads:
+                9 Vertical Department Heads:
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <button
@@ -256,6 +256,17 @@ export default function LoginPage() {
                 >
                   <div className="font-semibold text-slate-800">8. Communications</div>
                   <div className="text-[11px] text-slate-500 truncate">comm.head@riasat.ac.in</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDemoAccount("ops.head@riasat.ac.in", "Ops@123")}
+                  className="text-left p-2 rounded-lg border border-indigo-200 bg-indigo-50/30 hover:border-indigo-400 hover:bg-indigo-50/70 transition col-span-2"
+                >
+                  <div className="font-semibold text-indigo-900 flex items-center justify-between">
+                    <span>9. Strategy & Operations Head</span>
+                    <span className="text-[9px] bg-indigo-600 text-white px-1.5 py-0.2 rounded font-bold">VERTICAL 9</span>
+                  </div>
+                  <div className="text-[11px] text-indigo-600 truncate">ops.head@riasat.ac.in</div>
                 </button>
               </div>
             </div>

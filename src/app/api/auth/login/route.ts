@@ -37,6 +37,8 @@ export async function POST(req: Request) {
         isValid = true;
       } else if (em === "executive@riasat.ac.in" && (p === "Exec@123" || p === "Exec123" || pLower === "exec123" || pLower === "executive123")) {
         isValid = true;
+      } else if (em === "ops.head@riasat.ac.in" && (p === "Ops@123" || p === "Ops123" || pLower === "ops123" || p === "Strategy@123" || pLower === "strategy123")) {
+        isValid = true;
       } else if (pLower.replace("@", "") === em.split("@")[0].split(".")[0] + "123") {
         isValid = true;
       }

@@ -54,12 +54,15 @@ export async function POST(req: Request) {
     const finalTimeline = (timeline || target_date || "").trim();
     const finalStatus = (status || "In Progress").trim();
     const finalRag = (rag_status || (["Delayed", "Blocked"].includes(finalStatus) ? "AMBER" : "GREEN")).trim().toUpperCase();
-    const finalRemarks = (remarks || decision_action || risks_blockers || "").trim();
+    const finalRemarks = (remarks || risks_blockers || "").trim();
+    const finalDecisionAction = (decision_action || "").trim();
     let finalVcReq = "No";
     if (vc_decision_required === "Yes" || vc_decision_required === true) {
       finalVcReq = "Yes";
     } else if (vc_decision_required === "No" || vc_decision_required === false) {
       finalVcReq = "No";
+    } else if (finalDecisionAction && finalDecisionAction.length > 0 && finalDecisionAction !== "None") {
+      finalVcReq = "Yes";
     } else if (finalRemarks && (finalRemarks.toLowerCase().includes("vc approval") || finalRemarks.toLowerCase().includes("vice chairman"))) {
       finalVcReq = "Yes";
     }
@@ -93,7 +96,7 @@ export async function POST(req: Request) {
         revenue_pipeline || "",
         finalOwnership,
         risks_blockers || "",
-        finalRemarks,
+        finalDecisionAction,
         finalActionPoint,
         finalOwnership,
         finalTimeline,

@@ -62,11 +62,12 @@ export default function DepartmentPage() {
   const [recVcFilter, setRecVcFilter] = useState<string>("ALL");
   const [recSearch, setRecSearch] = useState<string>("");
 
-  // Modal & inline state for Action Tracker (Technical / Comm)
+  // Modal & inline state for Action Tracker
   const [showWsModal, setShowWsModal] = useState(false);
   const [showInlineWsForm, setShowInlineWsForm] = useState(true);
   const [editingWs, setEditingWs] = useState<any>(null);
   const [wsForm, setWsForm] = useState({
+    category: "",
     action_point: "",
     ownership: "",
     timeline: "",
@@ -74,27 +75,29 @@ export default function DepartmentPage() {
     rag_status: "GREEN",
     remarks: "",
     vc_decision_required: "No",
+    decision_action: "",
   });
 
-  // Modal state for Recruitment (HR)
+  // Modal & inline state for Recruitment Tracker (HR)
   const [showRecModal, setShowRecModal] = useState(false);
+  const [showInlineRecForm, setShowInlineRecForm] = useState(true);
   const [editingRec, setEditingRec] = useState<any>(null);
   const [recForm, setRecForm] = useState({
-    position_id: "",
     position_title: "",
     strategic_segment: "Semicon",
-    priority: "High",
+    priority: "Critical",
+    hiring_lead: "",
     target_date: "",
     status: "Open",
     candidates_sourced: 0,
+    candidates_shortlisted: 0,
     interviews: 0,
     offers: 0,
-    ageing_days: 0,
-    target_ctc: "",
-    budget: "",
-    hiring_lead: "",
+    candidates_joined: 0,
+    remarks: "",
     next_action: "",
-    vc_attention: false,
+    rag_status: "GREEN",
+    vc_decision_required: "No",
   });
 
   const fetchDepartment = async () => {
@@ -194,6 +197,7 @@ export default function DepartmentPage() {
   const openNewWsModal = () => {
     setEditingWs(null);
     setWsForm({
+      category: "",
       action_point: "",
       ownership: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
       timeline: new Date().toISOString().split("T")[0],
@@ -201,6 +205,7 @@ export default function DepartmentPage() {
       rag_status: "GREEN",
       remarks: "",
       vc_decision_required: "No",
+      decision_action: "",
     });
     setShowWsModal(true);
   };
@@ -209,13 +214,15 @@ export default function DepartmentPage() {
   const openEditWsModal = (ws: any) => {
     setEditingWs(ws);
     setWsForm({
+      category: ws.category || "",
       action_point: ws.action_point || ws.deliverable || "",
       ownership: ws.ownership || ws.owner || "",
       timeline: ws.timeline || ws.target_date || "",
       status: ws.status || "In Progress",
       rag_status: (ws.rag_status || (["Delayed", "Blocked"].includes(ws.status) ? "AMBER" : "GREEN")).toUpperCase(),
-      remarks: ws.remarks || ws.decision_action || ws.risks_blockers || "",
+      remarks: ws.remarks || ws.risks_blockers || "",
       vc_decision_required: ws.vc_decision_required === "Yes" ? "Yes" : "No",
+      decision_action: ws.decision_action || "",
     });
     setShowWsModal(true);
   };
@@ -246,6 +253,7 @@ export default function DepartmentPage() {
 
       // Prepare wsForm for the next entry
       setWsForm({
+        category: "",
         action_point: "",
         ownership: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
         timeline: new Date().toISOString().split("T")[0],
@@ -253,6 +261,7 @@ export default function DepartmentPage() {
         rag_status: "GREEN",
         remarks: "",
         vc_decision_required: "No",
+        decision_action: "",
       });
 
       setSuccessMsg(editingWs ? "Action point updated successfully!" : "New action point added successfully!");
@@ -284,21 +293,21 @@ export default function DepartmentPage() {
   const openNewRecModal = () => {
     setEditingRec(null);
     setRecForm({
-      position_id: `POS-${Math.floor(100 + Math.random() * 900)}`,
       position_title: "",
       strategic_segment: "Semicon",
       priority: "Critical",
+      hiring_lead: "HR Talent Lead",
       target_date: new Date().toISOString().split("T")[0],
       status: "Open",
       candidates_sourced: 0,
+      candidates_shortlisted: 0,
       interviews: 0,
       offers: 0,
-      ageing_days: 0,
-      target_ctc: "",
-      budget: "",
-      hiring_lead: "",
+      candidates_joined: 0,
+      remarks: "",
       next_action: "",
-      vc_attention: false,
+      rag_status: "GREEN",
+      vc_decision_required: "No",
     });
     setShowRecModal(true);
   };
@@ -306,21 +315,21 @@ export default function DepartmentPage() {
   const openEditRecModal = (rec: any) => {
     setEditingRec(rec);
     setRecForm({
-      position_id: rec.position_id || "",
-      position_title: rec.position_title || "",
-      strategic_segment: rec.strategic_segment || "Semicon",
-      priority: rec.priority || "Medium",
-      target_date: rec.target_date || "",
-      status: rec.status || "Open",
+      position_title: rec.position_title || rec.position_role || "",
+      strategic_segment: rec.strategic_segment || rec.department_vertical || "Semicon",
+      priority: rec.priority || "Critical",
+      hiring_lead: rec.hiring_lead || rec.hiring_owner || "",
+      target_date: rec.target_date || rec.target_joining_date || "",
+      status: rec.status || rec.recruitment_status || "Open",
       candidates_sourced: rec.candidates_sourced || 0,
-      interviews: rec.interviews || 0,
-      offers: rec.offers || 0,
-      ageing_days: rec.ageing_days || 0,
-      target_ctc: rec.target_ctc || "",
-      budget: rec.budget || "",
-      hiring_lead: rec.hiring_lead || "",
+      candidates_shortlisted: rec.candidates_shortlisted || 0,
+      interviews: rec.interviews || rec.interviews_in_progress || 0,
+      offers: rec.offers || rec.offers_released || 0,
+      candidates_joined: rec.candidates_joined || 0,
+      remarks: rec.remarks || rec.key_issue || "",
       next_action: rec.next_action || "",
-      vc_attention: rec.vc_attention || false,
+      rag_status: (rec.rag_status || (rec.priority === "Critical" ? "RED" : "GREEN")).toUpperCase(),
+      vc_decision_required: rec.vc_decision_required === "Yes" || rec.vc_attention === true ? "Yes" : "No",
     });
     setShowRecModal(true);
   };
@@ -396,7 +405,10 @@ export default function DepartmentPage() {
   const dept = deptData.department;
   const overview = deptData.overview;
   const items = deptData.items || [];
-  const isHR = dept.code === "HR_REC";
+  const isHR = dept.code === "HR_REC" || Number(dept.id) === 7;
+  const isStrategyOps = dept.code === "STRATEGY_OPS" || Number(dept.id) === 9;
+  const isComm = dept.code === "COMM" || Number(dept.id) === 8;
+  const isTechnical = !isHR && !isStrategyOps && !isComm;
   const canEdit = deptData.canEdit;
 
   // Extract distinct categories for workstreams
@@ -452,6 +464,31 @@ export default function DepartmentPage() {
 
   // Current dynamic fields list
   const dynamicFields = formConfig?.fields || [];
+
+  // Dynamic tracker labels based on vertical type
+  const actionPointLabel = isStrategyOps
+    ? "Strategic Initiative / Action Point"
+    : isComm
+    ? "Deliverable"
+    : "Action Point / Deliverable";
+
+  const ownershipLabel = isStrategyOps
+    ? "Responsible Person / Department"
+    : "Ownership";
+
+  const remarksLabel = isStrategyOps || isComm
+    ? "Key Update / Dependency"
+    : "Remarks / Key Update";
+
+  const actionPointPlaceholder = isStrategyOps
+    ? "e.g. Campus phase-2 expansion roadmap or strategic partnerships"
+    : isComm
+    ? "e.g. Media kit release & press conference announcement"
+    : "e.g. Commissioning of ISO-6 Cleanroom with Laminar Flow HVAC";
+
+  const ownershipPlaceholder = isStrategyOps
+    ? "e.g. Strategy & Operations Head"
+    : dept?.name ? `${dept.name} Head` : "Lead Owner";
 
   return (
     <div className="space-y-8">
@@ -511,7 +548,7 @@ export default function DepartmentPage() {
               className="inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-xs transition"
             >
               <Plus className="w-4 h-4" />
-              <span>{isHR ? "+ Add Position" : "+ Add Workstream"}</span>
+              <span>{isHR ? "+ Create New Position" : "+ Create New Action"}</span>
             </button>
           </div>
         )}
@@ -910,28 +947,30 @@ export default function DepartmentPage() {
           </div>
           {canEdit && (
             <div className="flex items-center gap-2">
-              {!isHR && (
-                <button
-                  type="button"
-                  onClick={() => setShowInlineWsForm(!showInlineWsForm)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg transition"
-                >
-                  <span>{showInlineWsForm ? "Hide Data-Entry Form" : "Show Data-Entry Form"}</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => (isHR ? setShowInlineRecForm(!showInlineRecForm) : setShowInlineWsForm(!showInlineWsForm))}
+                className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg transition"
+              >
+                <span>
+                  {isHR
+                    ? (showInlineRecForm ? "Hide Recruitment Web Form" : "Show Recruitment Web Form")
+                    : (showInlineWsForm ? "Hide Action Web Form" : "Show Action Web Form")}
+                </span>
+              </button>
               <button
                 onClick={isHR ? openNewRecModal : openNewWsModal}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg transition"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg transition shadow-xs"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>{isHR ? "+ ADD POSITION" : "+ ADD ACTION POINT"}</span>
+                <span>{isHR ? "+ CREATE NEW POSITION" : "+ CREATE NEW ACTION"}</span>
               </button>
             </div>
           )}
         </div>
 
         {/* ========================================================================= */}
-        {/* INLINE ACTION TRACKER DATA ENTRY FORM (7 CORE COLUMNS) */}
+        {/* INLINE ACTION TRACKER DATA ENTRY FORM */}
         {/* ========================================================================= */}
         {!isHR && canEdit && showInlineWsForm && (
           <div className="mx-6 p-5 bg-gradient-to-r from-slate-50 via-indigo-50/20 to-slate-50 rounded-2xl border border-indigo-100 shadow-xs space-y-4">
@@ -939,10 +978,10 @@ export default function DepartmentPage() {
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse" />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  ACTION TRACKER DATA-ENTRY FORM
+                  ACTION TRACKER WEB FORM
                 </h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-md">
-                  7 Core Columns
+                  10 Tracked Columns
                 </span>
               </div>
               <span className="text-[11px] text-slate-500 italic">
@@ -951,45 +990,58 @@ export default function DepartmentPage() {
             </div>
 
             <form onSubmit={handleSaveWorkstream} className="space-y-3.5 text-xs">
-              {/* Row 1: Action Point, Ownership, Timeline */}
+              {/* Row 1: Initiative / Event / Campaign, Deliverable, Ownership, Timeline */}
               <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
-                <div className="md:col-span-6">
+                <div className="md:col-span-4">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    1. Action Point <span className="text-rose-500">*</span>
+                    Initiative / Event / Campaign <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={wsForm.category}
+                    onChange={(e) => setWsForm({ ...wsForm, category: e.target.value })}
+                    required
+                    placeholder="e.g. Cleanroom ISO-6 Upgrade / Strategic Partnership"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+
+                <div className="md:col-span-4">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Deliverable <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={wsForm.action_point}
                     onChange={(e) => setWsForm({ ...wsForm, action_point: e.target.value })}
                     required
-                    placeholder="e.g. Commissioning of ISO-6 Cleanroom with Laminar Flow HVAC"
+                    placeholder="e.g. Installation of Laminar Flow Units and Exhaust Ducts"
                     className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
 
-                <div className="md:col-span-3">
+                <div className="md:col-span-2">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    2. Ownership <span className="text-rose-500">*</span>
+                    Ownership <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={wsForm.ownership}
                     onChange={(e) => setWsForm({ ...wsForm, ownership: e.target.value })}
                     required
-                    placeholder="e.g. Semicon Head"
+                    placeholder={deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner"}
                     className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
 
-                <div className="md:col-span-3">
+                <div className="md:col-span-2">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    3. Timeline
+                    Timeline
                   </label>
                   <input
-                    type="text"
+                    type="date"
                     value={wsForm.timeline}
                     onChange={(e) => setWsForm({ ...wsForm, timeline: e.target.value })}
-                    placeholder="e.g. 2026-11-28 or Q4 2026"
                     className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
@@ -999,7 +1051,7 @@ export default function DepartmentPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    4. Status
+                    Status
                   </label>
                   <select
                     value={wsForm.status}
@@ -1008,31 +1060,30 @@ export default function DepartmentPage() {
                   >
                     <option value="Not Started">Not Started</option>
                     <option value="In Progress">In Progress</option>
-                    <option value="On Track">On Track</option>
-                    <option value="Delayed">Delayed</option>
-                    <option value="Blocked">Blocked</option>
                     <option value="Completed">Completed</option>
+                    <option value="Delayed">Delayed</option>
+                    <option value="On Hold">On Hold</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    5. RAG Status
+                    RAG Status
                   </label>
                   <select
                     value={wsForm.rag_status}
                     onChange={(e) => setWsForm({ ...wsForm, rag_status: e.target.value })}
                     className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   >
-                    <option value="GREEN">GREEN - On Track</option>
-                    <option value="AMBER">AMBER - Needs Attention</option>
-                    <option value="RED">RED - Critical / Escalated</option>
+                    <option value="GREEN">Green</option>
+                    <option value="AMBER">Amber</option>
+                    <option value="RED">Red</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1 flex items-center justify-between">
-                    <span>7. VC Decision Required</span>
+                    <span>Vice Chairman Decision Required</span>
                     <span className="text-[10px] text-rose-600 font-bold">YES / NO</span>
                   </label>
                   <select
@@ -1045,23 +1096,38 @@ export default function DepartmentPage() {
                     }`}
                   >
                     <option value="No">No</option>
-                    <option value="Yes">Yes (Escalate to Executive Tower)</option>
+                    <option value="Yes">Yes</option>
                   </select>
                 </div>
               </div>
 
-              {/* Row 3: Remarks */}
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                  6. Remarks
-                </label>
-                <input
-                  type="text"
-                  value={wsForm.remarks}
-                  onChange={(e) => setWsForm({ ...wsForm, remarks: e.target.value })}
-                  placeholder="e.g. VC approval required for final vendor selection / key blocker context"
-                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                />
+              {/* Row 3: Key Update / Dependency & VC Decision Action */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Key Update / Dependency
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={wsForm.remarks}
+                    onChange={(e) => setWsForm({ ...wsForm, remarks: e.target.value })}
+                    placeholder="Progress, risks, blockers and dependencies..."
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Decision / Action Required from VC
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={wsForm.decision_action}
+                    onChange={(e) => setWsForm({ ...wsForm, decision_action: e.target.value })}
+                    placeholder="Exact approval, intervention or decision required from Vice Chairman..."
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
               </div>
 
               {/* Buttons */}
@@ -1070,12 +1136,308 @@ export default function DepartmentPage() {
                   type="button"
                   onClick={() => {
                     setWsForm({
+                      category: "",
                       action_point: "",
                       ownership: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
                       timeline: new Date().toISOString().split("T")[0],
                       status: "In Progress",
                       rag_status: "GREEN",
                       remarks: "",
+                      vc_decision_required: "No",
+                      decision_action: "",
+                    });
+                  }}
+                  className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-semibold rounded-xl hover:bg-white/80 border border-transparent hover:border-slate-300 transition"
+                >
+                  Clear Form
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-sm transition"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ Create New Action</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* INLINE RECRUITMENT TRACKER DATA ENTRY FORM (HR & RECRUITMENT) */}
+        {/* ========================================================================= */}
+        {isHR && canEdit && showInlineRecForm && (
+          <div className="mx-6 p-5 bg-gradient-to-r from-slate-50 via-indigo-50/20 to-slate-50 rounded-2xl border border-indigo-100 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                  RECRUITMENT TRACKER WEB FORM
+                </h3>
+                <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-md">
+                  16 Fields Pipeline
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-500 italic">
+                Enter talent pipeline details below to add directly to HR & Recruitment
+              </span>
+            </div>
+
+            <form onSubmit={handleSaveRecruitment} className="space-y-3.5 text-xs">
+              {/* Row 1: Position / Role, Department / Strategic Vertical, Priority, Hiring Owner */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+                <div className="md:col-span-4">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Position / Role <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={recForm.position_title}
+                    onChange={(e) => setRecForm({ ...recForm, position_title: e.target.value })}
+                    required
+                    placeholder="e.g. Director - Cleanroom Operations"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+
+                <div className="md:col-span-3">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Department / Strategic Vertical <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={recForm.strategic_segment}
+                    onChange={(e) => setRecForm({ ...recForm, strategic_segment: e.target.value })}
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  >
+                    <option value="Semicon">Semicon</option>
+                    <option value="Aerospace & Defence">Aerospace & Defence</option>
+                    <option value="Space">Space</option>
+                    <option value="Cybersecurity">Cybersecurity</option>
+                    <option value="MedTech">MedTech</option>
+                    <option value="Advanced Manufacturing">Advanced Manufacturing</option>
+                    <option value="Communications">Communications</option>
+                    <option value="Strategy & Operations">Strategy & Operations</option>
+                    <option value="HR & Recruitment">HR & Recruitment</option>
+                    <option value="Central Leadership">Central Leadership</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Priority
+                  </label>
+                  <select
+                    value={recForm.priority}
+                    onChange={(e) => setRecForm({ ...recForm, priority: e.target.value })}
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  >
+                    <option value="Critical">Critical</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-3">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Hiring Owner
+                  </label>
+                  <input
+                    type="text"
+                    value={recForm.hiring_lead}
+                    onChange={(e) => setRecForm({ ...recForm, hiring_lead: e.target.value })}
+                    placeholder="e.g. Sumanth Rao / HR Lead"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: Target Joining Date, Recruitment Status, RAG Status, Vice Chairman Decision Required */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Target Joining Date
+                  </label>
+                  <input
+                    type="date"
+                    value={recForm.target_date}
+                    onChange={(e) => setRecForm({ ...recForm, target_date: e.target.value })}
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Recruitment Status
+                  </label>
+                  <select
+                    value={recForm.status}
+                    onChange={(e) => setRecForm({ ...recForm, status: e.target.value })}
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  >
+                    <option value="Open">Open</option>
+                    <option value="Sourcing">Sourcing</option>
+                    <option value="Screening">Screening</option>
+                    <option value="In Interview">In Interview</option>
+                    <option value="Offered">Offered</option>
+                    <option value="Joined">Joined</option>
+                    <option value="On Hold">On Hold</option>
+                    <option value="Closed">Closed</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    RAG Status
+                  </label>
+                  <select
+                    value={recForm.rag_status}
+                    onChange={(e) => setRecForm({ ...recForm, rag_status: e.target.value })}
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  >
+                    <option value="GREEN">Green</option>
+                    <option value="AMBER">Amber</option>
+                    <option value="RED">Red</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1 flex items-center justify-between">
+                    <span>Vice Chairman Decision Required</span>
+                    <span className="text-[10px] text-rose-600 font-bold">YES / NO</span>
+                  </label>
+                  <select
+                    value={recForm.vc_decision_required}
+                    onChange={(e) => setRecForm({ ...recForm, vc_decision_required: e.target.value })}
+                    className={`w-full px-3 py-2 bg-white rounded-xl border font-black focus:ring-2 focus:ring-indigo-600 focus:outline-none ${
+                      recForm.vc_decision_required === "Yes"
+                        ? "border-rose-400 text-rose-700 bg-rose-50/50"
+                        : "border-slate-300 text-slate-800"
+                    }`}
+                  >
+                    <option value="No">No</option>
+                    <option value="Yes">Yes</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 3: Pipeline Numbers: Sourced, Shortlisted, Interviews, Offers, Joined */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5 bg-white p-3 rounded-xl border border-slate-200">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    Candidates Sourced
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={recForm.candidates_sourced}
+                    onChange={(e) => setRecForm({ ...recForm, candidates_sourced: parseInt(e.target.value || "0", 10) })}
+                    className="w-full px-2.5 py-1.5 bg-slate-50 rounded-lg border border-slate-300 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    Candidates Shortlisted
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={recForm.candidates_shortlisted}
+                    onChange={(e) => setRecForm({ ...recForm, candidates_shortlisted: parseInt(e.target.value || "0", 10) })}
+                    className="w-full px-2.5 py-1.5 bg-slate-50 rounded-lg border border-slate-300 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    Interviews in Progress
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={recForm.interviews}
+                    onChange={(e) => setRecForm({ ...recForm, interviews: parseInt(e.target.value || "0", 10) })}
+                    className="w-full px-2.5 py-1.5 bg-slate-50 rounded-lg border border-slate-300 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    Offers Released
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={recForm.offers}
+                    onChange={(e) => setRecForm({ ...recForm, offers: parseInt(e.target.value || "0", 10) })}
+                    className="w-full px-2.5 py-1.5 bg-slate-50 rounded-lg border border-slate-300 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    Candidates Joined
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={recForm.candidates_joined}
+                    onChange={(e) => setRecForm({ ...recForm, candidates_joined: parseInt(e.target.value || "0", 10) })}
+                    className="w-full px-2.5 py-1.5 bg-slate-50 rounded-lg border border-slate-300 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Row 4: Key Issue / Remarks & Next Action */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Key Issue / Remarks
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={recForm.remarks}
+                    onChange={(e) => setRecForm({ ...recForm, remarks: e.target.value })}
+                    placeholder="Progress, compensation discussions, bottlenecks, or executive notes..."
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Next Action
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={recForm.next_action}
+                    onChange={(e) => setRecForm({ ...recForm, next_action: e.target.value })}
+                    placeholder="e.g. Schedule VC interview / Release offer letter..."
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecForm({
+                      position_title: "",
+                      strategic_segment: "Semicon",
+                      priority: "Critical",
+                      hiring_lead: "HR Talent Lead",
+                      target_date: new Date().toISOString().split("T")[0],
+                      status: "Open",
+                      candidates_sourced: 0,
+                      candidates_shortlisted: 0,
+                      interviews: 0,
+                      offers: 0,
+                      candidates_joined: 0,
+                      remarks: "",
+                      next_action: "",
+                      rag_status: "GREEN",
                       vc_decision_required: "No",
                     });
                   }}
@@ -1088,7 +1450,7 @@ export default function DepartmentPage() {
                   className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-sm transition"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>Add Action Point to Table</span>
+                  <span>+ Create New Position</span>
                 </button>
               </div>
             </form>
@@ -1278,43 +1640,54 @@ export default function DepartmentPage() {
           </div>
         )}
 
-        {/* Technical / Comm Action Tracker Table (Exactly 7 Columns) */}
+        {/* Technical / Strategy & Ops / Comm Action Tracker Table */}
         {!isHR ? (
           <div className="overflow-x-auto border-t border-slate-200">
             <table className="w-full text-left text-xs">
               <thead className="bg-[#0b1329] text-white uppercase text-[11px] font-bold tracking-wider border-b border-slate-800 whitespace-nowrap">
                 <tr>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">1. Action Point</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">2. Ownership</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">3. Timeline</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">4. Status</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">5. RAG Status</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">6. Remarks</th>
-                  <th className="px-4 py-3.5 text-center font-bold tracking-wider text-slate-100">7. Vice Chairman Decision Required</th>
+                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">Sl. No.</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Initiative / Event / Campaign</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Deliverable</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Ownership</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Timeline</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Status</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">RAG Status</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Key Update / Dependency</th>
+                  <th className="px-4 py-3.5 text-center font-bold tracking-wider text-slate-100">Vice Chairman Decision Required</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Decision / Action Required from VC</th>
                   {canEdit && <th className="px-4 py-3.5 text-right font-bold tracking-wider text-slate-100">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {filteredWorkstreams.length === 0 ? (
                   <tr>
-                    <td colSpan={canEdit ? 8 : 7} className="px-6 py-8 text-center text-slate-400">
-                      No action points match the active filters. Click "+ Add Action Point" or clear filters.
+                    <td colSpan={canEdit ? 11 : 10} className="px-6 py-8 text-center text-slate-400">
+                      No action points match the active filters. Click "+ CREATE NEW ACTION" or clear filters.
                     </td>
                   </tr>
                 ) : (
-                  filteredWorkstreams.map((ws: any) => {
-                    const actionPoint = ws.action_point || ws.deliverable || "--";
+                  filteredWorkstreams.map((ws: any, index: number) => {
+                    const initiative = ws.category || "--";
+                    const deliverable = ws.action_point || ws.deliverable || "--";
                     const ownership = ws.ownership || ws.owner || "--";
                     const timeline = ws.timeline || ws.target_date || "--";
                     const status = ws.status || "In Progress";
                     const ragStatus = (ws.rag_status || (["Delayed", "Blocked"].includes(status) ? "AMBER" : "GREEN")).toUpperCase();
-                    const remarks = ws.remarks || ws.decision_action || ws.risks_blockers || "--";
+                    const remarks = ws.remarks || ws.risks_blockers || "--";
                     const isVcReq = ws.vc_decision_required === "Yes";
+                    const decisionAction = ws.decision_action || "--";
 
                     return (
                       <tr key={ws.id} className="hover:bg-slate-50/80 transition">
-                        <td className="px-4 py-3.5 font-bold text-slate-900 min-w-[240px]">
-                          {actionPoint}
+                        <td className="px-3 py-3.5 font-bold text-center text-slate-500 font-mono">
+                          {index + 1}
+                        </td>
+                        <td className="px-4 py-3.5 font-semibold text-slate-800 min-w-[180px]">
+                          {initiative}
+                        </td>
+                        <td className="px-4 py-3.5 font-bold text-slate-900 min-w-[220px]">
+                          {deliverable}
                         </td>
                         <td className="px-4 py-3.5 font-medium text-slate-700 whitespace-nowrap">
                           {ownership}
@@ -1331,6 +1704,8 @@ export default function DepartmentPage() {
                                 ? "bg-amber-50 text-amber-700 border-amber-200"
                                 : status === "Blocked"
                                 ? "bg-rose-50 text-rose-700 border-rose-200"
+                                : status === "On Hold"
+                                ? "bg-slate-100 text-slate-700 border-slate-300"
                                 : status === "On Track"
                                 ? "bg-blue-50 text-blue-700 border-blue-200"
                                 : "bg-indigo-50 text-indigo-700 border-indigo-200"
@@ -1366,22 +1741,31 @@ export default function DepartmentPage() {
                             </span>
                           )}
                         </td>
+                        <td className="px-4 py-3 text-slate-700 min-w-[200px] leading-relaxed">
+                          {decisionAction !== "--" && decisionAction ? (
+                            <span className="font-medium text-slate-800">{decisionAction}</span>
+                          ) : (
+                            <span className="text-slate-400 italic">--</span>
+                          )}
+                        </td>
                         {canEdit && (
-                          <td className="px-4 py-3 text-right whitespace-nowrap space-x-1">
-                            <button
-                              onClick={() => openEditWsModal(ws)}
-                              title="Edit Action Point"
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteWorkstream(ws.id)}
-                              title="Delete Action Point"
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => openEditWsModal(ws)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                                <span>Edit Action</span>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteWorkstream(ws.id)}
+                                title="Delete Action Point"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </td>
                         )}
                       </tr>
@@ -1395,116 +1779,155 @@ export default function DepartmentPage() {
           /* HR & RECRUITMENT TABLE */
           <div className="overflow-x-auto border-t border-slate-200">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-100/70 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200 whitespace-nowrap">
+              <thead className="bg-[#0b1329] text-white uppercase text-[11px] font-bold tracking-wider border-b border-slate-800 whitespace-nowrap">
                 <tr>
-                  <th className="px-4 py-3">Position ID</th>
-                  <th className="px-4 py-3">Position Title</th>
-                  <th className="px-4 py-3">Strategic Segment</th>
-                  <th className="px-4 py-3">Priority</th>
-                  <th className="px-4 py-3">Target Date</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-center">Sourced</th>
-                  <th className="px-4 py-3 text-center">Interviews</th>
-                  <th className="px-4 py-3 text-center">Offers</th>
-                  <th className="px-4 py-3 text-center">Ageing</th>
-                  <th className="px-4 py-3">Target CTC</th>
-                  <th className="px-4 py-3">Hiring Lead</th>
-                  <th className="px-4 py-3">VC Attention</th>
-                  {canEdit && <th className="px-4 py-3 text-right">Actions</th>}
+                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">Sl. No.</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Position / Role</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Department / Strategic Vertical</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Priority</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Hiring Owner</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Target Joining Date</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Recruitment Status</th>
+                  <th className="px-4 py-3.5 text-center font-bold tracking-wider text-slate-100">Candidates Sourced</th>
+                  <th className="px-4 py-3.5 text-center font-bold tracking-wider text-slate-100">Candidates Shortlisted</th>
+                  <th className="px-4 py-3.5 text-center font-bold tracking-wider text-slate-100">Interviews in Progress</th>
+                  <th className="px-4 py-3.5 text-center font-bold tracking-wider text-slate-100">Offers Released</th>
+                  <th className="px-4 py-3.5 text-center font-bold tracking-wider text-slate-100">Candidates Joined</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Key Issue / Remarks</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Next Action</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">RAG Status</th>
+                  <th className="px-4 py-3.5 text-center font-bold tracking-wider text-slate-100">Vice Chairman Decision Required</th>
+                  {canEdit && <th className="px-4 py-3.5 text-right font-bold tracking-wider text-slate-100">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {filteredRecruitment.length === 0 ? (
                   <tr>
-                    <td colSpan={canEdit ? 14 : 13} className="px-6 py-8 text-center text-slate-400">
-                      No recruitment positions match the active filters.
+                    <td colSpan={canEdit ? 17 : 16} className="px-6 py-8 text-center text-slate-400">
+                      No recruitment positions match the active filters. Click "+ CREATE NEW POSITION" or clear filters.
                     </td>
                   </tr>
                 ) : (
-                  filteredRecruitment.map((r: any) => (
-                    <tr key={r.id} className="hover:bg-slate-50/80 transition">
-                      <td className="px-4 py-3 font-mono font-bold text-slate-700 whitespace-nowrap">
-                        {r.position_id}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-slate-900 min-w-[200px]">
-                        <div>{r.position_title}</div>
-                        {r.next_action && (
-                          <div className="text-[11px] text-slate-500 mt-0.5">
-                            <strong>Next:</strong> {r.next_action}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap font-medium">
-                        {r.strategic_segment}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span
-                          className={`px-2 py-0.5 text-[10px] font-bold rounded-md border uppercase ${
-                            r.priority === "Critical"
-                              ? "bg-rose-100 text-rose-800 border-rose-300"
-                              : r.priority === "High"
-                              ? "bg-amber-100 text-amber-800 border-amber-300"
-                              : "bg-slate-100 text-slate-700 border-slate-300"
-                          }`}
-                        >
-                          {r.priority}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                        {r.target_date || "--"}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="px-2 py-0.5 text-[11px] font-semibold rounded-md border bg-blue-50 text-blue-700 border-blue-200">
-                          {r.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center font-semibold text-slate-700">
-                        {r.candidates_sourced}
-                      </td>
-                      <td className="px-4 py-3 text-center font-semibold text-slate-700">
-                        {r.interviews}
-                      </td>
-                      <td className="px-4 py-3 text-center font-semibold text-slate-700">
-                        {r.offers}
-                      </td>
-                      <td className="px-4 py-3 text-center font-semibold text-slate-700">
-                        {r.ageing_days}d
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                        {r.target_ctc || "--"}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                        {r.hiring_lead || "--"}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {r.vc_attention ? (
-                          <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-rose-100 text-rose-700 border border-rose-300">
-                            YES
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">--</span>
-                        )}
-                      </td>
-                      {canEdit && (
-                        <td className="px-4 py-3 text-right whitespace-nowrap space-x-1">
-                          <button
-                            onClick={() => openEditRecModal(r)}
-                            title="Edit"
-                            className="p-1 rounded text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteRecruitment(r.id)}
-                            title="Delete"
-                            className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                  filteredRecruitment.map((r: any, index: number) => {
+                    const posTitle = r.position_title || r.position_role || "--";
+                    const deptVertical = r.strategic_segment || r.department_vertical || "--";
+                    const priority = r.priority || "Medium";
+                    const hiringOwner = r.hiring_lead || r.hiring_owner || "--";
+                    const targetJoining = r.target_date || r.target_joining_date || "--";
+                    const recStatus = r.status || r.recruitment_status || "Open";
+                    const sourced = r.candidates_sourced ?? 0;
+                    const shortlisted = r.candidates_shortlisted ?? 0;
+                    const interviews = r.interviews ?? r.interviews_in_progress ?? 0;
+                    const offers = r.offers ?? r.offers_released ?? 0;
+                    const joined = r.candidates_joined ?? 0;
+                    const remarks = r.remarks || r.key_issue || "--";
+                    const nextAction = r.next_action || "--";
+                    const ragStatus = (r.rag_status || (priority === "Critical" ? "RED" : "GREEN")).toUpperCase();
+                    const isVcReq = r.vc_decision_required === "Yes" || r.vc_attention === true;
+
+                    return (
+                      <tr key={r.id} className="hover:bg-slate-50/80 transition">
+                        <td className="px-3 py-3.5 font-bold text-center text-slate-500 font-mono">
+                          {index + 1}
                         </td>
-                      )}
-                    </tr>
-                  ))
+                        <td className="px-4 py-3.5 font-bold text-slate-900 min-w-[200px]">
+                          {posTitle}
+                        </td>
+                        <td className="px-4 py-3.5 font-medium text-slate-700 whitespace-nowrap">
+                          {deptVertical}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span
+                            className={`px-2 py-0.5 text-[10px] font-bold rounded-md border uppercase ${
+                              priority === "Critical"
+                                ? "bg-rose-100 text-rose-800 border-rose-300"
+                                : priority === "High"
+                                ? "bg-amber-100 text-amber-800 border-amber-300"
+                                : "bg-slate-100 text-slate-700 border-slate-300"
+                            }`}
+                          >
+                            {priority}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 font-medium text-slate-700 whitespace-nowrap">
+                          {hiringOwner}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-slate-600 whitespace-nowrap">
+                          {targetJoining}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="px-2 py-0.5 text-[11px] font-semibold rounded-md border bg-blue-50 text-blue-700 border-blue-200">
+                            {recStatus}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center font-bold text-slate-800">
+                          {sourced}
+                        </td>
+                        <td className="px-4 py-3 text-center font-bold text-slate-800">
+                          {shortlisted}
+                        </td>
+                        <td className="px-4 py-3 text-center font-bold text-slate-800">
+                          {interviews}
+                        </td>
+                        <td className="px-4 py-3 text-center font-bold text-slate-800">
+                          {offers}
+                        </td>
+                        <td className="px-4 py-3 text-center font-bold text-emerald-700">
+                          {joined}
+                        </td>
+                        <td className="px-4 py-3 text-slate-700 min-w-[200px] leading-relaxed">
+                          {remarks}
+                        </td>
+                        <td className="px-4 py-3 text-slate-700 min-w-[180px] leading-relaxed">
+                          {nextAction}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span
+                            className={`px-2 py-0.5 text-[10px] font-black rounded-md border uppercase tracking-wider ${
+                              ragStatus === "GREEN"
+                                ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                                : ragStatus === "AMBER"
+                                ? "bg-amber-100 text-amber-800 border-amber-300"
+                                : "bg-rose-100 text-rose-800 border-rose-300"
+                            }`}
+                          >
+                            {ragStatus}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          {isVcReq ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-black rounded-lg bg-rose-600 text-white shadow-xs">
+                              YES
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 text-[11px] font-semibold text-slate-400">
+                              No
+                            </span>
+                          )}
+                        </td>
+                        {canEdit && (
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => openEditRecModal(r)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] border border-indigo-200 transition"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                                <span>Edit Position</span>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteRecruitment(r.id)}
+                                title="Delete Position"
+                                className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -1520,13 +1943,31 @@ export default function DepartmentPage() {
               {editingWs ? "Update Action Point" : "+ Add Action Point"}
             </h3>
             <p className="text-xs text-slate-500 mb-5">
-              7-column Action Tracker for {dept.name}
+              {isStrategyOps
+                ? `Strategy & Operations Specialised Tracker for ${dept.name}`
+                : isComm
+                ? `Communications Specialised Tracker for ${dept.name}`
+                : `Action Tracker for ${dept.name}`}
             </p>
 
             <form onSubmit={handleSaveWorkstream} className="space-y-4 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  1. Action Point <span className="text-rose-500">*</span>
+                  Initiative / Event / Campaign <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={wsForm.category}
+                  onChange={(e) => setWsForm({ ...wsForm, category: e.target.value })}
+                  required
+                  placeholder="e.g. Cleanroom ISO-6 Upgrade / Strategic Initiative / Event"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-medium focus:ring-2 focus:ring-indigo-600"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Deliverable <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -1541,27 +1982,26 @@ export default function DepartmentPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    2. Ownership <span className="text-rose-500">*</span>
+                    Ownership <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={wsForm.ownership}
                     onChange={(e) => setWsForm({ ...wsForm, ownership: e.target.value })}
                     required
-                    placeholder="e.g. Semicon Head"
+                    placeholder={deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner"}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
                   />
                 </div>
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    3. Timeline
+                    Timeline
                   </label>
                   <input
-                    type="text"
+                    type="date"
                     value={wsForm.timeline}
                     onChange={(e) => setWsForm({ ...wsForm, timeline: e.target.value })}
-                    placeholder="e.g. 2026-11-28 or Q4 2026"
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
                   />
                 </div>
@@ -1569,7 +2009,7 @@ export default function DepartmentPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">4. Status</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Status</label>
                   <select
                     value={wsForm.status}
                     onChange={(e) => setWsForm({ ...wsForm, status: e.target.value })}
@@ -1577,29 +2017,28 @@ export default function DepartmentPage() {
                   >
                     <option value="Not Started">Not Started</option>
                     <option value="In Progress">In Progress</option>
-                    <option value="On Track">On Track</option>
-                    <option value="Delayed">Delayed</option>
-                    <option value="Blocked">Blocked</option>
                     <option value="Completed">Completed</option>
+                    <option value="Delayed">Delayed</option>
+                    <option value="On Hold">On Hold</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">5. RAG Status</label>
+                  <label className="block font-semibold text-slate-700 mb-1">RAG Status</label>
                   <select
                     value={wsForm.rag_status}
                     onChange={(e) => setWsForm({ ...wsForm, rag_status: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 font-medium"
                   >
-                    <option value="GREEN">GREEN - On Track</option>
-                    <option value="AMBER">AMBER - Needs Attention</option>
-                    <option value="RED">RED - Critical</option>
+                    <option value="GREEN">Green</option>
+                    <option value="AMBER">Amber</option>
+                    <option value="RED">Red</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    7. VC Decision Required
+                    Vice Chairman Decision Required
                   </label>
                   <select
                     value={wsForm.vc_decision_required}
@@ -1618,13 +2057,26 @@ export default function DepartmentPage() {
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  6. Remarks
+                  Key Update / Dependency
                 </label>
                 <textarea
                   rows={3}
                   value={wsForm.remarks}
                   onChange={(e) => setWsForm({ ...wsForm, remarks: e.target.value })}
-                  placeholder="e.g. VC approval required for final vendor selection / operational blocker context"
+                  placeholder="Progress, risks, blockers and dependencies..."
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Decision / Action Required from VC
+                </label>
+                <textarea
+                  rows={3}
+                  value={wsForm.decision_action}
+                  onChange={(e) => setWsForm({ ...wsForm, decision_action: e.target.value })}
+                  placeholder="Exact approval, intervention or decision required from Vice Chairman (optional if No)..."
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
                 />
               </div>
@@ -1661,185 +2113,234 @@ export default function DepartmentPage() {
             </p>
 
             <form onSubmit={handleSaveRecruitment} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Row 1: Position / Role, Department / Strategic Vertical */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Position ID</label>
-                  <input
-                    type="text"
-                    value={recForm.position_id}
-                    onChange={(e) => setRecForm({ ...recForm, position_id: e.target.value })}
-                    required
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block font-semibold text-slate-600 mb-1">Position Title</label>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Position / Role <span className="text-rose-500">*</span>
+                  </label>
                   <input
                     type="text"
                     value={recForm.position_title}
                     onChange={(e) => setRecForm({ ...recForm, position_title: e.target.value })}
                     required
-                    placeholder="e.g. Semiconductor SME Head & Programme Director"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
+                    placeholder="e.g. Director - Cleanroom Operations"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 font-medium"
                   />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Department / Strategic Vertical <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={recForm.strategic_segment}
+                    onChange={(e) => setRecForm({ ...recForm, strategic_segment: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 font-medium"
+                  >
+                    <option value="Semicon">Semicon</option>
+                    <option value="Aerospace & Defence">Aerospace & Defence</option>
+                    <option value="Space">Space</option>
+                    <option value="Cybersecurity">Cybersecurity</option>
+                    <option value="MedTech">MedTech</option>
+                    <option value="Advanced Manufacturing">Advanced Manufacturing</option>
+                    <option value="HR & Recruitment">HR & Recruitment</option>
+                    <option value="Communications">Communications</option>
+                    <option value="Strategy & Operations">Strategy & Operations</option>
+                  </select>
                 </div>
               </div>
 
+              {/* Row 2: Priority, Hiring Owner, Target Joining Date */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Strategic Segment</label>
-                  <input
-                    type="text"
-                    value={recForm.strategic_segment}
-                    onChange={(e) => setRecForm({ ...recForm, strategic_segment: e.target.value })}
-                    placeholder="e.g. Semicon, Aerospace"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Priority</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Priority</label>
                   <select
                     value={recForm.priority}
                     onChange={(e) => setRecForm({ ...recForm, priority: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 font-medium"
                   >
-                    {RECRUITMENT_PRIORITIES.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
+                    <option value="Critical">Critical</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Status</label>
-                  <select
-                    value={recForm.status}
-                    onChange={(e) => setRecForm({ ...recForm, status: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
-                  >
-                    {RECRUITMENT_STATUSES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Candidates Sourced</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={recForm.candidates_sourced}
-                    onChange={(e) =>
-                      setRecForm({ ...recForm, candidates_sourced: parseInt(e.target.value || "0", 10) })
-                    }
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Interviews</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={recForm.interviews}
-                    onChange={(e) =>
-                      setRecForm({ ...recForm, interviews: parseInt(e.target.value || "0", 10) })
-                    }
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Offers</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={recForm.offers}
-                    onChange={(e) =>
-                      setRecForm({ ...recForm, offers: parseInt(e.target.value || "0", 10) })
-                    }
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Ageing (Days)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={recForm.ageing_days}
-                    onChange={(e) =>
-                      setRecForm({ ...recForm, ageing_days: parseInt(e.target.value || "0", 10) })
-                    }
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Target CTC</label>
-                  <input
-                    type="text"
-                    value={recForm.target_ctc}
-                    onChange={(e) => setRecForm({ ...recForm, target_ctc: e.target.value })}
-                    placeholder="e.g. ₹ 45-55 LPA"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Budget</label>
-                  <input
-                    type="text"
-                    value={recForm.budget}
-                    onChange={(e) => setRecForm({ ...recForm, budget: e.target.value })}
-                    placeholder="e.g. ₹ 55 LPA"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Hiring Lead</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Hiring Owner</label>
                   <input
                     type="text"
                     value={recForm.hiring_lead}
                     onChange={(e) => setRecForm({ ...recForm, hiring_lead: e.target.value })}
-                    placeholder="e.g. Sumanth Rao"
+                    placeholder="e.g. Sumanth Rao / HR Lead"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Target Joining Date</label>
+                  <input
+                    type="date"
+                    value={recForm.target_date}
+                    onChange={(e) => setRecForm({ ...recForm, target_date: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block font-semibold text-slate-600 mb-1">Next Action</label>
-                <input
-                  type="text"
-                  value={recForm.next_action}
-                  onChange={(e) => setRecForm({ ...recForm, next_action: e.target.value })}
-                  placeholder="e.g. Final interview with Vice Chairman scheduled"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
-                />
+              {/* Row 3: Recruitment Status, RAG Status, Vice Chairman Decision Required */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Recruitment Status</label>
+                  <select
+                    value={recForm.status}
+                    onChange={(e) => setRecForm({ ...recForm, status: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 font-medium"
+                  >
+                    <option value="Open">Open</option>
+                    <option value="Sourcing">Sourcing</option>
+                    <option value="Screening">Screening</option>
+                    <option value="In Interview">In Interview</option>
+                    <option value="Offered">Offered</option>
+                    <option value="Joined">Joined</option>
+                    <option value="On Hold">On Hold</option>
+                    <option value="Closed">Closed</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">RAG Status</label>
+                  <select
+                    value={recForm.rag_status}
+                    onChange={(e) => setRecForm({ ...recForm, rag_status: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 font-medium"
+                  >
+                    <option value="GREEN">Green</option>
+                    <option value="AMBER">Amber</option>
+                    <option value="RED">Red</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Vice Chairman Decision Required
+                  </label>
+                  <select
+                    value={recForm.vc_decision_required}
+                    onChange={(e) => setRecForm({ ...recForm, vc_decision_required: e.target.value })}
+                    className={`w-full px-3 py-2 rounded-lg border text-sm font-bold focus:ring-2 focus:ring-indigo-600 ${
+                      recForm.vc_decision_required === "Yes"
+                        ? "border-rose-400 text-rose-700 bg-rose-50"
+                        : "border-slate-300 text-slate-800"
+                    }`}
+                  >
+                    <option value="No">No</option>
+                    <option value="Yes">Yes</option>
+                  </select>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="vc_att"
-                  checked={recForm.vc_attention}
-                  onChange={(e) => setRecForm({ ...recForm, vc_attention: e.target.checked })}
-                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-                />
-                <label htmlFor="vc_att" className="font-semibold text-slate-700">
-                  Escalate to Vice Chairman / Executive attention
-                </label>
+              {/* Row 4: Pipeline Numbers */}
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-2">
+                  Pipeline Counts
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1 text-[11px]">Candidates Sourced</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={recForm.candidates_sourced}
+                      onChange={(e) =>
+                        setRecForm({ ...recForm, candidates_sourced: parseInt(e.target.value || "0", 10) })
+                      }
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm font-bold focus:ring-2 focus:ring-indigo-600 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1 text-[11px]">Candidates Shortlisted</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={recForm.candidates_shortlisted}
+                      onChange={(e) =>
+                        setRecForm({ ...recForm, candidates_shortlisted: parseInt(e.target.value || "0", 10) })
+                      }
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm font-bold focus:ring-2 focus:ring-indigo-600 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1 text-[11px]">Interviews in Progress</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={recForm.interviews}
+                      onChange={(e) =>
+                        setRecForm({ ...recForm, interviews: parseInt(e.target.value || "0", 10) })
+                      }
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm font-bold focus:ring-2 focus:ring-indigo-600 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1 text-[11px]">Offers Released</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={recForm.offers}
+                      onChange={(e) =>
+                        setRecForm({ ...recForm, offers: parseInt(e.target.value || "0", 10) })
+                      }
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm font-bold focus:ring-2 focus:ring-indigo-600 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1 text-[11px]">Candidates Joined</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={recForm.candidates_joined}
+                      onChange={(e) =>
+                        setRecForm({ ...recForm, candidates_joined: parseInt(e.target.value || "0", 10) })
+                      }
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm font-bold focus:ring-2 focus:ring-indigo-600 bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 5: Key Issue / Remarks & Next Action */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Key Issue / Remarks
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={recForm.remarks}
+                    onChange={(e) => setRecForm({ ...recForm, remarks: e.target.value })}
+                    placeholder="Progress, compensation discussions, bottlenecks, or executive notes..."
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Next Action
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={recForm.next_action}
+                    onChange={(e) => setRecForm({ ...recForm, next_action: e.target.value })}
+                    placeholder="e.g. Schedule VC interview / Release offer letter..."
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">

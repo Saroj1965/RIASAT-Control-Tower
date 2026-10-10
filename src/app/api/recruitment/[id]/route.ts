@@ -48,7 +48,15 @@ export async function PUT(req: Request, { params }: Params) {
       hiring_lead,
       next_action,
       vc_attention,
+      candidates_shortlisted,
+      candidates_joined,
+      remarks,
+      rag_status,
+      vc_decision_required,
     } = body;
+
+    const finalVcReq = vc_decision_required !== undefined ? vc_decision_required : (vc_attention !== undefined ? (vc_attention ? "Yes" : "No") : undefined);
+    const finalVcAttention = finalVcReq !== undefined ? finalVcReq === "Yes" : undefined;
 
     const updateRes = await query(
       `UPDATE recruitment SET
@@ -67,26 +75,36 @@ export async function PUT(req: Request, { params }: Params) {
         hiring_lead = COALESCE($13, hiring_lead),
         next_action = COALESCE($14, next_action),
         vc_attention = COALESCE($15, vc_attention),
+        candidates_shortlisted = COALESCE($16, candidates_shortlisted),
+        candidates_joined = COALESCE($17, candidates_joined),
+        remarks = COALESCE($18, remarks),
+        rag_status = COALESCE($19, rag_status),
+        vc_decision_required = COALESCE($20, vc_decision_required),
         updated_at = CURRENT_TIMESTAMP,
-        updated_by = $16
-      WHERE id = $17
+        updated_by = $21
+      WHERE id = $22
       RETURNING *`,
       [
-        position_id,
-        position_title,
-        strategic_segment,
-        priority,
-        target_date,
-        status,
-        candidates_sourced !== undefined ? parseInt(candidates_sourced, 10) : undefined,
-        interviews !== undefined ? parseInt(interviews, 10) : undefined,
-        offers !== undefined ? parseInt(offers, 10) : undefined,
-        ageing_days !== undefined ? parseInt(ageing_days, 10) : undefined,
-        target_ctc,
-        budget,
-        hiring_lead,
-        next_action,
-        vc_attention !== undefined ? Boolean(vc_attention) : undefined,
+        position_id !== undefined ? position_id : null,
+        position_title !== undefined ? position_title : null,
+        strategic_segment !== undefined ? strategic_segment : null,
+        priority !== undefined ? priority : null,
+        target_date !== undefined ? target_date : null,
+        status !== undefined ? status : null,
+        candidates_sourced !== undefined ? parseInt(candidates_sourced, 10) : null,
+        interviews !== undefined ? parseInt(interviews, 10) : null,
+        offers !== undefined ? parseInt(offers, 10) : null,
+        ageing_days !== undefined ? parseInt(ageing_days, 10) : null,
+        target_ctc !== undefined ? target_ctc : null,
+        budget !== undefined ? budget : null,
+        hiring_lead !== undefined ? hiring_lead : null,
+        next_action !== undefined ? next_action : null,
+        finalVcAttention !== undefined ? finalVcAttention : null,
+        candidates_shortlisted !== undefined ? parseInt(candidates_shortlisted, 10) : null,
+        candidates_joined !== undefined ? parseInt(candidates_joined, 10) : null,
+        remarks !== undefined ? remarks : null,
+        rag_status !== undefined ? rag_status : null,
+        finalVcReq !== undefined ? finalVcReq : null,
         user.name,
         recId,
       ]

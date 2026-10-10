@@ -260,12 +260,18 @@ export async function ensureDbInitialized() {
     "ALTER TABLE workstreams ADD COLUMN IF NOT EXISTS rag_status TEXT DEFAULT 'GREEN';",
     "ALTER TABLE workstreams ADD COLUMN IF NOT EXISTS remarks TEXT;",
     "ALTER TABLE workstreams ADD COLUMN IF NOT EXISTS vc_decision_required TEXT DEFAULT 'No';",
+    "ALTER TABLE recruitment ADD COLUMN IF NOT EXISTS candidates_shortlisted INTEGER DEFAULT 0;",
+    "ALTER TABLE recruitment ADD COLUMN IF NOT EXISTS candidates_joined INTEGER DEFAULT 0;",
+    "ALTER TABLE recruitment ADD COLUMN IF NOT EXISTS remarks TEXT;",
+    "ALTER TABLE recruitment ADD COLUMN IF NOT EXISTS rag_status TEXT DEFAULT 'GREEN';",
+    "ALTER TABLE recruitment ADD COLUMN IF NOT EXISTS vc_decision_required TEXT DEFAULT 'No';",
     "UPDATE workstreams SET action_point = deliverable WHERE action_point IS NULL OR action_point = '';",
     "UPDATE workstreams SET ownership = owner WHERE ownership IS NULL OR ownership = '';",
     "UPDATE workstreams SET timeline = target_date WHERE timeline IS NULL OR timeline = '';",
     "UPDATE workstreams SET remarks = COALESCE(decision_action, risks_blockers, '') WHERE remarks IS NULL OR remarks = '';",
     "UPDATE workstreams SET rag_status = CASE WHEN status IN ('Delayed', 'Blocked') THEN 'AMBER' WHEN status = 'Completed' THEN 'GREEN' ELSE 'GREEN' END WHERE rag_status IS NULL OR rag_status = '';",
     "UPDATE workstreams SET vc_decision_required = CASE WHEN decision_action IS NOT NULL AND decision_action != '' AND decision_action != 'None' THEN 'Yes' ELSE 'No' END WHERE vc_decision_required IS NULL OR vc_decision_required = '';",
+    "UPDATE recruitment SET vc_decision_required = CASE WHEN vc_attention = TRUE THEN 'Yes' ELSE 'No' END WHERE vc_decision_required IS NULL OR vc_decision_required = '';",
   ];
 
   for (const m of migrations) {

@@ -57,7 +57,8 @@ export async function PUT(req: Request, { params }: Params) {
     const finalActionPoint = action_point !== undefined ? action_point : deliverable;
     const finalOwnership = ownership !== undefined ? ownership : owner;
     const finalTimeline = timeline !== undefined ? timeline : target_date;
-    const finalRemarks = remarks !== undefined ? remarks : (decision_action !== undefined ? decision_action : risks_blockers);
+    const finalRemarks = remarks !== undefined ? remarks : risks_blockers;
+    const finalDecisionAction = decision_action !== undefined ? decision_action : null;
 
     const updatedRes = await query(
       `UPDATE workstreams SET
@@ -76,7 +77,7 @@ export async function PUT(req: Request, { params }: Params) {
         ownership = COALESCE($13, ownership, owner),
         risks_blockers = COALESCE($14, risks_blockers),
         decision_action = COALESCE($15, decision_action),
-        remarks = COALESCE($16, remarks, decision_action),
+        remarks = COALESCE($16, remarks),
         vc_decision_required = COALESCE($17, vc_decision_required),
         updated_at = CURRENT_TIMESTAMP,
         updated_by = $18
@@ -97,7 +98,7 @@ export async function PUT(req: Request, { params }: Params) {
         finalOwnership !== undefined ? finalOwnership : null,
         finalOwnership !== undefined ? finalOwnership : null,
         risks_blockers !== undefined ? risks_blockers : null,
-        finalRemarks !== undefined ? finalRemarks : null,
+        finalDecisionAction,
         finalRemarks !== undefined ? finalRemarks : null,
         vc_decision_required !== undefined ? vc_decision_required : null,
         user.name,

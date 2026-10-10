@@ -34,6 +34,11 @@ export async function POST(req: Request) {
       hiring_lead,
       next_action,
       vc_attention,
+      candidates_shortlisted,
+      candidates_joined,
+      remarks,
+      rag_status,
+      vc_decision_required,
     } = body;
 
     if (!position_title) {
@@ -41,13 +46,17 @@ export async function POST(req: Request) {
     }
 
     const posId = position_id || `POS-${Date.now().toString().slice(-4)}`;
+    const finalVcReq = vc_decision_required === "Yes" || vc_attention === true || vc_attention === "Yes" ? "Yes" : "No";
+    const finalVcAttention = finalVcReq === "Yes";
+    const finalRag = (rag_status || (priority === "Critical" ? "RED" : "GREEN")).toUpperCase();
 
     const insertRes = await query(
       `INSERT INTO recruitment (
         position_id, position_title, strategic_segment, priority, target_date, status,
-        candidates_sourced, interviews, offers, ageing_days, target_ctc, budget,
-        hiring_lead, next_action, vc_attention, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        candidates_sourced, candidates_shortlisted, interviews, offers, candidates_joined,
+        ageing_days, target_ctc, budget, hiring_lead, next_action, remarks, rag_status,
+        vc_attention, vc_decision_required, updated_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
       RETURNING *`,
       [
         posId,
@@ -57,14 +66,19 @@ export async function POST(req: Request) {
         target_date || "",
         status || "Open",
         parseInt(candidates_sourced || "0", 10),
+        parseInt(candidates_shortlisted || "0", 10),
         parseInt(interviews || "0", 10),
         parseInt(offers || "0", 10),
+        parseInt(candidates_joined || "0", 10),
         parseInt(ageing_days || "0", 10),
         target_ctc || "",
         budget || "",
         hiring_lead || user.name,
         next_action || "",
-        Boolean(vc_attention),
+        remarks || "",
+        finalRag,
+        finalVcAttention,
+        finalVcReq,
         user.name,
       ]
     );
