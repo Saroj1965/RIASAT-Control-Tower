@@ -54,6 +54,7 @@ export async function GET(req: Request, { params }: Params) {
       department,
       overview,
       items,
+      workstreams: items,
       canEdit: userCanEdit,
       isExecutive: user.role === ROLES.EXECUTIVE,
       isAdmin: user.role === ROLES.ADMIN,
