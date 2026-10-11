@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { query, logAudit } from "@/lib/db";
-import { getSessionUser, hasFullAccess } from "@/lib/auth";
+import { getSessionUser, hasFullAccess, canManageDepartments } from "@/lib/auth";
 import { ROLES } from "@/lib/constants";
 
 export async function GET() {
@@ -85,8 +85,8 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const user = await getSessionUser();
-    if (!user || !hasFullAccess(user)) {
-      return NextResponse.json({ error: "Vice Chairman or Admin privileges required to create departments." }, { status: 403 });
+    if (!user || !canManageDepartments(user)) {
+      return NextResponse.json({ error: "Access Denied: Department Administrator privileges required." }, { status: 403 });
     }
 
     const { name, code } = await req.json();

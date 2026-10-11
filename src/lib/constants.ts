@@ -16,6 +16,9 @@ export const ROLES = {
   CHAIRMAN: "Vice Chairman",
   EXECUTIVE: "Executive",
   DEPARTMENT_HEAD: "Department Head",
+  FORM_ADMIN: "Form Admin",
+  USER_ADMIN: "User Admin",
+  DEPT_ADMIN: "Department Admin",
 } as const;
 
 export const RAG_STATUSES = ["GREEN", "AMBER", "RED", "NOT STARTED"] as const;
@@ -33,12 +36,11 @@ export const WORKSTREAM_STATUSES = [
 export const RECRUITMENT_PRIORITIES = ["Critical", "High", "Medium", "Low"] as const;
 
 export const RECRUITMENT_STATUSES = [
-  "Open",
-  "Sourcing",
-  "Screening",
-  "Interview",
-  "Offer",
+  "Candidate sourced",
+  "shortlisted",
+  "Interview in progress",
+  "Offers released",
+  "Rejected",
   "Joined",
-  "On Hold",
-  "Closed",
 ] as const;
+

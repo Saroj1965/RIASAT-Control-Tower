@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Users,
   UserPlus,
@@ -26,10 +27,15 @@ import {
   HelpCircle,
   Database,
   Upload,
+  Trash2,
 } from "lucide-react";
 import { ROLES, DEPARTMENTS } from "@/lib/constants";
 
-export default function AdminPage() {
+function AdminPageContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,6 +90,8 @@ export default function AdminPage() {
   const [showAddFieldModal, setShowAddFieldModal] = useState(false);
   const [showEditFieldModal, setShowEditFieldModal] = useState(false);
   const [editingField, setEditingField] = useState<any>(null);
+  const [deletingField, setDeletingField] = useState<any>(null);
+  const [isDeletingField, setIsDeletingField] = useState(false);
   const [newFieldForm, setNewFieldForm] = useState({
     department_id: "1",
     label: "",
@@ -98,24 +106,50 @@ export default function AdminPage() {
       setLoading(true);
       setError(null);
 
-      const [usersRes, deptsRes] = await Promise.all([
-        fetch("/api/admin/users"),
-        fetch("/api/departments"),
-      ]);
-
-      if (!usersRes.ok) {
-        const errJson = await usersRes.json();
-        throw new Error(errJson.error || "Failed to load users");
+      // Fetch user profile first
+      let currentRole = "";
+      try {
+        const meRes = await fetch("/api/auth/me");
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          if (meData.user) {
+            setCurrentUser(meData.user);
+            currentRole = meData.user.role;
+          }
+        }
+      } catch (meErr) {
+        console.error("Failed to load user info:", meErr);
       }
-      const usersData = await usersRes.json();
-      setUsers(usersData.users || []);
 
+      // Fetch departments (all admin roles need departments)
+      const deptsRes = await fetch("/api/departments");
       if (deptsRes.ok) {
         const deptsData = await deptsRes.json();
         const deptsList = deptsData.departments || [];
         setDepartments(deptsList);
         if (deptsList.length > 0 && !selectedDeptId) {
           setSelectedDeptId(deptsList[0].id.toString());
+        }
+      }
+
+      // Only fetch users if current role has user management privileges
+      const isNotUserViewer =
+        currentRole === ROLES.FORM_ADMIN ||
+        currentRole === "Form Admin" ||
+        currentRole === "Forms Admin" ||
+        currentRole === ROLES.DEPT_ADMIN ||
+        currentRole === "Department Admin" ||
+        currentRole === "Departments Admin";
+
+      if (!isNotUserViewer) {
+        try {
+          const usersRes = await fetch("/api/admin/users");
+          if (usersRes.ok) {
+            const usersData = await usersRes.json();
+            setUsers(usersData.users || []);
+          }
+        } catch (uErr) {
+          console.error("Failed to load users list:", uErr);
         }
       }
     } catch (err: any) {
@@ -146,6 +180,31 @@ export default function AdminPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Sync activeTab with URL search parameters and user role
+  useEffect(() => {
+    const tabParam = searchParams ? (searchParams.get("tab") as "users" | "departments" | "form_config" | null) : null;
+    const isFormAdmin = currentUser?.role === ROLES.FORM_ADMIN || currentUser?.role === "Form Admin" || currentUser?.role === "Forms Admin";
+    const isUserAdmin = currentUser?.role === ROLES.USER_ADMIN || currentUser?.role === "User Admin" || currentUser?.role === "Users Admin";
+    const isDeptAdmin = currentUser?.role === ROLES.DEPT_ADMIN || currentUser?.role === "Department Admin" || currentUser?.role === "Departments Admin";
+
+    if (isFormAdmin) {
+      setActiveTab("form_config");
+    } else if (isUserAdmin) {
+      setActiveTab("users");
+    } else if (isDeptAdmin) {
+      setActiveTab("departments");
+    } else if (tabParam && ["users", "departments", "form_config"].includes(tabParam)) {
+      setActiveTab(tabParam);
+    } else {
+      setActiveTab("users");
+    }
+  }, [searchParams, currentUser]);
+
+  const handleSwitchTab = (tab: "users" | "departments" | "form_config") => {
+    setActiveTab(tab);
+    router.push(`/admin?tab=${tab}`);
+  };
 
   useEffect(() => {
     if (activeTab === "form_config" && selectedDeptId) {
@@ -372,10 +431,12 @@ export default function AdminPage() {
     }
   };
 
-  // Open Edit Field Modal
+  // Open Edit / Modify Field Modal
   const openEditFieldModal = (f: any) => {
     setEditingField({
       id: f.id,
+      field_key: f.field_key,
+      department_id: f.department_id,
       label: f.label,
       field_type: f.field_type,
       required: Boolean(f.required),
@@ -384,6 +445,34 @@ export default function AdminPage() {
       help_text: f.help_text || "",
     });
     setShowEditFieldModal(true);
+  };
+
+  const openModifyFieldModal = (f: any) => {
+    openEditFieldModal(f);
+  };
+
+  // Delete Form Field
+  const handleDeleteField = async (f: any) => {
+    if (!f || !f.id) return;
+    setIsDeletingField(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/forms/fields?id=${f.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete form field");
+
+      setDeletingField(null);
+      setShowEditFieldModal(false);
+      setSuccess(`Form field "${f.label}" deleted successfully!`);
+      setTimeout(() => setSuccess(null), 4000);
+      loadFormFields(selectedDeptId);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsDeletingField(false);
+    }
   };
 
   // Submit Edit Field
@@ -514,16 +603,33 @@ export default function AdminPage() {
 
   const selectedDepartmentName = departments.find((d) => d.id.toString() === selectedDeptId)?.name || "Selected Vertical";
 
+  const isFormAdmin = currentUser?.role === ROLES.FORM_ADMIN || currentUser?.role === "Form Admin" || currentUser?.role === "Forms Admin";
+  const isUserAdmin = currentUser?.role === ROLES.USER_ADMIN || currentUser?.role === "User Admin" || currentUser?.role === "Users Admin";
+  const isDeptAdmin = currentUser?.role === ROLES.DEPT_ADMIN || currentUser?.role === "Department Admin" || currentUser?.role === "Departments Admin";
+  const isSuperAdmin = !isFormAdmin && !isUserAdmin && !isDeptAdmin;
+
   return (
     <div className="space-y-8">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-            Admin System Management
+            {isFormAdmin
+              ? "Dynamic Form Configuration"
+              : isUserAdmin
+              ? "User Access & Role Management"
+              : isDeptAdmin
+              ? "Departments Master Management"
+              : "Admin System Management"}
           </h1>
           <p className="text-sm text-slate-500 font-medium">
-            User access provisioning, role enforcement, dynamic form headings, and departmental governance
+            {isFormAdmin
+              ? "Dynamic headings, field data types, validations, and custom trackers across all 9 verticals"
+              : isUserAdmin
+              ? "User provisioning, department assignments, and credential access control"
+              : isDeptAdmin
+              ? "Vertical domains, codes, organizational master structure, and health status"
+              : "User access provisioning, role enforcement, dynamic form headings, and departmental governance"}
           </p>
         </div>
 
@@ -539,42 +645,48 @@ export default function AdminPage() {
           >
             <RefreshCw className={`w-4 h-4 ${loading || loadingFields ? "animate-spin" : ""}`} />
           </button>
-          <button
-            type="button"
-            onClick={handleExportDatabase}
-            disabled={exportingDb}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition disabled:opacity-50"
-            title="Download complete PostgreSQL database backup JSON"
-          >
-            {exportingDb ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Database className="w-3.5 h-3.5" />
-            )}
-            <span>Export Database</span>
-          </button>
-          <button
-            type="button"
-            disabled={importingDb}
-            onClick={() => fileInputRef.current?.click()}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition disabled:opacity-50"
-            title="Import or restore database backup from JSON file"
-          >
-            {importingDb ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Upload className="w-3.5 h-3.5" />
-            )}
-            <span>{importingDb ? "Importing..." : "Import Database"}</span>
-          </button>
-          <input
-            type="file"
-            ref={fileInputRef}
-            accept=".json,application/json"
-            onChange={handleImportDatabase}
-            className="hidden"
-          />
-          {activeTab === "users" && (
+
+          {isSuperAdmin && (
+            <>
+              <button
+                type="button"
+                onClick={handleExportDatabase}
+                disabled={exportingDb}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition disabled:opacity-50"
+                title="Download complete PostgreSQL database backup JSON"
+              >
+                {exportingDb ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Database className="w-3.5 h-3.5" />
+                )}
+                <span>Export Database</span>
+              </button>
+              <button
+                type="button"
+                disabled={importingDb}
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition disabled:opacity-50"
+                title="Import or restore database backup from JSON file"
+              >
+                {importingDb ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Upload className="w-3.5 h-3.5" />
+                )}
+                <span>{importingDb ? "Importing..." : "Import Database"}</span>
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept=".json,application/json"
+                onChange={handleImportDatabase}
+                className="hidden"
+              />
+            </>
+          )}
+
+          {activeTab === "users" && (isSuperAdmin || isUserAdmin) && (
             <button
               onClick={openCreateUserModal}
               className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs rounded-xl shadow-xs transition"
@@ -583,7 +695,7 @@ export default function AdminPage() {
               <span>+ Create User</span>
             </button>
           )}
-          {activeTab === "departments" && (
+          {activeTab === "departments" && (isSuperAdmin || isDeptAdmin) && (
             <button
               onClick={() => setShowDeptModal(true)}
               className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-xs transition"
@@ -592,7 +704,7 @@ export default function AdminPage() {
               <span>+ Add Department</span>
             </button>
           )}
-          {activeTab === "form_config" && (
+          {activeTab === "form_config" && (isSuperAdmin || isFormAdmin) && (
             <button
               onClick={openAddFieldModal}
               className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl shadow-xs transition"
@@ -606,39 +718,45 @@ export default function AdminPage() {
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-slate-200">
-        <button
-          onClick={() => setActiveTab("users")}
-          className={`px-4 py-2 text-xs font-bold border-b-2 transition flex items-center gap-2 ${
-            activeTab === "users"
-              ? "border-indigo-600 text-indigo-600"
-              : "border-transparent text-slate-500 hover:text-slate-800"
-          }`}
-        >
-          <Users className="w-3.5 h-3.5" />
-          <span>User Management ({users.length})</span>
-        </button>
-        <button
-          onClick={() => setActiveTab("departments")}
-          className={`px-4 py-2 text-xs font-bold border-b-2 transition flex items-center gap-2 ${
-            activeTab === "departments"
-              ? "border-indigo-600 text-indigo-600"
-              : "border-transparent text-slate-500 hover:text-slate-800"
-          }`}
-        >
-          <Building className="w-3.5 h-3.5" />
-          <span>Departments ({departments.length})</span>
-        </button>
-        <button
-          onClick={() => setActiveTab("form_config")}
-          className={`px-4 py-2 text-xs font-bold border-b-2 transition flex items-center gap-2 ${
-            activeTab === "form_config"
-              ? "border-indigo-600 text-indigo-600"
-              : "border-transparent text-slate-500 hover:text-slate-800"
-          }`}
-        >
-          <SlidersHorizontal className="w-3.5 h-3.5" />
-          <span>Form Configuration ({formFields.length})</span>
-        </button>
+        {(isSuperAdmin || isUserAdmin) && (
+          <button
+            onClick={() => handleSwitchTab("users")}
+            className={`px-4 py-2 text-xs font-bold border-b-2 transition flex items-center gap-2 ${
+              activeTab === "users"
+                ? "border-indigo-600 text-indigo-600"
+                : "border-transparent text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>User Management ({users.length})</span>
+          </button>
+        )}
+        {(isSuperAdmin || isDeptAdmin) && (
+          <button
+            onClick={() => handleSwitchTab("departments")}
+            className={`px-4 py-2 text-xs font-bold border-b-2 transition flex items-center gap-2 ${
+              activeTab === "departments"
+                ? "border-indigo-600 text-indigo-600"
+                : "border-transparent text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <Building className="w-3.5 h-3.5" />
+            <span>Departments ({departments.length})</span>
+          </button>
+        )}
+        {(isSuperAdmin || isFormAdmin) && (
+          <button
+            onClick={() => handleSwitchTab("form_config")}
+            className={`px-4 py-2 text-xs font-bold border-b-2 transition flex items-center gap-2 ${
+              activeTab === "form_config"
+                ? "border-indigo-600 text-indigo-600"
+                : "border-transparent text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Form Configuration ({formFields.length})</span>
+          </button>
+        )}
       </div>
 
       {/* Messages */}
@@ -1173,13 +1291,33 @@ export default function AdminPage() {
                               {f.active ? "Active" : "Inactive"}
                             </button>
                           </td>
-                          <td className="px-5 py-3 text-right whitespace-nowrap space-x-2">
-                            <button
-                              onClick={() => openEditFieldModal(f)}
-                              className="px-2.5 py-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition"
-                            >
-                              Edit Heading
-                            </button>
+                          <td className="px-5 py-3 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => openEditFieldModal(f)}
+                                className="px-2.5 py-1 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition inline-flex items-center gap-1 shadow-2xs"
+                                title="Edit field heading / label"
+                              >
+                                <Edit2 className="w-3 h-3 text-indigo-600" />
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                onClick={() => openModifyFieldModal(f)}
+                                className="px-2.5 py-1 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg transition inline-flex items-center gap-1 shadow-2xs"
+                                title="Modify field configuration, type, order and properties"
+                              >
+                                <Sliders className="w-3 h-3 text-slate-500" />
+                                <span>Modify</span>
+                              </button>
+                              <button
+                                onClick={() => setDeletingField(f)}
+                                className="px-2.5 py-1 text-xs font-bold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition inline-flex items-center gap-1 shadow-2xs"
+                                title="Delete this field from web form"
+                              >
+                                <Trash2 className="w-3 h-3 text-rose-600" />
+                                <span>Delete</span>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -1509,10 +1647,19 @@ export default function AdminPage() {
       {showEditFieldModal && editingField && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-base font-bold text-slate-900 mb-1">Edit Field Heading & Configuration</h3>
-            <p className="text-xs text-slate-500 mb-5">
-              Change the heading or settings. The internal database storage key is preserved safely.
-            </p>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 tracking-tight">Edit & Modify Field Configuration</h3>
+                <p className="text-xs text-slate-500">
+                  Modify heading, field type, display order, help text, or delete this field if not needed.
+                </p>
+              </div>
+              {editingField.field_key && (
+                <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-md font-mono text-[11px] border border-slate-200">
+                  Key: {editingField.field_key}
+                </span>
+              )}
+            </div>
 
             <form onSubmit={handleSaveEditField} className="space-y-4 text-xs">
               <div>
@@ -1595,25 +1742,115 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setShowEditFieldModal(false)}
-                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition"
+                  onClick={() => setDeletingField(editingField)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl font-bold text-xs transition"
                 >
-                  Cancel
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Field</span>
                 </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-xs transition"
-                >
-                  Save Changes
-                </button>
+
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditFieldModal(false)}
+                    className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition font-semibold text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition text-xs"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Save & Modify Field</span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: DELETE FORM FIELD CONFIRMATION */}
+      {/* ========================================================================= */}
+      {deletingField && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Delete Form Field</h3>
+                <p className="text-xs text-slate-500">Confirm deletion of field from web form</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">Field Heading / Label:</span>
+                <strong className="text-slate-900 font-bold">{deletingField.label}</strong>
+              </div>
+              {deletingField.field_key && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">Internal Storage Key:</span>
+                  <code className="text-indigo-600 font-mono font-bold">{deletingField.field_key}</code>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">Department:</span>
+                <span className="text-slate-800 font-semibold">{selectedDepartmentName}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Are you sure you want to delete this field? If you do not feel this field is right, deleting it will remove it permanently from the Department Head data entry form.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={isDeletingField}
+                onClick={() => setDeletingField(null)}
+                className="px-4 py-2 border border-slate-300 text-slate-700 font-semibold text-xs rounded-xl hover:bg-slate-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingField}
+                onClick={() => handleDeleteField(deletingField)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
+              >
+                {isDeletingField ? (
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                <span>Yes, Delete Field</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+export default function AdminPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center p-12">
+          <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <AdminPageContent />
+    </Suspense>
   );
 }

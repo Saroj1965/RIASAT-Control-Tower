@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { query, logAudit } from "@/lib/db";
-import { getSessionUser, hashPassword, hasFullAccess } from "@/lib/auth";
+import { getSessionUser, hashPassword, hasFullAccess, canManageUsers } from "@/lib/auth";
 import { ROLES } from "@/lib/constants";
 
 interface Params {
@@ -10,8 +10,8 @@ interface Params {
 export async function PUT(req: Request, { params }: Params) {
   try {
     const currentUser = await getSessionUser();
-    if (!currentUser || !hasFullAccess(currentUser)) {
-      return NextResponse.json({ error: "Access Denied: Vice Chairman or Admin privileges required." }, { status: 403 });
+    if (!currentUser || !canManageUsers(currentUser)) {
+      return NextResponse.json({ error: "Access Denied: User Administrator privileges required." }, { status: 403 });
     }
 
     const userId = parseInt(params.id, 10);

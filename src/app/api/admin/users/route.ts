@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { query, logAudit } from "@/lib/db";
-import { getSessionUser, hashPassword, hasFullAccess } from "@/lib/auth";
+import { getSessionUser, hashPassword, hasFullAccess, canManageUsers } from "@/lib/auth";
 import { ROLES } from "@/lib/constants";
 
 export async function GET() {
   try {
     const user = await getSessionUser();
-    if (!user || !hasFullAccess(user)) {
-      return NextResponse.json({ error: "Access Denied: Vice Chairman or Admin privileges required." }, { status: 403 });
+    if (!user || !canManageUsers(user)) {
+      return NextResponse.json({ error: "Access Denied: User Administrator privileges required." }, { status: 403 });
     }
 
     const res = await query(`
@@ -28,8 +28,8 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const currentUser = await getSessionUser();
-    if (!currentUser || !hasFullAccess(currentUser)) {
-      return NextResponse.json({ error: "Access Denied: Vice Chairman or Admin privileges required." }, { status: 403 });
+    if (!currentUser || !canManageUsers(currentUser)) {
+      return NextResponse.json({ error: "Access Denied: User Administrator privileges required." }, { status: 403 });
     }
 
     const body = await req.json();

@@ -9,7 +9,13 @@ export default async function HomePage() {
     redirect("/login");
   }
 
-  if (
+  if (user.role === ROLES.FORM_ADMIN || user.role === "Form Admin") {
+    redirect("/admin?tab=form_config");
+  } else if (user.role === ROLES.USER_ADMIN || user.role === "User Admin") {
+    redirect("/admin?tab=users");
+  } else if (user.role === ROLES.DEPT_ADMIN || user.role === "Department Admin") {
+    redirect("/admin?tab=departments");
+  } else if (
     user.role === ROLES.ADMIN ||
     user.role === "Admin" ||
     user.role === "System Administrator" ||

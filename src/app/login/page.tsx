@@ -52,10 +52,13 @@ export default function LoginPage() {
         {/* Header with Logo */}
         <div className="bg-slate-900 px-8 pt-8 pb-6 text-center border-b border-slate-800">
           <div className="flex justify-center mb-4">
-            <div className="relative w-16 h-16 rounded-xl overflow-hidden ring-2 ring-indigo-500/50 shadow-lg bg-white p-1">
+            <div className="relative w-16 h-16 rounded-xl overflow-hidden ring-2 ring-indigo-500/50 shadow-lg bg-white p-1" style={{ width: 64, height: 64, minWidth: 64, minHeight: 64 }}>
               <img
                 src="/riasat_logo.jpg"
                 alt="RIASAT Logo"
+                width={64}
+                height={64}
+                style={{ width: 64, height: 64, objectFit: "contain" }}
                 className="w-full h-full object-contain"
               />
             </div>
@@ -185,6 +188,55 @@ export default function LoginPage() {
                 >
                   <div className="font-semibold text-slate-800">Executive Office</div>
                   <div className="text-[11px] text-slate-500 truncate">executive@riasat.ac.in</div>
+                </button>
+              </div>
+
+              {/* 3 Dedicated Administrative Accounts */}
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 pt-1">
+                3 Dedicated Admin Roles (Separate Logins):
+              </div>
+              <div className="grid grid-cols-1 gap-1.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setDemoAccount("forms.admin@riasat.ac.in", "Forms@123")}
+                  className="text-left p-2 rounded-lg border border-emerald-200 bg-emerald-50/40 hover:border-emerald-400 hover:bg-emerald-50 transition flex items-center justify-between"
+                >
+                  <div>
+                    <div className="font-semibold text-emerald-950 flex items-center gap-1.5">
+                      <span>Form Configuration Admin</span>
+                      <span className="text-[9px] bg-emerald-600 text-white px-1 rounded font-bold">TAB 1</span>
+                    </div>
+                    <div className="text-[11px] text-emerald-800">forms.admin@riasat.ac.in • Forms@123</div>
+                  </div>
+                  <span className="text-[10px] text-emerald-700 font-medium">Form Config Only &rarr;</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDemoAccount("users.admin@riasat.ac.in", "Users@123")}
+                  className="text-left p-2 rounded-lg border border-purple-200 bg-purple-50/40 hover:border-purple-400 hover:bg-purple-50 transition flex items-center justify-between"
+                >
+                  <div>
+                    <div className="font-semibold text-purple-950 flex items-center gap-1.5">
+                      <span>User Management Admin</span>
+                      <span className="text-[9px] bg-purple-600 text-white px-1 rounded font-bold">TAB 2</span>
+                    </div>
+                    <div className="text-[11px] text-purple-800">users.admin@riasat.ac.in • Users@123</div>
+                  </div>
+                  <span className="text-[10px] text-purple-700 font-medium">User Mgmt Only &rarr;</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDemoAccount("dept.admin@riasat.ac.in", "Dept@123")}
+                  className="text-left p-2 rounded-lg border border-blue-200 bg-blue-50/40 hover:border-blue-400 hover:bg-blue-50 transition flex items-center justify-between"
+                >
+                  <div>
+                    <div className="font-semibold text-blue-950 flex items-center gap-1.5">
+                      <span>Departments Master Admin</span>
+                      <span className="text-[9px] bg-blue-600 text-white px-1 rounded font-bold">TAB 3</span>
+                    </div>
+                    <div className="text-[11px] text-blue-800">dept.admin@riasat.ac.in • Dept@123</div>
+                  </div>
+                  <span className="text-[10px] text-blue-700 font-medium">Departments Only &rarr;</span>
                 </button>
               </div>
 

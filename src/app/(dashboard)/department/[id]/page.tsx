@@ -88,15 +88,8 @@ export default function DepartmentPage() {
     priority: "Critical",
     hiring_lead: "",
     target_date: "",
-    status: "Open",
-    candidates_sourced: 0,
-    candidates_shortlisted: 0,
-    interviews: 0,
-    offers: 0,
-    candidates_joined: 0,
+    status: "Candidate sourced",
     remarks: "",
-    next_action: "",
-    rag_status: "GREEN",
     vc_decision_required: "No",
   });
 
@@ -298,15 +291,8 @@ export default function DepartmentPage() {
       priority: "Critical",
       hiring_lead: "HR Talent Lead",
       target_date: new Date().toISOString().split("T")[0],
-      status: "Open",
-      candidates_sourced: 0,
-      candidates_shortlisted: 0,
-      interviews: 0,
-      offers: 0,
-      candidates_joined: 0,
+      status: "Candidate sourced",
       remarks: "",
-      next_action: "",
-      rag_status: "GREEN",
       vc_decision_required: "No",
     });
     setShowRecModal(true);
@@ -320,22 +306,15 @@ export default function DepartmentPage() {
       priority: rec.priority || "Critical",
       hiring_lead: rec.hiring_lead || rec.hiring_owner || "",
       target_date: rec.target_date || rec.target_joining_date || "",
-      status: rec.status || rec.recruitment_status || "Open",
-      candidates_sourced: rec.candidates_sourced || 0,
-      candidates_shortlisted: rec.candidates_shortlisted || 0,
-      interviews: rec.interviews || rec.interviews_in_progress || 0,
-      offers: rec.offers || rec.offers_released || 0,
-      candidates_joined: rec.candidates_joined || 0,
+      status: rec.status || rec.recruitment_status || "Candidate sourced",
       remarks: rec.remarks || rec.key_issue || "",
-      next_action: rec.next_action || "",
-      rag_status: (rec.rag_status || (rec.priority === "Critical" ? "RED" : "GREEN")).toUpperCase(),
       vc_decision_required: rec.vc_decision_required === "Yes" || rec.vc_attention === true ? "Yes" : "No",
     });
     setShowRecModal(true);
   };
 
-  const handleSaveRecruitment = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveRecruitment = async (e?: React.FormEvent) => {
+    if (e && e.preventDefault) e.preventDefault();
     setError(null);
 
     try {
@@ -352,6 +331,18 @@ export default function DepartmentPage() {
       if (!res.ok) throw new Error(data.error || "Failed to save position");
 
       setShowRecModal(false);
+      setEditingRec(null);
+      setRecForm({
+        position_title: "",
+        strategic_segment: "Semicon",
+        priority: "Critical",
+        hiring_lead: "HR Talent Lead",
+        target_date: new Date().toISOString().split("T")[0],
+        status: "Candidate sourced",
+        remarks: "",
+        vc_decision_required: "No",
+      });
+
       setSuccessMsg(editingRec ? "Position updated successfully!" : "New position created successfully!");
       setTimeout(() => setSuccessMsg(null), 4000);
       fetchDepartment();
@@ -435,14 +426,15 @@ export default function DepartmentPage() {
   const filteredRecruitment = items.filter((r: any) => {
     if (recStatusFilter !== "ALL" && r.status !== recStatusFilter) return false;
     if (recPriorityFilter !== "ALL" && r.priority !== recPriorityFilter) return false;
-    if (recVcFilter === "VC_ONLY" && !r.vc_attention) return false;
+    if (recVcFilter === "VC_ONLY" && r.vc_decision_required !== "Yes" && !r.vc_attention) return false;
     if (recSearch.trim()) {
       const q = recSearch.toLowerCase();
-      const matchTitle = r.position_title && r.position_title.toLowerCase().includes(q);
-      const matchId = r.position_id && r.position_id.toLowerCase().includes(q);
-      const matchLead = r.hiring_lead && r.hiring_lead.toLowerCase().includes(q);
-      const matchNext = r.next_action && r.next_action.toLowerCase().includes(q);
-      if (!matchTitle && !matchId && !matchLead && !matchNext) return false;
+      const matchTitle = (r.position_title || "").toLowerCase().includes(q);
+      const matchDept = (r.strategic_segment || "").toLowerCase().includes(q);
+      const matchLead = (r.hiring_lead || "").toLowerCase().includes(q);
+      const matchRemarks = (r.remarks || "").toLowerCase().includes(q);
+      const matchDate = (r.target_date || "").toLowerCase().includes(q);
+      if (!matchTitle && !matchDept && !matchLead && !matchRemarks && !matchDate) return false;
     }
     return true;
   });
@@ -453,9 +445,9 @@ export default function DepartmentPage() {
   let delayedCount = 0;
 
   if (isHR) {
-    openCount = items.filter((x: any) => !["Joined", "Closed"].includes(x.status)).length;
+    openCount = items.filter((x: any) => !["Joined", "Rejected"].includes(x.status)).length;
     completedCount = items.filter((x: any) => x.status === "Joined").length;
-    delayedCount = items.filter((x: any) => x.priority === "Critical" && !["Joined", "Closed"].includes(x.status)).length;
+    delayedCount = items.filter((x: any) => x.priority === "Critical" && !["Joined", "Rejected"].includes(x.status)).length;
   } else {
     openCount = items.filter((x: any) => !["Completed", "On Hold"].includes(x.status)).length;
     completedCount = items.filter((x: any) => x.status === "Completed").length;
@@ -548,7 +540,7 @@ export default function DepartmentPage() {
               className="inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-xs transition"
             >
               <Plus className="w-4 h-4" />
-              <span>{isHR ? "+ Create New Position" : "+ Create New Action"}</span>
+              <span>{isHR ? "+ Edit or create new position" : "+ Edit or create new action"}</span>
             </button>
           </div>
         )}
@@ -963,7 +955,7 @@ export default function DepartmentPage() {
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg transition shadow-xs"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>{isHR ? "+ CREATE NEW POSITION" : "+ CREATE NEW ACTION"}</span>
+                <span>{isHR ? "+ Edit or create new position" : "+ Edit or create new action"}</span>
               </button>
             </div>
           )}
@@ -981,7 +973,7 @@ export default function DepartmentPage() {
                   ACTION TRACKER WEB FORM
                 </h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-md">
-                  10 Tracked Columns
+                  8 Tracked Columns
                 </span>
               </div>
               <span className="text-[11px] text-slate-500 italic">
@@ -1156,7 +1148,7 @@ export default function DepartmentPage() {
                   className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-sm transition"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>+ Create New Action</span>
+                  <span>+ Edit or create new action</span>
                 </button>
               </div>
             </form>
@@ -1175,7 +1167,7 @@ export default function DepartmentPage() {
                   RECRUITMENT TRACKER WEB FORM
                 </h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-md">
-                  16 Fields Pipeline
+                  9 Tracked Columns
                 </span>
               </div>
               <span className="text-[11px] text-slate-500 italic">
@@ -1252,8 +1244,8 @@ export default function DepartmentPage() {
                 </div>
               </div>
 
-              {/* Row 2: Target Joining Date, Recruitment Status, RAG Status, Vice Chairman Decision Required */}
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5">
+              {/* Row 2: Target Joining Date, Status (Dropdown with 6 bullet entries), VC Decision Required */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
                     Target Joining Date
@@ -1267,43 +1259,27 @@ export default function DepartmentPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Recruitment Status
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1 flex items-center justify-between">
+                    <span>Status</span>
+                    <span className="text-[10px] text-indigo-600 font-semibold">(Choose One)</span>
                   </label>
                   <select
                     value={recForm.status}
                     onChange={(e) => setRecForm({ ...recForm, status: e.target.value })}
                     className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   >
-                    <option value="Open">Open</option>
-                    <option value="Sourcing">Sourcing</option>
-                    <option value="Screening">Screening</option>
-                    <option value="In Interview">In Interview</option>
-                    <option value="Offered">Offered</option>
-                    <option value="Joined">Joined</option>
-                    <option value="On Hold">On Hold</option>
-                    <option value="Closed">Closed</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    RAG Status
-                  </label>
-                  <select
-                    value={recForm.rag_status}
-                    onChange={(e) => setRecForm({ ...recForm, rag_status: e.target.value })}
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  >
-                    <option value="GREEN">Green</option>
-                    <option value="AMBER">Amber</option>
-                    <option value="RED">Red</option>
+                    <option value="Candidate sourced">• Candidate sourced</option>
+                    <option value="shortlisted">• shortlisted</option>
+                    <option value="Interview in progress">• Interview in progress</option>
+                    <option value="Offers released">• Offers released</option>
+                    <option value="Rejected">• Rejected</option>
+                    <option value="Joined">• Joined</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1 flex items-center justify-between">
-                    <span>Vice Chairman Decision Required</span>
+                    <span>VC Decision Required</span>
                     <span className="text-[10px] text-rose-600 font-bold">YES / NO</span>
                   </label>
                   <select
@@ -1321,101 +1297,18 @@ export default function DepartmentPage() {
                 </div>
               </div>
 
-              {/* Row 3: Pipeline Numbers: Sourced, Shortlisted, Interviews, Offers, Joined */}
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5 bg-white p-3 rounded-xl border border-slate-200">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                    Candidates Sourced
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={recForm.candidates_sourced}
-                    onChange={(e) => setRecForm({ ...recForm, candidates_sourced: parseInt(e.target.value || "0", 10) })}
-                    className="w-full px-2.5 py-1.5 bg-slate-50 rounded-lg border border-slate-300 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                    Candidates Shortlisted
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={recForm.candidates_shortlisted}
-                    onChange={(e) => setRecForm({ ...recForm, candidates_shortlisted: parseInt(e.target.value || "0", 10) })}
-                    className="w-full px-2.5 py-1.5 bg-slate-50 rounded-lg border border-slate-300 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                    Interviews in Progress
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={recForm.interviews}
-                    onChange={(e) => setRecForm({ ...recForm, interviews: parseInt(e.target.value || "0", 10) })}
-                    className="w-full px-2.5 py-1.5 bg-slate-50 rounded-lg border border-slate-300 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                    Offers Released
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={recForm.offers}
-                    onChange={(e) => setRecForm({ ...recForm, offers: parseInt(e.target.value || "0", 10) })}
-                    className="w-full px-2.5 py-1.5 bg-slate-50 rounded-lg border border-slate-300 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                    Candidates Joined
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={recForm.candidates_joined}
-                    onChange={(e) => setRecForm({ ...recForm, candidates_joined: parseInt(e.target.value || "0", 10) })}
-                    className="w-full px-2.5 py-1.5 bg-slate-50 rounded-lg border border-slate-300 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Row 4: Key Issue / Remarks & Next Action */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Key Issue / Remarks
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={recForm.remarks}
-                    onChange={(e) => setRecForm({ ...recForm, remarks: e.target.value })}
-                    placeholder="Progress, compensation discussions, bottlenecks, or executive notes..."
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Next Action
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={recForm.next_action}
-                    onChange={(e) => setRecForm({ ...recForm, next_action: e.target.value })}
-                    placeholder="e.g. Schedule VC interview / Release offer letter..."
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
+              {/* Row 3: Remarks */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Remarks
+                </label>
+                <textarea
+                  rows={2}
+                  value={recForm.remarks}
+                  onChange={(e) => setRecForm({ ...recForm, remarks: e.target.value })}
+                  placeholder="Progress, compensation discussions, bottlenecks, or leadership notes..."
+                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                />
               </div>
 
               {/* Buttons */}
@@ -1429,15 +1322,8 @@ export default function DepartmentPage() {
                       priority: "Critical",
                       hiring_lead: "HR Talent Lead",
                       target_date: new Date().toISOString().split("T")[0],
-                      status: "Open",
-                      candidates_sourced: 0,
-                      candidates_shortlisted: 0,
-                      interviews: 0,
-                      offers: 0,
-                      candidates_joined: 0,
+                      status: "Candidate sourced",
                       remarks: "",
-                      next_action: "",
-                      rag_status: "GREEN",
                       vc_decision_required: "No",
                     });
                   }}
@@ -1450,7 +1336,7 @@ export default function DepartmentPage() {
                   className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-sm transition"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>+ Create New Position</span>
+                  <span>+ Edit or create new position</span>
                 </button>
               </div>
             </form>
@@ -1619,17 +1505,29 @@ export default function DepartmentPage() {
               </span>
               {[
                 { id: "ALL", label: "All Statuses" },
-                { id: "Open", label: "Open" },
-                { id: "In Interview", label: "In Interview" },
-                { id: "Offered", label: "Offered" },
+                { id: "Candidate sourced", label: "Candidate sourced" },
+                { id: "shortlisted", label: "shortlisted" },
+                { id: "Interview in progress", label: "Interview in progress" },
+                { id: "Offers released", label: "Offers released" },
+                { id: "Rejected", label: "Rejected" },
                 { id: "Joined", label: "Joined" },
               ].map((s) => (
                 <button
                   key={s.id}
                   onClick={() => setRecStatusFilter(s.id)}
-                  className={`px-2.5 py-0.5 rounded-md text-[11px] font-semibold transition ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
                     recStatusFilter === s.id
-                      ? "bg-indigo-600 text-white"
+                      ? s.id === "Joined"
+                        ? "bg-emerald-600 text-white shadow-xs"
+                        : s.id === "Rejected"
+                        ? "bg-rose-600 text-white shadow-xs"
+                        : s.id === "Offers released"
+                        ? "bg-indigo-600 text-white shadow-xs"
+                        : s.id === "Interview in progress"
+                        ? "bg-amber-600 text-white shadow-xs"
+                        : s.id === "shortlisted"
+                        ? "bg-violet-600 text-white shadow-xs"
+                        : "bg-blue-600 text-white shadow-xs"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
                 >
@@ -1652,18 +1550,16 @@ export default function DepartmentPage() {
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Ownership</th>
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Timeline</th>
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Status</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">RAG Status</th>
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Key Update / Dependency</th>
                   <th className="px-4 py-3.5 text-center font-bold tracking-wider text-slate-100">Vice Chairman Decision Required</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Decision / Action Required from VC</th>
                   {canEdit && <th className="px-4 py-3.5 text-right font-bold tracking-wider text-slate-100">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {filteredWorkstreams.length === 0 ? (
                   <tr>
-                    <td colSpan={canEdit ? 11 : 10} className="px-6 py-8 text-center text-slate-400">
-                      No action points match the active filters. Click "+ CREATE NEW ACTION" or clear filters.
+                    <td colSpan={canEdit ? 9 : 8} className="px-6 py-8 text-center text-slate-400">
+                      No action points match the active filters. Click "+ Edit or create new action" or clear filters.
                     </td>
                   </tr>
                 ) : (
@@ -1676,7 +1572,7 @@ export default function DepartmentPage() {
                     const ragStatus = (ws.rag_status || (["Delayed", "Blocked"].includes(status) ? "AMBER" : "GREEN")).toUpperCase();
                     const remarks = ws.remarks || ws.risks_blockers || "--";
                     const isVcReq = ws.vc_decision_required === "Yes";
-                    const decisionAction = ws.decision_action || "--";
+                    const decisionAction = ws.decision_action || "";
 
                     return (
                       <tr key={ws.id} className="hover:bg-slate-50/80 transition">
@@ -1696,74 +1592,74 @@ export default function DepartmentPage() {
                           {timeline}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <span
-                            className={`px-2 py-0.5 text-[11px] font-bold rounded-md border ${
-                              status === "Completed"
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                : status === "Delayed"
-                                ? "bg-amber-50 text-amber-700 border-amber-200"
-                                : status === "Blocked"
-                                ? "bg-rose-50 text-rose-700 border-rose-200"
-                                : status === "On Hold"
-                                ? "bg-slate-100 text-slate-700 border-slate-300"
-                                : status === "On Track"
-                                ? "bg-blue-50 text-blue-700 border-blue-200"
-                                : "bg-indigo-50 text-indigo-700 border-indigo-200"
-                            }`}
-                          >
-                            {status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span
-                            className={`px-2 py-0.5 text-[10px] font-black rounded-md border uppercase tracking-wider ${
-                              ragStatus === "GREEN"
-                                ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-                                : ragStatus === "AMBER"
-                                ? "bg-amber-100 text-amber-800 border-amber-300"
-                                : "bg-rose-100 text-rose-800 border-rose-300"
-                            }`}
-                          >
-                            {ragStatus}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border ${
+                                status === "Completed"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : status === "Delayed"
+                                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                                  : status === "Blocked"
+                                  ? "bg-rose-50 text-rose-700 border-rose-200"
+                                  : status === "On Hold"
+                                  ? "bg-slate-100 text-slate-700 border-slate-300"
+                                  : status === "On Track"
+                                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                                  : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                              }`}
+                            >
+                              {status}
+                            </span>
+                            <span
+                              className={`px-1.5 py-0.5 text-[9px] font-black rounded uppercase tracking-wider ${
+                                ragStatus === "GREEN"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : ragStatus === "AMBER"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-rose-100 text-rose-800"
+                              }`}
+                            >
+                              {ragStatus}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-slate-700 min-w-[200px] leading-relaxed">
                           {remarks}
                         </td>
                         <td className="px-4 py-3 text-center whitespace-nowrap">
                           {isVcReq ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-black rounded-lg bg-rose-600 text-white shadow-xs">
-                              YES
-                            </span>
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-black rounded-lg bg-rose-600 text-white shadow-xs">
+                                YES
+                              </span>
+                              {decisionAction && (
+                                <span className="text-[10px] text-rose-700 max-w-[160px] truncate" title={decisionAction}>
+                                  {decisionAction}
+                                </span>
+                              )}
+                            </div>
                           ) : (
                             <span className="px-2 py-0.5 text-[11px] font-semibold text-slate-400">
                               No
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-slate-700 min-w-[200px] leading-relaxed">
-                          {decisionAction !== "--" && decisionAction ? (
-                            <span className="font-medium text-slate-800">{decisionAction}</span>
-                          ) : (
-                            <span className="text-slate-400 italic">--</span>
-                          )}
-                        </td>
                         {canEdit && (
                           <td className="px-4 py-3 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1.5">
+                            <div className="flex items-center justify-end gap-2">
                               <button
                                 onClick={() => openEditWsModal(ws)}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition shadow-2xs"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
-                                <span>Edit Action</span>
+                                <span>Edit</span>
                               </button>
                               <button
                                 onClick={() => handleDeleteWorkstream(ws.id)}
-                                title="Delete Action Point"
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition shadow-2xs"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
+                                <span>Delete</span>
                               </button>
                             </div>
                           </td>
@@ -1787,24 +1683,17 @@ export default function DepartmentPage() {
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Priority</th>
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Hiring Owner</th>
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Target Joining Date</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Recruitment Status</th>
-                  <th className="px-4 py-3.5 text-center font-bold tracking-wider text-slate-100">Candidates Sourced</th>
-                  <th className="px-4 py-3.5 text-center font-bold tracking-wider text-slate-100">Candidates Shortlisted</th>
-                  <th className="px-4 py-3.5 text-center font-bold tracking-wider text-slate-100">Interviews in Progress</th>
-                  <th className="px-4 py-3.5 text-center font-bold tracking-wider text-slate-100">Offers Released</th>
-                  <th className="px-4 py-3.5 text-center font-bold tracking-wider text-slate-100">Candidates Joined</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Key Issue / Remarks</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Next Action</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">RAG Status</th>
-                  <th className="px-4 py-3.5 text-center font-bold tracking-wider text-slate-100">Vice Chairman Decision Required</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Status</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Remarks</th>
+                  <th className="px-4 py-3.5 text-center font-bold tracking-wider text-slate-100">VC Decision Required</th>
                   {canEdit && <th className="px-4 py-3.5 text-right font-bold tracking-wider text-slate-100">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {filteredRecruitment.length === 0 ? (
                   <tr>
-                    <td colSpan={canEdit ? 17 : 16} className="px-6 py-8 text-center text-slate-400">
-                      No recruitment positions match the active filters. Click "+ CREATE NEW POSITION" or clear filters.
+                    <td colSpan={canEdit ? 10 : 9} className="px-6 py-8 text-center text-slate-400">
+                      No recruitment positions match the active filters. Click "+ Edit or create new position" or clear filters.
                     </td>
                   </tr>
                 ) : (
@@ -1814,15 +1703,8 @@ export default function DepartmentPage() {
                     const priority = r.priority || "Medium";
                     const hiringOwner = r.hiring_lead || r.hiring_owner || "--";
                     const targetJoining = r.target_date || r.target_joining_date || "--";
-                    const recStatus = r.status || r.recruitment_status || "Open";
-                    const sourced = r.candidates_sourced ?? 0;
-                    const shortlisted = r.candidates_shortlisted ?? 0;
-                    const interviews = r.interviews ?? r.interviews_in_progress ?? 0;
-                    const offers = r.offers ?? r.offers_released ?? 0;
-                    const joined = r.candidates_joined ?? 0;
+                    const recStatus = r.status || r.recruitment_status || "Candidate sourced";
                     const remarks = r.remarks || r.key_issue || "--";
-                    const nextAction = r.next_action || "--";
-                    const ragStatus = (r.rag_status || (priority === "Critical" ? "RED" : "GREEN")).toUpperCase();
                     const isVcReq = r.vc_decision_required === "Yes" || r.vc_attention === true;
 
                     return (
@@ -1856,43 +1738,39 @@ export default function DepartmentPage() {
                           {targetJoining}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <span className="px-2 py-0.5 text-[11px] font-semibold rounded-md border bg-blue-50 text-blue-700 border-blue-200">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-lg border ${
+                              recStatus === "Joined"
+                                ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                                : recStatus === "Offers released"
+                                ? "bg-indigo-50 text-indigo-800 border-indigo-300"
+                                : recStatus === "Interview in progress"
+                                ? "bg-amber-50 text-amber-800 border-amber-300"
+                                : recStatus === "shortlisted"
+                                ? "bg-violet-50 text-violet-800 border-violet-300"
+                                : recStatus === "Rejected"
+                                ? "bg-rose-50 text-rose-800 border-rose-300"
+                                : "bg-blue-50 text-blue-800 border-blue-300"
+                            }`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${
+                              recStatus === "Joined"
+                                ? "bg-emerald-500"
+                                : recStatus === "Offers released"
+                                ? "bg-indigo-500"
+                                : recStatus === "Interview in progress"
+                                ? "bg-amber-500"
+                                : recStatus === "shortlisted"
+                                ? "bg-violet-500"
+                                : recStatus === "Rejected"
+                                ? "bg-rose-500"
+                                : "bg-blue-500"
+                            }`} />
                             {recStatus}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-center font-bold text-slate-800">
-                          {sourced}
-                        </td>
-                        <td className="px-4 py-3 text-center font-bold text-slate-800">
-                          {shortlisted}
-                        </td>
-                        <td className="px-4 py-3 text-center font-bold text-slate-800">
-                          {interviews}
-                        </td>
-                        <td className="px-4 py-3 text-center font-bold text-slate-800">
-                          {offers}
-                        </td>
-                        <td className="px-4 py-3 text-center font-bold text-emerald-700">
-                          {joined}
-                        </td>
                         <td className="px-4 py-3 text-slate-700 min-w-[200px] leading-relaxed">
                           {remarks}
-                        </td>
-                        <td className="px-4 py-3 text-slate-700 min-w-[180px] leading-relaxed">
-                          {nextAction}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span
-                            className={`px-2 py-0.5 text-[10px] font-black rounded-md border uppercase tracking-wider ${
-                              ragStatus === "GREEN"
-                                ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-                                : ragStatus === "AMBER"
-                                ? "bg-amber-100 text-amber-800 border-amber-300"
-                                : "bg-rose-100 text-rose-800 border-rose-300"
-                            }`}
-                          >
-                            {ragStatus}
-                          </span>
                         </td>
                         <td className="px-4 py-3 text-center whitespace-nowrap">
                           {isVcReq ? (
@@ -1907,20 +1785,20 @@ export default function DepartmentPage() {
                         </td>
                         {canEdit && (
                           <td className="px-4 py-3 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1.5">
+                            <div className="flex items-center justify-end gap-2">
                               <button
                                 onClick={() => openEditRecModal(r)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] border border-indigo-200 transition"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition shadow-2xs"
                               >
-                                <Edit2 className="w-3 h-3" />
-                                <span>Edit Position</span>
+                                <Edit2 className="w-3.5 h-3.5" />
+                                <span>Edit</span>
                               </button>
                               <button
                                 onClick={() => handleDeleteRecruitment(r.id)}
-                                title="Delete Position"
-                                className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition shadow-2xs"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
+                                <span>Delete</span>
                               </button>
                             </div>
                           </td>
@@ -2081,20 +1959,35 @@ export default function DepartmentPage() {
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowWsModal(false)}
-                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-xs transition"
-                >
-                  Save Action Point
-                </button>
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                {editingWs ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleDeleteWorkstream(editingWs.id);
+                      setShowWsModal(false);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 transition"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Action</span>
+                  </button>
+                ) : <div />}
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowWsModal(false)}
+                    className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
+                  >
+                    {editingWs ? "Save Changes" : "+ Edit or create new action"}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -2104,7 +1997,7 @@ export default function DepartmentPage() {
       {/* MODAL: ADD/EDIT RECRUITMENT POSITION */}
       {showRecModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full p-6 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900 mb-1">
               {editingRec ? "Update Position" : "+ Add Position"}
             </h3>
@@ -2116,7 +2009,7 @@ export default function DepartmentPage() {
               {/* Row 1: Position / Role, Department / Strategic Vertical */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
+                  <label className="block font-bold text-slate-700 mb-1">
                     Position / Role <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -2130,7 +2023,7 @@ export default function DepartmentPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
+                  <label className="block font-bold text-slate-700 mb-1">
                     Department / Strategic Vertical <span className="text-rose-500">*</span>
                   </label>
                   <select
@@ -2144,9 +2037,10 @@ export default function DepartmentPage() {
                     <option value="Cybersecurity">Cybersecurity</option>
                     <option value="MedTech">MedTech</option>
                     <option value="Advanced Manufacturing">Advanced Manufacturing</option>
-                    <option value="HR & Recruitment">HR & Recruitment</option>
                     <option value="Communications">Communications</option>
                     <option value="Strategy & Operations">Strategy & Operations</option>
+                    <option value="HR & Recruitment">HR & Recruitment</option>
+                    <option value="Central Leadership">Central Leadership</option>
                   </select>
                 </div>
               </div>
@@ -2154,7 +2048,7 @@ export default function DepartmentPage() {
               {/* Row 2: Priority, Hiring Owner, Target Joining Date */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Priority</label>
+                  <label className="block font-bold text-slate-700 mb-1">Priority</label>
                   <select
                     value={recForm.priority}
                     onChange={(e) => setRecForm({ ...recForm, priority: e.target.value })}
@@ -2168,7 +2062,7 @@ export default function DepartmentPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Hiring Owner</label>
+                  <label className="block font-bold text-slate-700 mb-1">Hiring Owner</label>
                   <input
                     type="text"
                     value={recForm.hiring_lead}
@@ -2179,7 +2073,7 @@ export default function DepartmentPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Target Joining Date</label>
+                  <label className="block font-bold text-slate-700 mb-1">Target Joining Date</label>
                   <input
                     type="date"
                     value={recForm.target_date}
@@ -2189,42 +2083,31 @@ export default function DepartmentPage() {
                 </div>
               </div>
 
-              {/* Row 3: Recruitment Status, RAG Status, Vice Chairman Decision Required */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Row 3: Status (Dropdown with 6 bullet entries) & VC Decision Required */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Recruitment Status</label>
+                  <label className="block font-bold text-slate-700 mb-1 flex items-center justify-between">
+                    <span>Status</span>
+                    <span className="text-[10px] text-indigo-600 font-semibold">(Choose One)</span>
+                  </label>
                   <select
                     value={recForm.status}
                     onChange={(e) => setRecForm({ ...recForm, status: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 font-medium"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600"
                   >
-                    <option value="Open">Open</option>
-                    <option value="Sourcing">Sourcing</option>
-                    <option value="Screening">Screening</option>
-                    <option value="In Interview">In Interview</option>
-                    <option value="Offered">Offered</option>
-                    <option value="Joined">Joined</option>
-                    <option value="On Hold">On Hold</option>
-                    <option value="Closed">Closed</option>
+                    <option value="Candidate sourced">• Candidate sourced</option>
+                    <option value="shortlisted">• shortlisted</option>
+                    <option value="Interview in progress">• Interview in progress</option>
+                    <option value="Offers released">• Offers released</option>
+                    <option value="Rejected">• Rejected</option>
+                    <option value="Joined">• Joined</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">RAG Status</label>
-                  <select
-                    value={recForm.rag_status}
-                    onChange={(e) => setRecForm({ ...recForm, rag_status: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 font-medium"
-                  >
-                    <option value="GREEN">Green</option>
-                    <option value="AMBER">Amber</option>
-                    <option value="RED">Red</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Vice Chairman Decision Required
+                  <label className="block font-bold text-slate-700 mb-1 flex items-center justify-between">
+                    <span>VC Decision Required</span>
+                    <span className="text-[10px] text-rose-600 font-bold">YES / NO</span>
                   </label>
                   <select
                     value={recForm.vc_decision_required}
@@ -2241,122 +2124,50 @@ export default function DepartmentPage() {
                 </div>
               </div>
 
-              {/* Row 4: Pipeline Numbers */}
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-2">
-                  Pipeline Counts
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1 text-[11px]">Candidates Sourced</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={recForm.candidates_sourced}
-                      onChange={(e) =>
-                        setRecForm({ ...recForm, candidates_sourced: parseInt(e.target.value || "0", 10) })
-                      }
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm font-bold focus:ring-2 focus:ring-indigo-600 bg-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1 text-[11px]">Candidates Shortlisted</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={recForm.candidates_shortlisted}
-                      onChange={(e) =>
-                        setRecForm({ ...recForm, candidates_shortlisted: parseInt(e.target.value || "0", 10) })
-                      }
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm font-bold focus:ring-2 focus:ring-indigo-600 bg-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1 text-[11px]">Interviews in Progress</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={recForm.interviews}
-                      onChange={(e) =>
-                        setRecForm({ ...recForm, interviews: parseInt(e.target.value || "0", 10) })
-                      }
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm font-bold focus:ring-2 focus:ring-indigo-600 bg-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1 text-[11px]">Offers Released</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={recForm.offers}
-                      onChange={(e) =>
-                        setRecForm({ ...recForm, offers: parseInt(e.target.value || "0", 10) })
-                      }
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm font-bold focus:ring-2 focus:ring-indigo-600 bg-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1 text-[11px]">Candidates Joined</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={recForm.candidates_joined}
-                      onChange={(e) =>
-                        setRecForm({ ...recForm, candidates_joined: parseInt(e.target.value || "0", 10) })
-                      }
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm font-bold focus:ring-2 focus:ring-indigo-600 bg-white"
-                    />
-                  </div>
-                </div>
+              {/* Row 4: Remarks */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Remarks
+                </label>
+                <textarea
+                  rows={3}
+                  value={recForm.remarks}
+                  onChange={(e) => setRecForm({ ...recForm, remarks: e.target.value })}
+                  placeholder="Progress, compensation discussions, bottlenecks, or executive notes..."
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
+                />
               </div>
 
-              {/* Row 5: Key Issue / Remarks & Next Action */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Key Issue / Remarks
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={recForm.remarks}
-                    onChange={(e) => setRecForm({ ...recForm, remarks: e.target.value })}
-                    placeholder="Progress, compensation discussions, bottlenecks, or executive notes..."
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
-                  />
+              {/* Footer with Delete and Save */}
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                {editingRec ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleDeleteRecruitment(editingRec.id);
+                      setShowRecModal(false);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 transition"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Position</span>
+                  </button>
+                ) : <div />}
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowRecModal(false)}
+                    className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
+                  >
+                    {editingRec ? "Save Changes" : "+ Edit or create new position"}
+                  </button>
                 </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Next Action
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={recForm.next_action}
-                    onChange={(e) => setRecForm({ ...recForm, next_action: e.target.value })}
-                    placeholder="e.g. Schedule VC interview / Release offer letter..."
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowRecModal(false)}
-                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-xs transition"
-                >
-                  Save Position
-                </button>
               </div>
             </form>
           </div>

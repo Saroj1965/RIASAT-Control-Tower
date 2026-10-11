@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { query, logAudit } from "@/lib/db";
-import { getSessionUser, hasFullAccess } from "@/lib/auth";
+import { getSessionUser, hasFullAccess, canManageForms } from "@/lib/auth";
 
 export async function GET(req: Request) {
   try {
@@ -51,8 +51,8 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const user = await getSessionUser();
-    if (!user || !hasFullAccess(user)) {
-      return NextResponse.json({ error: "Access Denied: Admin or Vice Chairman privileges required." }, { status: 403 });
+    if (!user || !canManageForms(user)) {
+      return NextResponse.json({ error: "Access Denied: Form Administrator privileges required." }, { status: 403 });
     }
 
     const body = await req.json();
@@ -120,8 +120,8 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
   try {
     const user = await getSessionUser();
-    if (!user || !hasFullAccess(user)) {
-      return NextResponse.json({ error: "Access Denied: Admin or Vice Chairman privileges required." }, { status: 403 });
+    if (!user || !canManageForms(user)) {
+      return NextResponse.json({ error: "Access Denied: Form Administrator privileges required." }, { status: 403 });
     }
 
     const body = await req.json();
@@ -177,3 +177,59 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
+export async function DELETE(req: Request) {
+  try {
+    const user = await getSessionUser();
+    if (!user || !canManageForms(user)) {
+      return NextResponse.json(
+        { error: "Access Denied: Form Administrator privileges required." },
+        { status: 403 }
+      );
+    }
+
+    const { searchParams } = new URL(req.url);
+    let id = searchParams.get("id");
+    if (!id) {
+      try {
+        const body = await req.json();
+        id = body?.id;
+      } catch (e) {
+        // body may be empty
+      }
+    }
+
+    const fieldId = parseInt(id || "", 10);
+    if (isNaN(fieldId)) {
+      return NextResponse.json({ error: "Field ID is required." }, { status: 400 });
+    }
+
+    const oldFieldRes = await query("SELECT * FROM form_fields WHERE id = $1", [fieldId]);
+    if (oldFieldRes.rows.length === 0) {
+      return NextResponse.json({ error: "Field not found." }, { status: 404 });
+    }
+    const oldField = oldFieldRes.rows[0];
+
+    // Safely delete associated values, options and the field itself
+    await query("DELETE FROM department_form_values WHERE field_id = $1", [fieldId]);
+    await query("DELETE FROM form_field_options WHERE field_id = $1", [fieldId]);
+    await query("DELETE FROM form_fields WHERE id = $1", [fieldId]);
+
+    await logAudit({
+      userId: user.id,
+      userName: user.name,
+      action: "DELETE_FORM_FIELD",
+      departmentId: oldField.department_id,
+      recordId: fieldId,
+      details: `${user.name} deleted form field "${oldField.label}" (${oldField.field_key}) from department ID ${oldField.department_id}`,
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `Form field "${oldField.label}" deleted successfully.`,
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+

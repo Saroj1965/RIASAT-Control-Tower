@@ -91,4 +91,44 @@ export function canViewDepartment(user: SessionUser | null, departmentId: number
   return false;
 }
 
+export function canManageForms(user: SessionUser | null): boolean {
+  if (!user) return false;
+  return (
+    hasFullAccess(user) ||
+    user.role === ROLES.FORM_ADMIN ||
+    user.role === "Form Admin" ||
+    user.role === "Forms Admin"
+  );
+}
+
+export function canManageUsers(user: SessionUser | null): boolean {
+  if (!user) return false;
+  return (
+    hasFullAccess(user) ||
+    user.role === ROLES.USER_ADMIN ||
+    user.role === "User Admin" ||
+    user.role === "Users Admin"
+  );
+}
+
+export function canManageDepartments(user: SessionUser | null): boolean {
+  if (!user) return false;
+  return (
+    hasFullAccess(user) ||
+    user.role === ROLES.DEPT_ADMIN ||
+    user.role === "Department Admin" ||
+    user.role === "Departments Admin"
+  );
+}
+
+export function canAccessAdmin(user: SessionUser | null): boolean {
+  if (!user) return false;
+  return (
+    hasFullAccess(user) ||
+    canManageForms(user) ||
+    canManageUsers(user) ||
+    canManageDepartments(user)
+  );
+}
+
 export { COOKIE_NAME };

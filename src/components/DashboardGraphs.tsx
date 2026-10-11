@@ -17,8 +17,11 @@ export default function DashboardGraphs({ graphs }: GraphsProps) {
 
   if (!graphs) return null;
 
+  const financials = Array.isArray(graphs.financials) ? graphs.financials : [];
+  const readiness = Array.isArray(graphs.readiness) ? graphs.readiness : [];
+
   const maxFinancial = Math.max(
-    ...graphs.financials.map((f) => Math.max(f.capex, f.revenue)),
+    ...financials.map((f) => Math.max(f.capex || 0, f.revenue || 0)),
     30
   );
 
@@ -91,7 +94,7 @@ export default function DashboardGraphs({ graphs }: GraphsProps) {
 
             {/* Bars container */}
             <div className="space-y-3.5 pt-2">
-              {graphs.readiness.map((d) => {
+              {readiness.map((d) => {
                 const barColor =
                   d.rag === "GREEN"
                     ? "bg-emerald-500"
@@ -145,7 +148,7 @@ export default function DashboardGraphs({ graphs }: GraphsProps) {
 
             {/* Comparative Columns Chart */}
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-3 items-end h-56 pt-6 border-b border-slate-200 pb-2">
-              {graphs.financials.map((f) => {
+              {financials.map((f) => {
                 const capexHeight = Math.max(12, Math.round((f.capex / maxFinancial) * 160));
                 const revHeight = Math.max(12, Math.round((f.revenue / maxFinancial) * 160));
 

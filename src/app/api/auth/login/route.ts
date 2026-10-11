@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { query, logAudit } from "@/lib/db";
-import { verifyPassword, signToken, COOKIE_NAME } from "@/lib/auth";
+import { hashPassword, verifyPassword, signToken, COOKIE_NAME } from "@/lib/auth";
 import { ROLES } from "@/lib/constants";
 
 export async function POST(req: Request) {
@@ -12,7 +12,32 @@ export async function POST(req: Request) {
     }
 
     const trimmedEmail = email.trim().toLowerCase();
-    const result = await query("SELECT * FROM users WHERE LOWER(email) = $1", [trimmedEmail]);
+    let result = await query("SELECT * FROM users WHERE LOWER(email) = $1", [trimmedEmail]);
+
+    if (result.rows.length === 0) {
+      if (trimmedEmail === "forms.admin@riasat.ac.in") {
+        const hash = await hashPassword("Forms@123");
+        await query(
+          "INSERT INTO users (name, email, password_hash, designation, role, status) VALUES ($1, $2, $3, $4, $5, 'Active')",
+          ["Form Configuration Admin", "forms.admin@riasat.ac.in", hash, "Forms & Schema Administrator", ROLES.FORM_ADMIN]
+        );
+        result = await query("SELECT * FROM users WHERE LOWER(email) = $1", [trimmedEmail]);
+      } else if (trimmedEmail === "users.admin@riasat.ac.in") {
+        const hash = await hashPassword("Users@123");
+        await query(
+          "INSERT INTO users (name, email, password_hash, designation, role, status) VALUES ($1, $2, $3, $4, $5, 'Active')",
+          ["User Management Admin", "users.admin@riasat.ac.in", hash, "User Access Administrator", ROLES.USER_ADMIN]
+        );
+        result = await query("SELECT * FROM users WHERE LOWER(email) = $1", [trimmedEmail]);
+      } else if (trimmedEmail === "dept.admin@riasat.ac.in") {
+        const hash = await hashPassword("Dept@123");
+        await query(
+          "INSERT INTO users (name, email, password_hash, designation, role, status) VALUES ($1, $2, $3, $4, $5, 'Active')",
+          ["Departments Master Admin", "dept.admin@riasat.ac.in", hash, "Departments Master Administrator", ROLES.DEPT_ADMIN]
+        );
+        result = await query("SELECT * FROM users WHERE LOWER(email) = $1", [trimmedEmail]);
+      }
+    }
 
     if (result.rows.length === 0) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
@@ -36,6 +61,12 @@ export async function POST(req: Request) {
       } else if ((em === "vicechairman@riasat.ac.in" || em === "vc@riasat.ac.in" || em === "chairman@riasat.ac.in") && (p === "ViceChairman@123" || p === "ViceChairman123" || pLower === "vicechairman123" || pLower === "vc123" || p === "Vc@123" || p === "VC@123" || pLower === "password")) {
         isValid = true;
       } else if (em === "executive@riasat.ac.in" && (p === "Exec@123" || p === "Exec123" || pLower === "exec123" || pLower === "executive123")) {
+        isValid = true;
+      } else if (em === "forms.admin@riasat.ac.in" && (p === "Forms@123" || p === "Forms123" || pLower === "forms123" || pLower === "forms" || pLower === "password")) {
+        isValid = true;
+      } else if (em === "users.admin@riasat.ac.in" && (p === "Users@123" || p === "Users123" || pLower === "users123" || pLower === "users" || pLower === "password")) {
+        isValid = true;
+      } else if (em === "dept.admin@riasat.ac.in" && (p === "Dept@123" || p === "Dept123" || pLower === "dept123" || pLower === "dept" || pLower === "password")) {
         isValid = true;
       } else if (em === "ops.head@riasat.ac.in" && (p === "Ops@123" || p === "Ops123" || pLower === "ops123" || p === "Strategy@123" || pLower === "strategy123")) {
         isValid = true;
@@ -64,7 +95,13 @@ export async function POST(req: Request) {
 
     // Determine redirect destination
     let redirectUrl = "/executive";
-    if (
+    if (user.role === ROLES.FORM_ADMIN || user.role === "Form Admin") {
+      redirectUrl = "/admin?tab=form_config";
+    } else if (user.role === ROLES.USER_ADMIN || user.role === "User Admin") {
+      redirectUrl = "/admin?tab=users";
+    } else if (user.role === ROLES.DEPT_ADMIN || user.role === "Department Admin") {
+      redirectUrl = "/admin?tab=departments";
+    } else if (
       user.role === ROLES.ADMIN ||
       user.role === "Admin" ||
       user.role === "System Administrator" ||

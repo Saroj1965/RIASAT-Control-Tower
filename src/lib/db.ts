@@ -361,6 +361,9 @@ export async function ensureDbInitialized() {
     { name: "Vice Chairman", email: "vicechairman@riasat.ac.in", pass: "ViceChairman@123", role: ROLES.VICE_CHAIRMAN, deptId: null, desig: "Vice Chairman & Executive Director", mobile: "" },
     { name: "System Administrator", email: "admin@riasat.ac.in", pass: "Admin@123", role: ROLES.ADMIN, deptId: null, desig: "System Administrator", mobile: "" },
     { name: "Executive Office", email: "executive@riasat.ac.in", pass: "Exec@123", role: ROLES.EXECUTIVE, deptId: null, desig: "Executive Director / Management", mobile: "" },
+    { name: "Form Configuration Admin", email: "forms.admin@riasat.ac.in", pass: "Forms@123", role: ROLES.FORM_ADMIN, deptId: null, desig: "Forms & Schema Administrator", mobile: "" },
+    { name: "User Management Admin", email: "users.admin@riasat.ac.in", pass: "Users@123", role: ROLES.USER_ADMIN, deptId: null, desig: "User Access Administrator", mobile: "" },
+    { name: "Departments Master Admin", email: "dept.admin@riasat.ac.in", pass: "Dept@123", role: ROLES.DEPT_ADMIN, deptId: null, desig: "Departments Master Administrator", mobile: "" },
     { name: "Semicon Head", email: "semicon.head@riasat.ac.in", pass: "Semicon@123", role: ROLES.DEPARTMENT_HEAD, deptId: 1, desig: "Head - Semicon", mobile: "" },
     { name: "Aerospace & Defence Head", email: "aero.head@riasat.ac.in", pass: "Aero@123", role: ROLES.DEPARTMENT_HEAD, deptId: 2, desig: "Head - Aerospace & Defence", mobile: "" },
     { name: "Space Head", email: "space.head@riasat.ac.in", pass: "Space@123", role: ROLES.DEPARTMENT_HEAD, deptId: 3, desig: "Head - Space", mobile: "" },
@@ -394,6 +397,77 @@ export async function ensureDbInitialized() {
        VALUES 
        (1, 'System Administrator', 'SYSTEM_INIT', NULL, 'System', NULL, 'Database schema initialized with clean blank dashboard and forms for RIASAT Executive Control Tower.')`
     );
+  }
+
+  // Seed official Dynamic Form Configuration fields for all 9 verticals
+  const actionFields = [
+    { order: 1, key: "sl_no", label: "Sl. No. — automatically generated", type: "Number", required: true, help: "Automatically generated sequential row number" },
+    { order: 2, key: "category", label: "Initiative / Event / Campaign", type: "Short Text", required: true, help: "Strategic initiative, event, campaign or project theme" },
+    { order: 3, key: "deliverable", label: "Deliverable", type: "Short Text", required: true, help: "Action point or operational deliverable" },
+    { order: 4, key: "ownership", label: "Ownership", type: "Short Text", required: true, help: "Responsible person, role or departmental owner" },
+    { order: 5, key: "timeline", label: "Timeline", type: "Date", required: false, help: "Target completion date (YYYY-MM-DD)" },
+    { order: 6, key: "status", label: "Status", type: "Dropdown", required: true, help: "Not Started / In Progress / Completed / Delayed / On Hold" },
+    { order: 7, key: "remarks", label: "Key Update / Dependency", type: "Long Text", required: false, help: "Progress, dependencies, risks, blockers or leadership notes" },
+    { order: 8, key: "vc_decision_required", label: "Vice Chairman Decision Required", type: "Dropdown", required: true, help: "Yes / No - escalation required for Vice Chairman intervention" },
+  ];
+
+  const recruitmentFields = [
+    { order: 1, key: "sl_no", label: "Sl. No. — automatically generated", type: "Number", required: true, help: "Automatically generated sequential row number" },
+    { order: 2, key: "position_title", label: "Position / Role", type: "Short Text", required: true, help: "Position title or role designation" },
+    { order: 3, key: "strategic_segment", label: "Department / Strategic Vertical", type: "Dropdown", required: true, help: "Target strategic vertical domain" },
+    { order: 4, key: "priority", label: "Priority", type: "Dropdown", required: true, help: "Critical / High / Medium / Low" },
+    { order: 5, key: "hiring_lead", label: "Hiring Owner", type: "Short Text", required: true, help: "Assigned talent acquisition lead or hiring manager" },
+    { order: 6, key: "target_date", label: "Target Joining Date", type: "Date", required: false, help: "Planned joining date (YYYY-MM-DD)" },
+    { order: 7, key: "status", label: "Status", type: "Dropdown", required: true, help: "Candidate sourced / shortlisted / Interview in progress / Offers released / Rejected / Joined" },
+    { order: 8, key: "remarks", label: "Remarks", type: "Long Text", required: false, help: "Progress, notes, compensation or bottlenecks" },
+    { order: 9, key: "vc_decision_required", label: "VC decision required", type: "Dropdown", required: true, help: "Yes / No - leadership escalation flag" },
+  ];
+
+  // Fetch all existing active departments
+  const allDeptsRes = await client.query("SELECT id, code, name FROM departments WHERE active = TRUE ORDER BY id ASC");
+  for (const dept of allDeptsRes.rows) {
+    const isHRDept = dept.code === "HR_REC" || Number(dept.id) === 7;
+    const sectionKey = isHRDept ? "recruitment_tracker" : "action_tracker";
+    const sectionTitle = isHRDept ? "Recruitment Tracker Web Form" : "Action Tracker Web Form";
+
+    // Ensure section exists
+    let sectionId: number;
+    const secRes = await client.query("SELECT id FROM form_sections WHERE department_id = $1 AND section_key = $2", [dept.id, sectionKey]);
+    if (secRes.rows.length === 0) {
+      const insSec = await client.query(
+        "INSERT INTO form_sections (department_id, section_key, title, display_order) VALUES ($1, $2, $3, 1) RETURNING id",
+        [dept.id, sectionKey, sectionTitle]
+      );
+      sectionId = insSec.rows[0].id;
+    } else {
+      sectionId = secRes.rows[0].id;
+    }
+
+    const targetFields = isHRDept ? recruitmentFields : actionFields;
+    const targetKeys = targetFields.map(f => f.key);
+    await client.query(
+      `UPDATE form_fields SET active = FALSE WHERE department_id = $1 AND field_key != ALL($2::text[])`,
+      [dept.id, targetKeys]
+    );
+
+    for (const f of targetFields) {
+      const fRes = await client.query("SELECT id FROM form_fields WHERE department_id = $1 AND field_key = $2", [dept.id, f.key]);
+      if (fRes.rows.length === 0) {
+        await client.query(
+          `INSERT INTO form_fields (
+            department_id, section_id, field_key, label, field_type, required, active, display_order, help_text
+          ) VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $8)`,
+          [dept.id, sectionId, f.key, f.label, f.type, f.required, f.order, f.help]
+        );
+      } else {
+        await client.query(
+          `UPDATE form_fields SET 
+            label = $1, field_type = $2, required = $3, active = TRUE, display_order = $4, help_text = $5, section_id = $6
+           WHERE id = $7`,
+          [f.label, f.type, f.required, f.order, f.help, sectionId, fRes.rows[0].id]
+        );
+      }
+    }
   }
 
   // Synchronize sequences with existing maximum IDs across all tables
