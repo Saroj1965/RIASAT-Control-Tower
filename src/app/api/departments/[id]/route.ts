@@ -3,6 +3,9 @@ import { query, logAudit } from "@/lib/db";
 import { getSessionUser, canEditDepartment, canViewDepartment, hasFullAccess } from "@/lib/auth";
 import { ROLES } from "@/lib/constants";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 interface Params {
   params: { id: string };
 }

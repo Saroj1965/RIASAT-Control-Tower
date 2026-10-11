@@ -3,6 +3,9 @@ import { query } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { ROLES } from "@/lib/constants";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(req: Request) {
   try {
     const user = await getSessionUser();

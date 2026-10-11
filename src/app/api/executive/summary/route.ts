@@ -3,6 +3,9 @@ import { getSessionUser } from "@/lib/auth";
 import { ROLES } from "@/lib/constants";
 import { getExecutiveSummaryData } from "@/lib/executive";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET() {
   try {
     const user = await getSessionUser();

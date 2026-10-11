@@ -251,26 +251,6 @@ export default function ReportsPage() {
             <span>Export Database</span>
           </button>
           <button
-            disabled={importingDb}
-            onClick={() => fileInputRef.current?.click()}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-xs transition disabled:opacity-50"
-            title="Import or restore database backup from JSON file"
-          >
-            {importingDb ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Upload className="w-3.5 h-3.5" />
-            )}
-            <span>{importingDb ? "Importing..." : "Import Database"}</span>
-          </button>
-          <input
-            type="file"
-            ref={fileInputRef}
-            accept=".json,application/json"
-            onChange={handleImportDatabase}
-            className="hidden"
-          />
-          <button
             onClick={fetchData}
             disabled={loading}
             className="p-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition"

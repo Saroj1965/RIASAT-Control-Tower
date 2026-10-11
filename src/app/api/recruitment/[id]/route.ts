@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { query, logAudit } from "@/lib/db";
 import { getSessionUser, canEditDepartment } from "@/lib/auth";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 interface Params {
   params: { id: string };
 }

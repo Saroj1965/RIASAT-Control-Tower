@@ -647,43 +647,20 @@ function AdminPageContent() {
           </button>
 
           {isSuperAdmin && (
-            <>
-              <button
-                type="button"
-                onClick={handleExportDatabase}
-                disabled={exportingDb}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition disabled:opacity-50"
-                title="Download complete PostgreSQL database backup JSON"
-              >
-                {exportingDb ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Database className="w-3.5 h-3.5" />
-                )}
-                <span>Export Database</span>
-              </button>
-              <button
-                type="button"
-                disabled={importingDb}
-                onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition disabled:opacity-50"
-                title="Import or restore database backup from JSON file"
-              >
-                {importingDb ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Upload className="w-3.5 h-3.5" />
-                )}
-                <span>{importingDb ? "Importing..." : "Import Database"}</span>
-              </button>
-              <input
-                type="file"
-                ref={fileInputRef}
-                accept=".json,application/json"
-                onChange={handleImportDatabase}
-                className="hidden"
-              />
-            </>
+            <button
+              type="button"
+              onClick={handleExportDatabase}
+              disabled={exportingDb}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition disabled:opacity-50"
+              title="Download complete PostgreSQL database backup JSON"
+            >
+              {exportingDb ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Database className="w-3.5 h-3.5" />
+              )}
+              <span>Export Database</span>
+            </button>
           )}
 
           {activeTab === "users" && (isSuperAdmin || isUserAdmin) && (
