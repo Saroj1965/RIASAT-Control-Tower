@@ -50,7 +50,7 @@ function SidebarNavContent({ user }: { user: SessionUser }) {
     ];
   } else if (role === ROLES.ADMIN || role === "Admin" || role === "System Administrator") {
     navItems = [
-      { label: "Executive Tower", href: "/executive", icon: LayoutDashboard },
+      { label: "Executive Dashboard", href: "/executive", icon: LayoutDashboard },
       { label: "Form Configuration", href: "/admin?tab=form_config", icon: Layers },
       { label: "User Management", href: "/admin?tab=users", icon: Users },
       { label: "Departments", href: "/admin?tab=departments", icon: Building2 },
@@ -62,7 +62,7 @@ function SidebarNavContent({ user }: { user: SessionUser }) {
     role === "Chairman"
   ) {
     navItems = [
-      { label: "Executive Tower", href: "/executive", icon: LayoutDashboard },
+      { label: "Executive Dashboard", href: "/executive", icon: LayoutDashboard },
       { label: "Form Configuration", href: "/admin?tab=form_config", icon: Layers },
       { label: "User Management", href: "/admin?tab=users", icon: Users },
       { label: "Departments", href: "/admin?tab=departments", icon: Building2 },
@@ -70,7 +70,7 @@ function SidebarNavContent({ user }: { user: SessionUser }) {
     ];
   } else if (role === ROLES.EXECUTIVE || role === "Executive") {
     navItems = [
-      { label: "Executive Tower", href: "/executive", icon: LayoutDashboard },
+      { label: "Executive Dashboard", href: "/executive", icon: LayoutDashboard },
       { label: "Departments", href: "/executive#departments", icon: Building2 },
       { label: "Reports & Logs", href: "/reports", icon: FileText },
     ];
@@ -108,7 +108,7 @@ function SidebarNavContent({ user }: { user: SessionUser }) {
             RIASAT
           </div>
           <div className="text-[11px] text-indigo-300 font-medium tracking-wide uppercase truncate">
-            Control Tower
+            Executive Dashboard
           </div>
         </div>
       </div>
@@ -188,7 +188,7 @@ export default function SidebarNav({ user }: { user: SessionUser }) {
     <Suspense
       fallback={
         <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shrink-0 min-h-screen border-r border-slate-800 p-6">
-          <div className="text-white text-sm font-bold">RIASAT Control Tower</div>
+          <div className="text-white text-sm font-bold">RIASAT Executive Dashboard</div>
         </aside>
       }
     >

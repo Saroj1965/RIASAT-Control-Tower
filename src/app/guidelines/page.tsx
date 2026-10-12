@@ -44,7 +44,7 @@ export default function PublicGuidelinesPage() {
               </span>
             </div>
             <h1 className="text-lg sm:text-xl font-extrabold tracking-tight mt-0.5">
-              RIASAT Executive Control Tower: Form Filing Guidelines
+              RIASAT Executive Dashboard: Form Filing Guidelines
             </h1>
             <p className="text-xs text-slate-400">
               Ramaiah Institute for Advanced Skills & Technology (RIASAT) • Academic & Commissioning Cycle 2026–2027
@@ -82,7 +82,7 @@ export default function PublicGuidelinesPage() {
           </div>
           <p className="text-xs text-slate-600 leading-relaxed">
             This document outlines the standard operational procedure for Department Heads to fill in and maintain their
-            assigned department forms in the RIASAT Executive Control Tower. All verified submissions feed directly to the
+            assigned department forms in the RIASAT Executive Dashboard. All verified submissions feed directly to the
             live Executive Dashboard for the <strong>Vice Chairman</strong> and <strong>Executive Director</strong>.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs font-semibold">
@@ -687,7 +687,7 @@ export default function PublicGuidelinesPage() {
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-emerald-400" />
             <h2 className="text-base font-bold tracking-tight">
-              4. Submission Protocol: Draft vs. Submit to Control Tower
+              4. Submission Protocol: Draft vs. Submit to Executive Dashboard
             </h2>
           </div>
           <p className="text-xs text-slate-300 leading-relaxed">
@@ -708,7 +708,7 @@ export default function PublicGuidelinesPage() {
               <span className="px-2 py-0.5 rounded bg-emerald-900 text-emerald-300 text-[10px] font-bold uppercase">
                 Action 2
               </span>
-              <h3 className="font-bold text-sm text-emerald-400">Submit to Control Tower</h3>
+              <h3 className="font-bold text-sm text-emerald-400">Submit to Executive Dashboard</h3>
               <p className="text-slate-300 text-xs">
                 Marks the submission as verified. Immediately updates the live Executive Dashboard, Capex/Revenue graphs,
                 and Vice Chairman Attention List.

@@ -395,7 +395,7 @@ export async function ensureDbInitialized() {
     await client.query(
       `INSERT INTO audit_log (user_id, user_name, action, department_id, department_name, record_id, details)
        VALUES 
-       (1, 'System Administrator', 'SYSTEM_INIT', NULL, 'System', NULL, 'Database schema initialized with clean blank dashboard and forms for RIASAT Executive Control Tower.')`
+       (1, 'System Administrator', 'SYSTEM_INIT', NULL, 'System', NULL, 'Database schema initialized with clean blank dashboard and forms for RIASAT Executive Dashboard.')`
     );
   }
 

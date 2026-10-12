@@ -64,7 +64,7 @@ export default function LoginPage() {
             </div>
           </div>
           <h1 className="text-xl font-bold text-white tracking-tight">
-            RIASAT Executive Control Tower
+            RIASAT Executive Dashboard
           </h1>
           <p className="text-xs text-indigo-200 mt-1 uppercase tracking-wider font-medium">
             Ramaiah Institute for Advanced Skills & Technology

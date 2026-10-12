@@ -174,7 +174,7 @@ export default function DepartmentPage() {
       setSubmissionStatus(status);
       setSuccessMsg(
         status === "SUBMITTED"
-          ? "Department updates successfully submitted to Executive Control Tower!"
+          ? "Department updates successfully submitted to Executive Dashboard!"
           : "Draft saved successfully. Updates are preserved and flagged as Draft."
       );
       setTimeout(() => setSuccessMsg(null), 5000);

@@ -154,10 +154,10 @@ export default function ExecutiveControlTowerClient({
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-              RIASAT Executive Control Tower
+              RIASAT Executive Dashboard
             </h1>
             <span className="px-2.5 py-0.5 text-[11px] font-bold rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
-              Live Central Tower
+              Live Dashboard
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">

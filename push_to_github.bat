@@ -1,10 +1,10 @@
 @echo off
-title Push RIASAT Control Tower to GitHub
+title Push RIASAT Executive Dashboard to GitHub
 cd /d "C:\Users\RAMAIAH ACADEMY\.gemini\antigravity\scratch\riasat_control_tower_app"
 set "PATH=C:\Users\RAMAIAH ACADEMY\.mingit\cmd;C:\Users\RAMAIAH ACADEMY\.mingit\mingw64\bin;%PATH%"
 
 echo ======================================================================
-echo Pushing RIASAT Control Tower to GitHub:
+echo Pushing RIASAT Executive Dashboard to GitHub:
 echo https://github.com/Saroj1965/RIASAT-Control-Tower
 echo ======================================================================
 echo.

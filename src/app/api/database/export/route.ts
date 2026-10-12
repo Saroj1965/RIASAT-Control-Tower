@@ -39,7 +39,7 @@ export async function GET(req: Request) {
 
     const backupPayload = {
       version: "1.0",
-      app: "RIASAT Executive Control Tower",
+      app: "RIASAT Executive Dashboard",
       exported_at: new Date().toISOString(),
       exported_by: user.name,
       exported_by_email: user.email,

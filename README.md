@@ -1,4 +1,4 @@
-# RIASAT EXECUTIVE CONTROL TOWER
+# RIASAT EXECUTIVE DASHBOARD
 
 Management Decision Support & Departmental Operations Dashboard for:
 **Ramaiah Institute for Advanced Skills & Technology (RIASAT)**
@@ -10,7 +10,7 @@ Management Decision Support & Departmental Operations Dashboard for:
 
 1. **Role-Based Login**: Each user signs in and is automatically routed to their dedicated dashboard based on role and department assignment.
 2. **PostgreSQL as Single Source of Truth**: All overview stats, workstreams, talent acquisition pipelines, and audit logs persist directly in PostgreSQL (Neon PostgreSQL compatible).
-3. **Executive Control Tower**: Consolidated leadership view displaying the 5 top KPIs, 8 department operational cards (with `UPDATE REQUIRED` staleness warnings), and the live Management Attention escalation table.
+3. **Executive Dashboard**: Consolidated leadership view displaying the 5 top KPIs, 9 department operational cards (with `UPDATE REQUIRED` staleness warnings), and the live Management Attention escalation table.
 4. **Strict Server-Enforced Security**: Department heads can only edit their assigned department; cross-department edits and unauthorized views return `403 Forbidden`. Executives are strictly read-only. Admins have complete user and department management rights.
 
 ---
@@ -34,7 +34,7 @@ Management Decision Support & Departmental Operations Dashboard for:
 | Role | Name | Email | Password | Access |
 |---|---|---|---|---|
 | **Admin** | System Administrator | `admin@riasat.ac.in` | `Admin@123` | Full access, user & dept management |
-| **Executive** | Vice Chairman Office | `executive@riasat.ac.in` | `Exec@123` | Executive Control Tower (Read-Only) |
+| **Executive** | Vice Chairman Office | `executive@riasat.ac.in` | `Exec@123` | Executive Dashboard (Read-Only) |
 | **Dept Head** | Dr. Arun Kumar | `semicon.head@riasat.ac.in` | `Semicon@123` | Semicon Department Dashboard & Form |
 | **Dept Head** | Wg Cdr R. Sharma | `aero.head@riasat.ac.in` | `Aero@123` | Aerospace & Defence Dashboard & Form |
 | **Dept Head** | Dr. P. Sundaram | `space.head@riasat.ac.in` | `Space@123` | Space Technology Dashboard & Form |

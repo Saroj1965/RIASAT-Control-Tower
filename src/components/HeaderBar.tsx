@@ -25,7 +25,7 @@ export default function HeaderBar({ user }: { user: SessionUser }) {
           Ramaiah Institute for Advanced Skills & Technology (RIASAT)
         </h1>
         <p className="text-[11px] text-slate-500">
-          Executive Decision Support & Management Control Tower
+          Executive Decision Support & Management Dashboard
         </p>
       </div>
 

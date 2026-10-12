@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "RIASAT Executive Control Tower | Ramaiah Institute for Advanced Skills & Technology",
-  description: "Executive Management and Departmental Progress Monitoring Tower for RIASAT",
+  title: "RIASAT Executive Dashboard | Ramaiah Institute for Advanced Skills & Technology",
+  description: "Executive Management and Departmental Progress Monitoring Dashboard for RIASAT",
   icons: {
     icon: "/riasat_logo.jpg",
   },
