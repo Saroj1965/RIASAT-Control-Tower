@@ -10,3 +10,4 @@ cloudflared.exe
 tsconfig.tsbuildinfo
 *.tsbuildinfo
 test_verification.js
+*.ps1
