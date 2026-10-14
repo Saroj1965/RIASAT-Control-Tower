@@ -28,8 +28,12 @@ export async function PUT(req: Request, { params }: Params) {
     }
     const existing = existingRes.rows[0];
 
-    // Check permissions
-    if (!canEditDepartment(user, existing.department_id)) {
+    // Check permissions (primary department owner, supporting department owner, or executive/admin)
+    const isSupportingDeptUser = user.department_id && (
+      existing.supporting_department_ids?.split(',').map((x: string) => x.trim()).includes(String(user.department_id))
+    );
+    const isPermitted = canEditDepartment(user, existing.department_id) || isSupportingDeptUser;
+    if (!isPermitted) {
       return NextResponse.json(
         { error: "Access Denied: You cannot edit records for this department." },
         { status: 403 }
@@ -55,6 +59,10 @@ export async function PUT(req: Request, { params }: Params) {
       decision_action,
       remarks,
       vc_decision_required,
+      supporting_departments,
+      supporting_department_ids,
+      next_followup_date,
+      closure_remarks,
     } = body;
 
     const finalActionPoint = action_point !== undefined ? action_point : deliverable;
@@ -62,6 +70,43 @@ export async function PUT(req: Request, { params }: Params) {
     const finalTimeline = timeline !== undefined ? timeline : target_date;
     const finalRemarks = remarks !== undefined ? remarks : risks_blockers;
     const finalDecisionAction = decision_action !== undefined ? decision_action : null;
+
+    // Handle closure and reopening states
+    const targetStatus = status !== undefined ? status : existing.status;
+    const isClosing = (targetStatus === "CLOSED" || targetStatus === "Closed");
+    const wasClosed = (existing.status === "CLOSED" || existing.status === "Closed");
+    const isReopening = wasClosed && !isClosing;
+
+    let finalClosureDate = existing.closure_date;
+    let finalClosureRemarks = existing.closure_remarks;
+    let finalClosedBy = existing.closed_by;
+
+    if (isClosing) {
+      finalClosureDate = new Date();
+      finalClosureRemarks = closure_remarks || finalRemarks || "Closed during management review";
+      finalClosedBy = user.name;
+    } else if (isReopening) {
+      finalClosureDate = null;
+      finalClosureRemarks = null;
+      finalClosedBy = null;
+    }
+
+    // Maintain action history
+    let history: any[] = [];
+    try {
+      history = typeof existing.action_history === "string" ? JSON.parse(existing.action_history || "[]") : (existing.action_history || []);
+    } catch {
+      history = [];
+    }
+    const historyAction = isClosing ? "CLOSED" : isReopening ? "REOPENED" : "UPDATED";
+    history.unshift({
+      timestamp: new Date().toISOString(),
+      user: user.name,
+      role: user.role,
+      action: historyAction,
+      status: targetStatus,
+      remarks: finalClosureRemarks || finalRemarks || existing.remarks,
+    });
 
     const updatedRes = await query(
       `UPDATE workstreams SET
@@ -82,9 +127,16 @@ export async function PUT(req: Request, { params }: Params) {
         decision_action = COALESCE($15, decision_action),
         remarks = COALESCE($16, remarks),
         vc_decision_required = COALESCE($17, vc_decision_required),
+        supporting_departments = COALESCE($18, supporting_departments),
+        supporting_department_ids = COALESCE($19, supporting_department_ids),
+        next_followup_date = COALESCE($20, next_followup_date),
+        closure_date = $21,
+        closure_remarks = $22,
+        closed_by = $23,
+        action_history = $24,
         updated_at = CURRENT_TIMESTAMP,
-        updated_by = $18
-      WHERE id = $19
+        updated_by = $25
+      WHERE id = $26
       RETURNING *`,
       [
         item_id !== undefined ? (item_id || null) : null,
@@ -104,6 +156,13 @@ export async function PUT(req: Request, { params }: Params) {
         finalDecisionAction,
         finalRemarks !== undefined ? finalRemarks : null,
         vc_decision_required !== undefined ? vc_decision_required : null,
+        supporting_departments !== undefined ? supporting_departments : null,
+        supporting_department_ids !== undefined ? supporting_department_ids : null,
+        next_followup_date !== undefined ? next_followup_date : null,
+        finalClosureDate,
+        finalClosureRemarks,
+        finalClosedBy,
+        JSON.stringify(history),
         user.name,
         wsId,
       ]

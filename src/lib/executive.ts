@@ -22,6 +22,9 @@ export interface DepartmentCard {
   key_focus: string;
   open_items: number;
   total_items: number;
+  in_progress_items?: number;
+  blocked_items?: number;
+  overdue_items?: number;
   critical_issues: number;
   capex: number;
   revenue: number;
@@ -34,6 +37,7 @@ export interface DepartmentCard {
 
 export interface AttentionItem {
   id: number;
+  item_id?: string;
   department_id: number;
   department_name: string;
   item: string;
@@ -44,6 +48,9 @@ export interface AttentionItem {
   rag_status?: string;
   decision_action?: string;
   vc_decision_required?: string;
+  supporting_departments?: string;
+  next_followup_date?: string;
+  meeting_context?: string;
   capex?: string;
   revenue_pipeline?: string;
 }
@@ -101,6 +108,7 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
     on_track: number;
     in_progress: number;
     on_hold: number;
+    overdue: number;
     capex: number;
     revenue: number;
     pending_vc: number;
@@ -122,19 +130,29 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
     if (!deptStatsMap[dId]) {
       deptStatsMap[dId] = {
         total: 0, open: 0, completed: 0, delayed: 0, blocked: 0,
-        on_track: 0, in_progress: 0, on_hold: 0, capex: 0, revenue: 0, pending_vc: 0,
+        on_track: 0, in_progress: 0, on_hold: 0, overdue: 0, capex: 0, revenue: 0, pending_vc: 0,
       };
     }
 
-    const st = ws.status || "Not Started";
+    const st = (ws.status || "Open").trim();
+    const stUpper = st.toUpperCase();
+    const isClosed = stUpper === "COMPLETED" || stUpper === "CLOSED";
+
     deptStatsMap[dId].total++;
-    if (st !== "Completed" && st !== "On Hold") deptStatsMap[dId].open++;
-    if (st === "Completed") deptStatsMap[dId].completed++;
-    if (st === "Delayed") deptStatsMap[dId].delayed++;
-    if (st === "Blocked") deptStatsMap[dId].blocked++;
-    if (st === "On Track") deptStatsMap[dId].on_track++;
-    if (st === "In Progress") deptStatsMap[dId].in_progress++;
-    if (st === "On Hold") deptStatsMap[dId].on_hold++;
+    if (!isClosed) deptStatsMap[dId].open++;
+    if (stUpper === "COMPLETED") deptStatsMap[dId].completed++;
+    if (stUpper === "DELAYED") deptStatsMap[dId].delayed++;
+    if (stUpper === "BLOCKED") deptStatsMap[dId].blocked++;
+    if (stUpper === "ON TRACK") deptStatsMap[dId].on_track++;
+    if (stUpper === "IN PROGRESS" || stUpper === "OPEN") deptStatsMap[dId].in_progress++;
+    if (stUpper === "ON HOLD") deptStatsMap[dId].on_hold++;
+
+    const isOverdue = !isClosed && (
+      stUpper === "DELAYED" || 
+      (ws.timeline && ws.timeline.match(/^\d{4}-\d{2}-\d{2}$/) && new Date(ws.timeline).getTime() < Date.now()) ||
+      (ws.target_date && ws.target_date.match(/^\d{4}-\d{2}-\d{2}$/) && new Date(ws.target_date).getTime() < Date.now())
+    );
+    if (isOverdue) deptStatsMap[dId].overdue = (deptStatsMap[dId].overdue || 0) + 1;
 
     if (globalStatusCounts[st] !== undefined) {
       globalStatusCounts[st]++;
@@ -149,7 +167,7 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
 
     const isVcReq = ws.vc_decision_required === "Yes" || 
       (!ws.vc_decision_required && ws.decision_action && ws.decision_action.trim().length > 0 && ws.decision_action.trim() !== "None");
-    if (isVcReq && st !== "Completed") {
+    if (isVcReq && !isClosed) {
       deptStatsMap[dId].pending_vc++;
     }
   }
@@ -173,24 +191,24 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
   let totalReadiness = 0;
 
   const departmentCards: DepartmentCard[] = deptRes.rows.map((d: any) => {
-    const isHR = d.code === "HR_REC";
-    const stats = isHR
-      ? {
-          total: parseInt(hrCount.total_items || "0", 10),
-          open: parseInt(hrCount.open_items || "0", 10),
-          critical: parseInt(hrCount.critical_issues || "0", 10),
-          capex: 0,
-          revenue: 0,
-          pending_vc: parseInt(hrCount.pending_vc || "0", 10),
-        }
-      : {
-          total: deptStatsMap[d.id]?.total || 0,
-          open: deptStatsMap[d.id]?.open || 0,
-          critical: (deptStatsMap[d.id]?.delayed || 0) + (deptStatsMap[d.id]?.blocked || 0),
-          capex: Math.round((deptStatsMap[d.id]?.capex || 0) * 10) / 10,
-          revenue: Math.round((deptStatsMap[d.id]?.revenue || 0) * 10) / 10,
-          pending_vc: deptStatsMap[d.id]?.pending_vc || 0,
-        };
+    const isHR = d.code === "HR_REC" || d.id === 7;
+    const wsStat = deptStatsMap[d.id] || { total: 0, open: 0, in_progress: 0, blocked: 0, overdue: 0, delayed: 0, capex: 0, revenue: 0, pending_vc: 0 };
+    const hrOpen = isHR ? parseInt(hrCount.open_items || "0", 10) : 0;
+    const hrCritical = isHR ? parseInt(hrCount.critical_issues || "0", 10) : 0;
+    const hrPendingVc = isHR ? parseInt(hrCount.pending_vc || "0", 10) : 0;
+    const hrTotal = isHR ? parseInt(hrCount.total_items || "0", 10) : 0;
+
+    const stats = {
+      total: wsStat.total + hrTotal,
+      open: wsStat.open + hrOpen,
+      in_progress: wsStat.in_progress + hrOpen,
+      blocked: wsStat.blocked,
+      overdue: (wsStat.overdue || 0) + (isHR ? hrCritical : 0),
+      critical: wsStat.delayed + wsStat.blocked + (isHR ? hrCritical : 0),
+      capex: isHR ? 0 : Math.round((wsStat.capex || 0) * 10) / 10,
+      revenue: isHR ? 0 : Math.round((wsStat.revenue || 0) * 10) / 10,
+      pending_vc: wsStat.pending_vc + hrPendingVc,
+    };
 
     const rag = (d.rag_status || "NOT STARTED").toUpperCase();
     if (rag === "GREEN") greenCount++;
@@ -219,6 +237,9 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
       key_focus: d.key_focus || "",
       open_items: stats.open,
       total_items: stats.total,
+      in_progress_items: stats.in_progress,
+      blocked_items: stats.blocked,
+      overdue_items: stats.overdue,
       critical_issues: stats.critical,
       capex: stats.capex,
       revenue: stats.revenue,
@@ -261,6 +282,7 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
 
   const attentionWsRes = await query(`
     SELECT w.id, 
+           w.item_id,
            COALESCE(w.action_point, w.deliverable) as item, 
            w.status, 
            COALESCE(w.ownership, w.owner) as owner, 
@@ -269,13 +291,20 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
            COALESCE(w.remarks, w.decision_action) as decision_action,
            COALESCE(w.rag_status, 'AMBER') as rag_status,
            COALESCE(w.vc_decision_required, 'No') as vc_decision_required,
+           w.supporting_departments,
+           w.supporting_department_ids,
+           w.next_followup_date,
+           w.meeting_context,
            d.name as department_name, d.id as department_id,
            w.capex, w.revenue_pipeline
     FROM workstreams w
     JOIN departments d ON w.department_id = d.id
-    WHERE w.status NOT IN ('Completed', 'Closed')
+    WHERE UPPER(w.status) NOT IN ('COMPLETED', 'CLOSED')
     ORDER BY 
       CASE WHEN w.vc_decision_required = 'Yes' THEN 1 ELSE 2 END,
+      CASE WHEN UPPER(w.rag_status) = 'RED' OR UPPER(w.status) = 'BLOCKED' THEN 1
+           WHEN UPPER(w.rag_status) = 'AMBER' OR UPPER(w.status) = 'DELAYED' THEN 2
+           ELSE 3 END,
       w.id ASC
     LIMIT 100
   `);

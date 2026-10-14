@@ -26,6 +26,8 @@ import {
   Calendar,
   Layers,
   ChevronDown,
+  History,
+  RotateCcw,
 } from "lucide-react";
 import { WORKSTREAM_STATUSES, RAG_STATUSES, RECRUITMENT_PRIORITIES, RECRUITMENT_STATUSES } from "@/lib/constants";
 
@@ -62,20 +64,31 @@ export default function DepartmentPage() {
   const [recVcFilter, setRecVcFilter] = useState<string>("ALL");
   const [recSearch, setRecSearch] = useState<string>("");
 
+  // Action View Tabs & Closure / History modals
+  const [actionViewTab, setActionViewTab] = useState<"OPEN" | "CLOSED">("OPEN");
+  const [closingAction, setClosingAction] = useState<any | null>(null);
+  const [closureRemarks, setClosureRemarks] = useState<string>("");
+  const [showHistoryModal, setShowHistoryModal] = useState<any | null>(null);
+  const [wsOverdueFilter, setWsOverdueFilter] = useState<boolean>(false);
+
   // Modal & inline state for Action Tracker
   const [showWsModal, setShowWsModal] = useState(false);
   const [showInlineWsForm, setShowInlineWsForm] = useState(true);
   const [editingWs, setEditingWs] = useState<any>(null);
   const [wsForm, setWsForm] = useState({
+    item_id: "",
     category: "",
     action_point: "",
     ownership: "",
     timeline: "",
-    status: "In Progress",
-    rag_status: "GREEN",
+    status: "OPEN",
+    rag_status: "AMBER",
     remarks: "",
     vc_decision_required: "No",
     decision_action: "",
+    supporting_departments: "",
+    next_followup_date: "",
+    closure_remarks: "",
   });
 
   // Modal & inline state for Recruitment Tracker (HR)
@@ -190,15 +203,19 @@ export default function DepartmentPage() {
   const openNewWsModal = () => {
     setEditingWs(null);
     setWsForm({
-      category: "",
+      item_id: "",
+      category: "Operational Initiative",
       action_point: "",
       ownership: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
-      timeline: new Date().toISOString().split("T")[0],
-      status: "In Progress",
-      rag_status: "GREEN",
+      timeline: "Urgent; close after clarification",
+      status: "OPEN",
+      rag_status: "AMBER",
       remarks: "",
       vc_decision_required: "No",
       decision_action: "",
+      supporting_departments: "",
+      next_followup_date: "",
+      closure_remarks: "",
     });
     setShowWsModal(true);
   };
@@ -207,17 +224,74 @@ export default function DepartmentPage() {
   const openEditWsModal = (ws: any) => {
     setEditingWs(ws);
     setWsForm({
-      category: ws.category || "",
+      item_id: ws.item_id || "",
+      category: ws.category || "Operational Initiative",
       action_point: ws.action_point || ws.deliverable || "",
       ownership: ws.ownership || ws.owner || "",
       timeline: ws.timeline || ws.target_date || "",
-      status: ws.status || "In Progress",
+      status: ws.status || "OPEN",
       rag_status: (ws.rag_status || (["Delayed", "Blocked"].includes(ws.status) ? "AMBER" : "GREEN")).toUpperCase(),
       remarks: ws.remarks || ws.risks_blockers || "",
       vc_decision_required: ws.vc_decision_required === "Yes" ? "Yes" : "No",
       decision_action: ws.decision_action || "",
+      supporting_departments: ws.supporting_departments || "",
+      next_followup_date: ws.next_followup_date || "",
+      closure_remarks: ws.closure_remarks || "",
     });
     setShowWsModal(true);
+  };
+
+  // Confirm Closure of an Action
+  const handleConfirmClose = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!closingAction) return;
+
+    try {
+      const res = await fetch(`/api/workstreams/${closingAction.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "CLOSED",
+          closure_remarks: closureRemarks || "Action formally completed and closed during review",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to close action");
+
+      setSuccessMsg(`Action [${closingAction.item_id || closingAction.id}] has been CLOSED and moved to Closed Actions / History.`);
+      setTimeout(() => setSuccessMsg(null), 5000);
+      setClosingAction(null);
+      setClosureRemarks("");
+      fetchDepartment();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  // Reopen an Action
+  const handleReopenAction = async (ws: any) => {
+    if (!confirm(`Reopen action [${ws.item_id || ws.id}] back into Open Action Items?`)) return;
+
+    try {
+      const res = await fetch(`/api/workstreams/${ws.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "OPEN",
+          closure_remarks: "",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to reopen action");
+
+      setSuccessMsg(`Action [${ws.item_id || ws.id}] reopened successfully and restored to Open Action Items.`);
+      setTimeout(() => setSuccessMsg(null), 5000);
+      fetchDepartment();
+    } catch (err: any) {
+      setError(err.message);
+    }
   };
 
   // Save Action Point (Create or Update)
@@ -246,15 +320,19 @@ export default function DepartmentPage() {
 
       // Prepare wsForm for the next entry
       setWsForm({
-        category: "",
+        item_id: "",
+        category: "Operational Initiative",
         action_point: "",
         ownership: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
         timeline: new Date().toISOString().split("T")[0],
-        status: "In Progress",
-        rag_status: "GREEN",
+        status: "OPEN",
+        rag_status: "AMBER",
         remarks: "",
         vc_decision_required: "No",
         decision_action: "",
+        supporting_departments: "",
+        next_followup_date: "",
+        closure_remarks: "",
       });
 
       setSuccessMsg(editingWs ? "Action point updated successfully!" : "New action point added successfully!");
@@ -395,7 +473,8 @@ export default function DepartmentPage() {
 
   const dept = deptData.department;
   const overview = deptData.overview;
-  const items = deptData.items || [];
+  const items = deptData.items || deptData.workstreams || [];
+  const recruitmentItems = deptData.recruitment || [];
   const isHR = dept.code === "HR_REC" || Number(dept.id) === 7;
   const isStrategyOps = dept.code === "STRATEGY_OPS" || Number(dept.id) === 9;
   const isComm = dept.code === "COMM" || Number(dept.id) === 8;
@@ -405,25 +484,45 @@ export default function DepartmentPage() {
   // Extract distinct categories for workstreams
   const availableCategories = Array.from(new Set(items.map((x: any) => x.category).filter(Boolean))) as string[];
 
-  // Filter Action Points based on interactive buttons & search
-  const filteredWorkstreams = items.filter((ws: any) => {
+  const isActionOverdue = (ws: any) => {
+    if (["CLOSED", "Closed", "Completed"].includes(ws.status)) return false;
+    if (ws.status === "Delayed" || ws.status === "DELAYED") return true;
+    if (ws.timeline && ws.timeline.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return new Date(ws.timeline).getTime() < Date.now();
+    }
+    if (ws.target_date && ws.target_date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return new Date(ws.target_date).getTime() < Date.now();
+    }
+    return false;
+  };
+
+  const openActions = items.filter((ws: any) => !["CLOSED", "Closed"].includes(ws.status));
+  const closedActions = items.filter((ws: any) => ["CLOSED", "Closed"].includes(ws.status));
+
+  // Filter Action Points based on active tab, interactive buttons & search
+  const displayedActions = actionViewTab === "OPEN" ? openActions : closedActions;
+
+  const filteredWorkstreams = displayedActions.filter((ws: any) => {
     if (wsStatusFilter !== "ALL" && ws.status !== wsStatusFilter) return false;
     const itemRag = (ws.rag_status || (["Delayed", "Blocked"].includes(ws.status) ? "AMBER" : "GREEN")).toUpperCase();
     if (wsRagFilter !== "ALL" && itemRag !== wsRagFilter.toUpperCase()) return false;
     if (wsVcFilter === "YES" && ws.vc_decision_required !== "Yes") return false;
+    if (wsOverdueFilter && !isActionOverdue(ws)) return false;
     if (wsSearch.trim()) {
       const q = wsSearch.toLowerCase().trim();
+      const matchId = (ws.item_id || "").toLowerCase().includes(q);
       const matchAction = (ws.action_point || ws.deliverable || "").toLowerCase().includes(q);
       const matchOwner = (ws.ownership || ws.owner || "").toLowerCase().includes(q);
-      const matchRemarks = (ws.remarks || ws.decision_action || ws.risks_blockers || "").toLowerCase().includes(q);
+      const matchRemarks = (ws.remarks || ws.decision_action || ws.risks_blockers || ws.closure_remarks || "").toLowerCase().includes(q);
       const matchTimeline = (ws.timeline || ws.target_date || "").toLowerCase().includes(q);
-      if (!matchAction && !matchOwner && !matchRemarks && !matchTimeline) return false;
+      const matchSupporting = (ws.supporting_departments || "").toLowerCase().includes(q);
+      if (!matchId && !matchAction && !matchOwner && !matchRemarks && !matchTimeline && !matchSupporting) return false;
     }
     return true;
   });
 
   // Filter Recruitment positions (HR)
-  const filteredRecruitment = items.filter((r: any) => {
+  const filteredRecruitment = recruitmentItems.filter((r: any) => {
     if (recStatusFilter !== "ALL" && r.status !== recStatusFilter) return false;
     if (recPriorityFilter !== "ALL" && r.priority !== recPriorityFilter) return false;
     if (recVcFilter === "VC_ONLY" && r.vc_decision_required !== "Yes" && !r.vc_attention) return false;
@@ -440,19 +539,9 @@ export default function DepartmentPage() {
   });
 
   // Calculate quick metrics
-  let openCount = 0;
-  let completedCount = 0;
-  let delayedCount = 0;
-
-  if (isHR) {
-    openCount = items.filter((x: any) => !["Joined", "Rejected"].includes(x.status)).length;
-    completedCount = items.filter((x: any) => x.status === "Joined").length;
-    delayedCount = items.filter((x: any) => x.priority === "Critical" && !["Joined", "Rejected"].includes(x.status)).length;
-  } else {
-    openCount = items.filter((x: any) => !["Completed", "On Hold"].includes(x.status)).length;
-    completedCount = items.filter((x: any) => x.status === "Completed").length;
-    delayedCount = items.filter((x: any) => ["Delayed", "Blocked"].includes(x.status)).length;
-  }
+  const openCount = openActions.length;
+  const completedCount = closedActions.length;
+  const delayedCount = openActions.filter((ws: any) => isActionOverdue(ws)).length;
 
   // Current dynamic fields list
   const dynamicFields = formConfig?.fields || [];
@@ -922,125 +1011,189 @@ export default function DepartmentPage() {
       </div>
 
       {/* ========================================================================= */}
-      {/* TRACKER TABLE WITH FILTER BUTTONS */}
+      {/* 1. OPEN ACTION ITEMS / FOLLOW-UP ACTIONS TRACKER */}
       {/* ========================================================================= */}
       <div id="workstreams" className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-4">
-        {/* Table Header */}
-        <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        {/* Table Header with Tabs & Actions */}
+        <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/60 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h2 className="text-base font-bold text-slate-900 tracking-tight uppercase">
-              {isHR ? "RECRUITMENT TRACKER" : "ACTION TRACKER"}
-            </h2>
-            <p className="text-xs text-slate-500">
-              {isHR
-                ? "Manage positions, sourcing pipelines, offers, and VC review items"
-                : "Action Points, Ownership, Timelines, Status, RAG Status, Remarks, and VC Decisions"}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h2 className="text-base font-black text-slate-900 tracking-tight uppercase flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse" />
+                <span>OPEN ACTION ITEMS & FOLLOW-UP ACTIONS</span>
+              </h2>
+              <span className="px-2.5 py-0.5 bg-indigo-100 text-indigo-800 text-[10px] font-extrabold rounded-full border border-indigo-200">
+                Weekly Review & Persistent Follow-up
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Items remain permanently visible across meetings until formally marked <strong>CLOSED</strong> • Shared across primary & supporting verticals
             </p>
           </div>
-          {canEdit && (
-            <div className="flex items-center gap-2">
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Tab Switcher: OPEN vs CLOSED */}
+            <div className="flex items-center bg-slate-200/80 p-1 rounded-xl text-xs font-bold">
               <button
                 type="button"
-                onClick={() => (isHR ? setShowInlineRecForm(!showInlineRecForm) : setShowInlineWsForm(!showInlineWsForm))}
-                className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg transition"
+                onClick={() => setActionViewTab("OPEN")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition ${
+                  actionViewTab === "OPEN"
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-indigo-700"
+                }`}
               >
-                <span>
-                  {isHR
-                    ? (showInlineRecForm ? "Hide Recruitment Web Form" : "Show Recruitment Web Form")
-                    : (showInlineWsForm ? "Hide Action Web Form" : "Show Action Web Form")}
+                <span>⚡ Open Action Items</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                  actionViewTab === "OPEN" ? "bg-white/20 text-white" : "bg-slate-300 text-slate-700"
+                }`}>
+                  {openCount}
                 </span>
               </button>
               <button
-                onClick={isHR ? openNewRecModal : openNewWsModal}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg transition shadow-xs"
+                type="button"
+                onClick={() => setActionViewTab("CLOSED")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition ${
+                  actionViewTab === "CLOSED"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-emerald-700"
+                }`}
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>{isHR ? "+ Edit or create new position" : "+ Edit or create new action"}</span>
+                <span>📁 Closed Actions / History</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                  actionViewTab === "CLOSED" ? "bg-white/20 text-white" : "bg-slate-300 text-slate-700"
+                }`}>
+                  {completedCount}
+                </span>
               </button>
             </div>
-          )}
+
+            {canEdit && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowInlineWsForm(!showInlineWsForm)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl shadow-xs transition"
+                >
+                  <span>{showInlineWsForm ? "Hide Action Form" : "Show Action Form"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={openNewWsModal}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ New Action Point</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* ========================================================================= */}
-        {/* INLINE ACTION TRACKER DATA ENTRY FORM */}
-        {/* ========================================================================= */}
-        {!isHR && canEdit && showInlineWsForm && (
+        {/* INLINE ACTION DATA ENTRY FORM */}
+        {canEdit && showInlineWsForm && (
           <div className="mx-6 p-5 bg-gradient-to-r from-slate-50 via-indigo-50/20 to-slate-50 rounded-2xl border border-indigo-100 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2.5">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse" />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  ACTION TRACKER WEB FORM
+                  ACTION ITEM DATA ENTRY FORM
                 </h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-md">
-                  8 Tracked Columns
+                  Primary Domain: {dept.name}
                 </span>
               </div>
               <span className="text-[11px] text-slate-500 italic">
-                Enter action point details below to add directly to {dept.name}
+                Add an action item directly to {dept.name} with cross-department routing
               </span>
             </div>
 
             <form onSubmit={handleSaveWorkstream} className="space-y-3.5 text-xs">
-              {/* Row 1: Initiative / Event / Campaign, Deliverable, Ownership, Timeline */}
+              {/* Row 1: Action Item / Deliverable, Category, Ownership, Supporting Depts */}
               <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
-                <div className="md:col-span-4">
+                <div className="md:col-span-5">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Initiative / Event / Campaign <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={wsForm.category}
-                    onChange={(e) => setWsForm({ ...wsForm, category: e.target.value })}
-                    required
-                    placeholder="e.g. Cleanroom ISO-6 Upgrade / Strategic Partnership"
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-
-                <div className="md:col-span-4">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Deliverable <span className="text-rose-500">*</span>
+                    Action Item / Deliverable <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={wsForm.action_point}
                     onChange={(e) => setWsForm({ ...wsForm, action_point: e.target.value })}
                     required
-                    placeholder="e.g. Installation of Laminar Flow Units and Exhaust Ducts"
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                    placeholder="Exact decision or action required..."
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
 
-                <div className="md:col-span-2">
+                <div className="md:col-span-3">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Ownership <span className="text-rose-500">*</span>
+                    Initiative / Category <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
-                    value={wsForm.ownership}
-                    onChange={(e) => setWsForm({ ...wsForm, ownership: e.target.value })}
+                    value={wsForm.category}
+                    onChange={(e) => setWsForm({ ...wsForm, category: e.target.value })}
                     required
-                    placeholder={deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner"}
+                    placeholder="e.g. Talent Acquisition / Space Lab"
                     className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
 
                 <div className="md:col-span-2">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Timeline
+                    Owner / Support <span className="text-rose-500">*</span>
                   </label>
                   <input
-                    type="date"
-                    value={wsForm.timeline}
-                    onChange={(e) => setWsForm({ ...wsForm, timeline: e.target.value })}
+                    type="text"
+                    value={wsForm.ownership}
+                    onChange={(e) => setWsForm({ ...wsForm, ownership: e.target.value })}
+                    required
+                    placeholder="e.g. Anamika / Venky"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Supporting Depts
+                  </label>
+                  <input
+                    type="text"
+                    value={wsForm.supporting_departments}
+                    onChange={(e) => setWsForm({ ...wsForm, supporting_departments: e.target.value })}
+                    placeholder="e.g. Semicon, Space"
                     className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
               </div>
 
-              {/* Row 2: Status, RAG Status, Vice Chairman Decision Required */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              {/* Row 2: Timeline, Next Follow-up, Status, RAG, VC Decision */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3.5">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Timeline <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={wsForm.timeline}
+                    onChange={(e) => setWsForm({ ...wsForm, timeline: e.target.value })}
+                    required
+                    placeholder="e.g. Urgent / By Dec 2026 / 2026-10-31"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Next Follow-up Date
+                  </label>
+                  <input
+                    type="date"
+                    value={wsForm.next_followup_date}
+                    onChange={(e) => setWsForm({ ...wsForm, next_followup_date: e.target.value })}
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
                     Status
@@ -1050,11 +1203,12 @@ export default function DepartmentPage() {
                     onChange={(e) => setWsForm({ ...wsForm, status: e.target.value })}
                     className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   >
-                    <option value="Not Started">Not Started</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Delayed">Delayed</option>
-                    <option value="On Hold">On Hold</option>
+                    <option value="OPEN">OPEN</option>
+                    <option value="IN PROGRESS">IN PROGRESS</option>
+                    <option value="BLOCKED">BLOCKED</option>
+                    <option value="DELAYED">DELAYED</option>
+                    <option value="ON HOLD">ON HOLD</option>
+                    <option value="COMPLETED">COMPLETED</option>
                   </select>
                 </div>
 
@@ -1067,23 +1221,22 @@ export default function DepartmentPage() {
                     onChange={(e) => setWsForm({ ...wsForm, rag_status: e.target.value })}
                     className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   >
-                    <option value="GREEN">Green</option>
-                    <option value="AMBER">Amber</option>
-                    <option value="RED">Red</option>
+                    <option value="GREEN">GREEN</option>
+                    <option value="AMBER">AMBER</option>
+                    <option value="RED">RED</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1 flex items-center justify-between">
-                    <span>Vice Chairman Decision Required</span>
-                    <span className="text-[10px] text-rose-600 font-bold">YES / NO</span>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    VC Decision Required
                   </label>
                   <select
                     value={wsForm.vc_decision_required}
                     onChange={(e) => setWsForm({ ...wsForm, vc_decision_required: e.target.value })}
-                    className={`w-full px-3 py-2 bg-white rounded-xl border font-black focus:ring-2 focus:ring-indigo-600 focus:outline-none ${
+                    className={`w-full px-3 py-2 bg-white rounded-xl border font-bold focus:ring-2 focus:ring-indigo-600 focus:outline-none ${
                       wsForm.vc_decision_required === "Yes"
-                        ? "border-rose-400 text-rose-700 bg-rose-50/50"
+                        ? "border-rose-400 text-rose-700 bg-rose-50"
                         : "border-slate-300 text-slate-800"
                     }`}
                   >
@@ -1093,50 +1246,54 @@ export default function DepartmentPage() {
                 </div>
               </div>
 
-              {/* Row 3: Key Update / Dependency & VC Decision Action */}
+              {/* Row 3: Remarks & VC Decision Action */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Key Update / Dependency
+                    Remarks / Key Update / Blockers
                   </label>
                   <textarea
                     rows={2}
                     value={wsForm.remarks}
                     onChange={(e) => setWsForm({ ...wsForm, remarks: e.target.value })}
-                    placeholder="Progress, risks, blockers and dependencies..."
+                    placeholder="Progress, risks, dependencies, or blockers..."
                     className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Decision / Action Required from VC
+                    Decision / Action Required from VC (if applicable)
                   </label>
                   <textarea
                     rows={2}
                     value={wsForm.decision_action}
                     onChange={(e) => setWsForm({ ...wsForm, decision_action: e.target.value })}
-                    placeholder="Exact approval, intervention or decision required from Vice Chairman..."
+                    placeholder="Specific decision or intervention requested from Vice Chairman..."
                     className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
               </div>
 
               {/* Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-2">
+              <div className="flex items-center justify-end gap-3 pt-1">
                 <button
                   type="button"
                   onClick={() => {
                     setWsForm({
-                      category: "",
+                      item_id: "",
+                      category: "Operational Initiative",
                       action_point: "",
                       ownership: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
-                      timeline: new Date().toISOString().split("T")[0],
-                      status: "In Progress",
-                      rag_status: "GREEN",
+                      timeline: "Urgent",
+                      status: "OPEN",
+                      rag_status: "AMBER",
                       remarks: "",
                       vc_decision_required: "No",
                       decision_action: "",
+                      supporting_departments: "",
+                      next_followup_date: "",
+                      closure_remarks: "",
                     });
                   }}
                   className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-semibold rounded-xl hover:bg-white/80 border border-transparent hover:border-slate-300 transition"
@@ -1148,270 +1305,103 @@ export default function DepartmentPage() {
                   className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-sm transition"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>+ Edit or create new action</span>
+                  <span>+ Save Action Item</span>
                 </button>
               </div>
             </form>
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* INLINE RECRUITMENT TRACKER DATA ENTRY FORM (HR & RECRUITMENT) */}
-        {/* ========================================================================= */}
-        {isHR && canEdit && showInlineRecForm && (
-          <div className="mx-6 p-5 bg-gradient-to-r from-slate-50 via-indigo-50/20 to-slate-50 rounded-2xl border border-indigo-100 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2.5">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  RECRUITMENT TRACKER WEB FORM
-                </h3>
-                <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-md">
-                  9 Tracked Columns
-                </span>
-              </div>
-              <span className="text-[11px] text-slate-500 italic">
-                Enter talent pipeline details below to add directly to HR & Recruitment
+        {/* ACTION ITEMS FILTER CONTROLS */}
+        <div className="px-6 space-y-3">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            {/* Status Filter Buttons */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
+                <Filter className="w-3.5 h-3.5" /> Status:
               </span>
-            </div>
-
-            <form onSubmit={handleSaveRecruitment} className="space-y-3.5 text-xs">
-              {/* Row 1: Position / Role, Department / Strategic Vertical, Priority, Hiring Owner */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
-                <div className="md:col-span-4">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Position / Role <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={recForm.position_title}
-                    onChange={(e) => setRecForm({ ...recForm, position_title: e.target.value })}
-                    required
-                    placeholder="e.g. Director - Cleanroom Operations"
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-
-                <div className="md:col-span-3">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Department / Strategic Vertical <span className="text-rose-500">*</span>
-                  </label>
-                  <select
-                    value={recForm.strategic_segment}
-                    onChange={(e) => setRecForm({ ...recForm, strategic_segment: e.target.value })}
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  >
-                    <option value="Semicon">Semicon</option>
-                    <option value="Aerospace & Defence">Aerospace & Defence</option>
-                    <option value="Space">Space</option>
-                    <option value="Cybersecurity">Cybersecurity</option>
-                    <option value="MedTech">MedTech</option>
-                    <option value="Advanced Manufacturing">Advanced Manufacturing</option>
-                    <option value="Communications">Communications</option>
-                    <option value="Strategy & Operations">Strategy & Operations</option>
-                    <option value="HR & Recruitment">HR & Recruitment</option>
-                    <option value="Central Leadership">Central Leadership</option>
-                  </select>
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Priority
-                  </label>
-                  <select
-                    value={recForm.priority}
-                    onChange={(e) => setRecForm({ ...recForm, priority: e.target.value })}
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  >
-                    <option value="Critical">Critical</option>
-                    <option value="High">High</option>
-                    <option value="Medium">Medium</option>
-                    <option value="Low">Low</option>
-                  </select>
-                </div>
-
-                <div className="md:col-span-3">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Hiring Owner
-                  </label>
-                  <input
-                    type="text"
-                    value={recForm.hiring_lead}
-                    onChange={(e) => setRecForm({ ...recForm, hiring_lead: e.target.value })}
-                    placeholder="e.g. Sumanth Rao / HR Lead"
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Row 2: Target Joining Date, Status (Dropdown with 6 bullet entries), VC Decision Required */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Target Joining Date
-                  </label>
-                  <input
-                    type="date"
-                    value={recForm.target_date}
-                    onChange={(e) => setRecForm({ ...recForm, target_date: e.target.value })}
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1 flex items-center justify-between">
-                    <span>Status</span>
-                    <span className="text-[10px] text-indigo-600 font-semibold">(Choose One)</span>
-                  </label>
-                  <select
-                    value={recForm.status}
-                    onChange={(e) => setRecForm({ ...recForm, status: e.target.value })}
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  >
-                    <option value="Candidate sourced">• Candidate sourced</option>
-                    <option value="shortlisted">• shortlisted</option>
-                    <option value="Interview in progress">• Interview in progress</option>
-                    <option value="Offers released">• Offers released</option>
-                    <option value="Rejected">• Rejected</option>
-                    <option value="Joined">• Joined</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1 flex items-center justify-between">
-                    <span>VC Decision Required</span>
-                    <span className="text-[10px] text-rose-600 font-bold">YES / NO</span>
-                  </label>
-                  <select
-                    value={recForm.vc_decision_required}
-                    onChange={(e) => setRecForm({ ...recForm, vc_decision_required: e.target.value })}
-                    className={`w-full px-3 py-2 bg-white rounded-xl border font-black focus:ring-2 focus:ring-indigo-600 focus:outline-none ${
-                      recForm.vc_decision_required === "Yes"
-                        ? "border-rose-400 text-rose-700 bg-rose-50/50"
-                        : "border-slate-300 text-slate-800"
-                    }`}
-                  >
-                    <option value="No">No</option>
-                    <option value="Yes">Yes</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Row 3: Remarks */}
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                  Remarks
-                </label>
-                <textarea
-                  rows={2}
-                  value={recForm.remarks}
-                  onChange={(e) => setRecForm({ ...recForm, remarks: e.target.value })}
-                  placeholder="Progress, compensation discussions, bottlenecks, or leadership notes..."
-                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                />
-              </div>
-
-              {/* Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-2">
+              {(actionViewTab === "OPEN"
+                ? [
+                    { id: "ALL", label: `All Open (${openCount})` },
+                    { id: "OPEN", label: "Open" },
+                    { id: "IN PROGRESS", label: "In Progress" },
+                    { id: "BLOCKED", label: "Blocked" },
+                    { id: "DELAYED", label: "Delayed" },
+                    { id: "ON HOLD", label: "On Hold" },
+                  ]
+                : [
+                    { id: "ALL", label: `All Closed (${completedCount})` },
+                    { id: "CLOSED", label: "Closed" },
+                    { id: "COMPLETED", label: "Completed" },
+                  ]
+              ).map((item) => (
                 <button
-                  type="button"
-                  onClick={() => {
-                    setRecForm({
-                      position_title: "",
-                      strategic_segment: "Semicon",
-                      priority: "Critical",
-                      hiring_lead: "HR Talent Lead",
-                      target_date: new Date().toISOString().split("T")[0],
-                      status: "Candidate sourced",
-                      remarks: "",
-                      vc_decision_required: "No",
-                    });
-                  }}
-                  className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-semibold rounded-xl hover:bg-white/80 border border-transparent hover:border-slate-300 transition"
-                >
-                  Clear Form
-                </button>
-                <button
-                  type="submit"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-sm transition"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>+ Edit or create new position</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* FILTER BUTTONS CONTROLS */}
-        {!isHR ? (
-          /* ACTION TRACKER FILTER CONTROLS */
-          <div className="px-6 space-y-3">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-              {/* Status Filter Buttons */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
-                  <Filter className="w-3.5 h-3.5" /> Status:
-                </span>
-                {[
-                  { id: "ALL", label: `All (${items.length})` },
-                  { id: "In Progress", label: "In Progress" },
-                  { id: "On Track", label: "On Track" },
-                  { id: "Delayed", label: "Delayed" },
-                  { id: "Blocked", label: "Blocked" },
-                  { id: "Completed", label: "Completed" },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => setWsStatusFilter(item.id)}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
-                      wsStatusFilter === item.id
-                        ? item.id === "Completed"
-                          ? "bg-emerald-600 text-white shadow-xs"
-                          : item.id === "Blocked"
-                          ? "bg-rose-600 text-white shadow-xs"
-                          : item.id === "Delayed"
-                          ? "bg-amber-600 text-white shadow-xs"
-                          : "bg-indigo-600 text-white shadow-xs"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-
-                <span className="text-slate-300 mx-1">|</span>
-
-                {/* VC Decision Filter Button */}
-                <button
-                  onClick={() => setWsVcFilter(wsVcFilter === "YES" ? "ALL" : "YES")}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
-                    wsVcFilter === "YES"
-                      ? "bg-rose-700 text-white shadow-xs"
-                      : "bg-rose-50 text-rose-700 hover:bg-rose-100"
+                  key={item.id}
+                  onClick={() => setWsStatusFilter(item.id)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                    wsStatusFilter === item.id
+                      ? item.id === "CLOSED" || item.id === "COMPLETED"
+                        ? "bg-emerald-600 text-white shadow-xs"
+                        : item.id === "BLOCKED"
+                        ? "bg-rose-600 text-white shadow-xs"
+                        : item.id === "DELAYED"
+                        ? "bg-amber-600 text-white shadow-xs"
+                        : "bg-indigo-600 text-white shadow-xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
                 >
-                  VC Decision Only
+                  {item.label}
                 </button>
-              </div>
+              ))}
 
-              {/* Workstream Search */}
-              <div className="relative w-full md:w-64">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  placeholder="Search action point, owner, remarks..."
-                  value={wsSearch}
-                  onChange={(e) => setWsSearch(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:bg-white"
-                />
-              </div>
+              {actionViewTab === "OPEN" && (
+                <>
+                  <span className="text-slate-300 mx-1">|</span>
+                  {/* VC Decision Filter Button */}
+                  <button
+                    onClick={() => setWsVcFilter(wsVcFilter === "YES" ? "ALL" : "YES")}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                      wsVcFilter === "YES"
+                        ? "bg-rose-700 text-white shadow-xs"
+                        : "bg-rose-50 text-rose-700 hover:bg-rose-100"
+                    }`}
+                  >
+                    VC Decision Only
+                  </button>
+
+                  {/* Overdue Filter Button */}
+                  <button
+                    onClick={() => setWsOverdueFilter(!wsOverdueFilter)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                      wsOverdueFilter
+                        ? "bg-amber-600 text-white shadow-xs"
+                        : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                    }`}
+                  >
+                    🚨 Overdue Only
+                  </button>
+                </>
+              )}
             </div>
 
-            {/* RAG Filter Buttons */}
+            {/* Action Item Search */}
+            <div className="relative w-full md:w-64">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="Search ID, action, owner, dept..."
+                value={wsSearch}
+                onChange={(e) => setWsSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:bg-white"
+              />
+            </div>
+          </div>
+
+          {/* RAG Filter Buttons (for Open Actions) */}
+          {actionViewTab === "OPEN" && (
             <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-1">
-                RAG:
+                RAG Status:
               </span>
               {[
                 { id: "ALL", label: "All RAG" },
@@ -1438,9 +1428,581 @@ export default function DepartmentPage() {
                 </button>
               ))}
             </div>
+          )}
+        </div>
+
+        {/* ACTION ITEMS TABLE (OPEN VIEW) */}
+        {actionViewTab === "OPEN" ? (
+          <div className="overflow-x-auto border-t border-slate-200">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#0b1329] text-white uppercase text-[10px] font-bold tracking-wider border-b border-slate-800 whitespace-nowrap">
+                <tr>
+                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">Action ID</th>
+                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">Scope</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100 min-w-[240px]">Action Item / Deliverable</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Owner / Support</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Timeline</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Status & RAG</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Remarks / Key Update</th>
+                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">VC Decision</th>
+                  {canEdit && <th className="px-4 py-3.5 text-right font-bold tracking-wider text-slate-100">Actions</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {filteredWorkstreams.length === 0 ? (
+                  <tr>
+                    <td colSpan={canEdit ? 9 : 8} className="px-6 py-12 text-center text-slate-400">
+                      <div className="max-w-md mx-auto space-y-2">
+                        <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+                        <p className="font-bold text-slate-700 text-sm">No Open Action Items Found</p>
+                        <p className="text-xs text-slate-500">
+                          All action items matching active filters are either closed or cleared. Switch to <strong>Closed Actions / History</strong> or add a new action.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredWorkstreams.map((ws: any, index: number) => {
+                    const actionId = ws.item_id || `ACT-${String(index + 1).padStart(2, "0")}`;
+                    const deliverable = ws.action_point || ws.deliverable || "--";
+                    const ownership = ws.ownership || ws.owner || "--";
+                    const timeline = ws.timeline || ws.target_date || "--";
+                    const status = (ws.status || "OPEN").toUpperCase();
+                    const ragStatus = (ws.rag_status || (["DELAYED", "BLOCKED"].includes(status) ? "AMBER" : "GREEN")).toUpperCase();
+                    const remarks = ws.remarks || ws.risks_blockers || "--";
+                    const isVcReq = ws.vc_decision_required === "Yes";
+                    const decisionAction = ws.decision_action || "";
+                    const isSupporting = ws.is_supporting || (ws.department_id && Number(ws.department_id) !== Number(dept.id));
+                    const isOverdue = isActionOverdue(ws);
+                    const isUrgent = timeline.toLowerCase().includes("urgent") || timeline.toLowerCase().includes("immediate");
+
+                    return (
+                      <tr key={ws.id} className="hover:bg-slate-50/90 transition">
+                        {/* 1. Action ID */}
+                        <td className="px-3 py-3.5 text-center whitespace-nowrap font-mono">
+                          <span className="px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 font-extrabold text-[11px] border border-indigo-200">
+                            {actionId}
+                          </span>
+                        </td>
+
+                        {/* 2. Scope: Primary vs Supporting */}
+                        <td className="px-3 py-3.5 text-center whitespace-nowrap">
+                          {isSupporting ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200" title={`Primary: ${ws.primary_department_name || "Another Vertical"}`}>
+                              🔗 Supporting
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                              🏛️ Primary
+                            </span>
+                          )}
+                        </td>
+
+                        {/* 3. Deliverable / Action Point */}
+                        <td className="px-4 py-3.5 min-w-[240px]">
+                          <div className="font-bold text-slate-900 leading-snug">
+                            {deliverable}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                            {ws.meeting_context && (
+                              <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded font-medium">
+                                📅 {ws.meeting_context}
+                              </span>
+                            )}
+                            {ws.category && ws.category !== "Operational Initiative" && (
+                              <span className="text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.2 rounded font-medium">
+                                {ws.category}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* 4. Owner / Support */}
+                        <td className="px-4 py-3.5 text-slate-700 font-medium">
+                          <div>{ownership}</div>
+                          {ws.supporting_departments && (
+                            <div className="text-[10px] text-slate-500 mt-0.5">
+                              <span className="font-semibold text-slate-600">Support:</span> {ws.supporting_departments}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* 5. Timeline with Overdue / Urgent tags */}
+                        <td className="px-4 py-3 font-medium whitespace-nowrap">
+                          <div className="flex flex-col items-start gap-1">
+                            <span className="text-slate-800 font-semibold">{timeline}</span>
+                            {isOverdue && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-rose-100 text-rose-800 border border-rose-300">
+                                🚨 OVERDUE
+                              </span>
+                            )}
+                            {isUrgent && !isOverdue && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-300">
+                                🔥 URGENT
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* 6. Status & RAG */}
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border ${
+                                status === "COMPLETED" || status === "CLOSED"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : status === "DELAYED"
+                                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                                  : status === "BLOCKED"
+                                  ? "bg-rose-50 text-rose-700 border-rose-200"
+                                  : status === "ON HOLD"
+                                  ? "bg-slate-100 text-slate-700 border-slate-300"
+                                  : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                              }`}
+                            >
+                              {status}
+                            </span>
+                            <span
+                              className={`px-1.5 py-0.5 text-[9px] font-black rounded uppercase tracking-wider ${
+                                ragStatus === "GREEN"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : ragStatus === "AMBER"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-rose-100 text-rose-800"
+                              }`}
+                            >
+                              {ragStatus}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* 7. Remarks / Key Update */}
+                        <td className="px-4 py-3 text-slate-700 min-w-[200px] leading-relaxed">
+                          {remarks}
+                          {ws.next_followup_date && (
+                            <div className="text-[10px] text-indigo-600 font-semibold mt-1">
+                              Next Follow-up: {ws.next_followup_date}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* 8. VC Decision Required */}
+                        <td className="px-3 py-3 text-center whitespace-nowrap">
+                          {isVcReq ? (
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-black rounded-lg bg-rose-600 text-white shadow-xs">
+                                YES
+                              </span>
+                              {decisionAction && (
+                                <span className="text-[10px] text-rose-700 max-w-[140px] truncate" title={decisionAction}>
+                                  {decisionAction}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="px-2 py-0.5 text-[11px] font-semibold text-slate-400">
+                              No
+                            </span>
+                          )}
+                        </td>
+
+                        {/* 9. Actions Column */}
+                        {canEdit && (
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {/* Edit Action */}
+                              <button
+                                onClick={() => openEditWsModal(ws)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition shadow-2xs"
+                                title="Edit Action Item"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                                <span>Edit</span>
+                              </button>
+
+                              {/* Formally Close Action */}
+                              <button
+                                onClick={() => {
+                                  setClosingAction(ws);
+                                  setClosureRemarks("");
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs border border-emerald-300 transition shadow-2xs"
+                                title="Formally Close Action Point"
+                              >
+                                <CheckCircle2 className="w-3 h-3" />
+                                <span>Close</span>
+                              </button>
+
+                              {/* Audit Trail / History */}
+                              <button
+                                onClick={() => setShowHistoryModal(ws)}
+                                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                                title="View Action History / Audit Trail"
+                              >
+                                <History className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Delete (if admin or creator) */}
+                              <button
+                                onClick={() => handleDeleteWorkstream(ws.id)}
+                                className="p-1 rounded-lg text-rose-400 hover:text-rose-700 hover:bg-rose-50 transition"
+                                title="Delete Action Point"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         ) : (
-          /* HR RECRUITMENT FILTER CONTROLS */
+          /* ACTION ITEMS TABLE (CLOSED VIEW / HISTORY) */
+          <div className="overflow-x-auto border-t border-slate-200">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#0b1329] text-white uppercase text-[10px] font-bold tracking-wider border-b border-slate-800 whitespace-nowrap">
+                <tr>
+                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">Action ID</th>
+                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">Scope</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100 min-w-[240px]">Action Item / Deliverable</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Owner / Support</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Closed Date & User</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Closure Remarks / Evidence</th>
+                  {canEdit && <th className="px-4 py-3.5 text-right font-bold tracking-wider text-slate-100">Actions</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {filteredWorkstreams.length === 0 ? (
+                  <tr>
+                    <td colSpan={canEdit ? 7 : 6} className="px-6 py-12 text-center text-slate-400">
+                      <p className="font-semibold text-slate-600">No Closed Actions Recorded Yet</p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        All open directives remain permanently active in the <strong>Open Action Items</strong> tab until formally closed.
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredWorkstreams.map((ws: any, index: number) => {
+                    const actionId = ws.item_id || `ACT-${String(index + 1).padStart(2, "0")}`;
+                    const deliverable = ws.action_point || ws.deliverable || "--";
+                    const ownership = ws.ownership || ws.owner || "--";
+                    const isSupporting = ws.is_supporting || (ws.department_id && Number(ws.department_id) !== Number(dept.id));
+
+                    return (
+                      <tr key={ws.id} className="hover:bg-slate-50/90 transition bg-slate-50/40">
+                        {/* 1. Action ID */}
+                        <td className="px-3 py-3.5 text-center whitespace-nowrap font-mono">
+                          <span className="px-2 py-1 rounded-md bg-emerald-50 text-emerald-800 font-extrabold text-[11px] border border-emerald-200">
+                            {actionId}
+                          </span>
+                        </td>
+
+                        {/* 2. Scope */}
+                        <td className="px-3 py-3.5 text-center whitespace-nowrap">
+                          {isSupporting ? (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                              🔗 Supporting
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                              🏛️ Primary
+                            </span>
+                          )}
+                        </td>
+
+                        {/* 3. Deliverable */}
+                        <td className="px-4 py-3.5 min-w-[240px]">
+                          <div className="font-bold text-slate-800 line-through text-slate-500">
+                            {deliverable}
+                          </div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">
+                            Original Timeline: {ws.timeline || ws.target_date || "--"}
+                          </div>
+                        </td>
+
+                        {/* 4. Owner */}
+                        <td className="px-4 py-3.5 text-slate-600 font-medium">
+                          {ownership}
+                        </td>
+
+                        {/* 5. Closed Date & User */}
+                        <td className="px-4 py-3.5 whitespace-nowrap text-slate-700">
+                          <div className="font-bold text-emerald-800">
+                            {ws.closure_date ? new Date(ws.closure_date).toLocaleDateString("en-IN") : "Closed"}
+                          </div>
+                          <div className="text-[10px] text-slate-500">
+                            By {ws.closed_by || "Executive Lead"}
+                          </div>
+                        </td>
+
+                        {/* 6. Closure Remarks */}
+                        <td className="px-4 py-3.5 text-slate-700 leading-relaxed max-w-md">
+                          <div className="p-2 bg-emerald-50/80 rounded-xl border border-emerald-100 text-[11px] text-emerald-900">
+                            {ws.closure_remarks || "Action formally verified, resolved and closed."}
+                          </div>
+                        </td>
+
+                        {/* 7. Actions (Reopen & History) */}
+                        {canEdit && (
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleReopenAction(ws)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition shadow-2xs"
+                                title="Reopen this action back into Open Action Items"
+                              >
+                                <RotateCcw className="w-3 h-3" />
+                                <span>Reopen</span>
+                              </button>
+                              <button
+                                onClick={() => setShowHistoryModal(ws)}
+                                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                                title="View Action History / Audit Trail"
+                              >
+                                <History className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 2. STRATEGIC TALENT & RECRUITMENT TRACKER (HR & RECRUITMENT VERTICAL ONLY) */}
+      {/* ========================================================================= */}
+      {isHR && (
+        <div id="recruitment" className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-4">
+          {/* Table Header */}
+          <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 tracking-tight uppercase flex items-center gap-2">
+                <span>STRATEGIC TALENT & RECRUITMENT TRACKER</span>
+                <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 text-[10px] font-bold rounded-md">
+                  Positions Pipeline
+                </span>
+              </h2>
+              <p className="text-xs text-slate-500">
+                Manage positions, sourcing pipelines, offers, interviews, and VC review items across all 9 verticals
+              </p>
+            </div>
+            {canEdit && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowInlineRecForm(!showInlineRecForm)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg transition"
+                >
+                  <span>{showInlineRecForm ? "Hide Recruitment Form" : "Show Recruitment Form"}</span>
+                </button>
+                <button
+                  onClick={openNewRecModal}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg transition shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ New Position</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* INLINE RECRUITMENT TRACKER DATA ENTRY FORM */}
+          {canEdit && showInlineRecForm && (
+            <div className="mx-6 p-5 bg-gradient-to-r from-slate-50 via-indigo-50/20 to-slate-50 rounded-2xl border border-indigo-100 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                    RECRUITMENT WEB FORM
+                  </h3>
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-md">
+                    Talent Engine
+                  </span>
+                </div>
+                <span className="text-[11px] text-slate-500 italic">
+                  Enter talent pipeline details below to add directly to HR & Recruitment
+                </span>
+              </div>
+
+              <form onSubmit={handleSaveRecruitment} className="space-y-3.5 text-xs">
+                {/* Row 1: Position / Role, Department / Strategic Vertical, Priority, Hiring Owner */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+                  <div className="md:col-span-4">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                      Position / Role <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={recForm.position_title}
+                      onChange={(e) => setRecForm({ ...recForm, position_title: e.target.value })}
+                      required
+                      placeholder="e.g. Director - Cleanroom Operations"
+                      className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="md:col-span-3">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                      Department / Strategic Vertical <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      value={recForm.strategic_segment}
+                      onChange={(e) => setRecForm({ ...recForm, strategic_segment: e.target.value })}
+                      className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                    >
+                      <option value="Semicon">Semicon</option>
+                      <option value="Aerospace & Defence">Aerospace & Defence</option>
+                      <option value="Space">Space</option>
+                      <option value="Cybersecurity">Cybersecurity</option>
+                      <option value="MedTech">MedTech</option>
+                      <option value="Advanced Manufacturing">Advanced Manufacturing</option>
+                      <option value="Communications">Communications</option>
+                      <option value="Strategy & Operations">Strategy & Operations</option>
+                      <option value="HR & Recruitment">HR & Recruitment</option>
+                      <option value="Central Leadership">Central Leadership</option>
+                    </select>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                      Priority
+                    </label>
+                    <select
+                      value={recForm.priority}
+                      onChange={(e) => setRecForm({ ...recForm, priority: e.target.value })}
+                      className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                    >
+                      <option value="Critical">Critical</option>
+                      <option value="High">High</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Low">Low</option>
+                    </select>
+                  </div>
+
+                  <div className="md:col-span-3">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                      Hiring Owner
+                    </label>
+                    <input
+                      type="text"
+                      value={recForm.hiring_lead}
+                      onChange={(e) => setRecForm({ ...recForm, hiring_lead: e.target.value })}
+                      placeholder="e.g. Sumanth Rao / HR Lead"
+                      className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Row 2: Target Joining Date, Status, VC Decision Required */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                      Target Joining Date
+                    </label>
+                    <input
+                      type="date"
+                      value={recForm.target_date}
+                      onChange={(e) => setRecForm({ ...recForm, target_date: e.target.value })}
+                      className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1 flex items-center justify-between">
+                      <span>Status</span>
+                      <span className="text-[10px] text-indigo-600 font-semibold">(Choose One)</span>
+                    </label>
+                    <select
+                      value={recForm.status}
+                      onChange={(e) => setRecForm({ ...recForm, status: e.target.value })}
+                      className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                    >
+                      <option value="Candidate sourced">• Candidate sourced</option>
+                      <option value="shortlisted">• shortlisted</option>
+                      <option value="Interview in progress">• Interview in progress</option>
+                      <option value="Offers released">• Offers released</option>
+                      <option value="Rejected">• Rejected</option>
+                      <option value="Joined">• Joined</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1 flex items-center justify-between">
+                      <span>VC Decision Required</span>
+                      <span className="text-[10px] text-rose-600 font-bold">YES / NO</span>
+                    </label>
+                    <select
+                      value={recForm.vc_decision_required}
+                      onChange={(e) => setRecForm({ ...recForm, vc_decision_required: e.target.value })}
+                      className={`w-full px-3 py-2 bg-white rounded-xl border font-black focus:ring-2 focus:ring-indigo-600 focus:outline-none ${
+                        recForm.vc_decision_required === "Yes"
+                          ? "border-rose-400 text-rose-700 bg-rose-50/50"
+                          : "border-slate-300 text-slate-800"
+                      }`}
+                    >
+                      <option value="No">No</option>
+                      <option value="Yes">Yes</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Row 3: Remarks */}
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Remarks
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={recForm.remarks}
+                    onChange={(e) => setRecForm({ ...recForm, remarks: e.target.value })}
+                    placeholder="Progress, compensation discussions, bottlenecks, or leadership notes..."
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+
+                {/* Buttons */}
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRecForm({
+                        position_title: "",
+                        strategic_segment: "Semicon",
+                        priority: "Critical",
+                        hiring_lead: "HR Talent Lead",
+                        target_date: new Date().toISOString().split("T")[0],
+                        status: "Candidate sourced",
+                        remarks: "",
+                        vc_decision_required: "No",
+                      });
+                    }}
+                    className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-semibold rounded-xl hover:bg-white/80 border border-transparent hover:border-slate-300 transition"
+                  >
+                    Clear Form
+                  </button>
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-sm transition"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>+ Add Position</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* HR RECRUITMENT FILTER CONTROLS */}
           <div className="px-6 space-y-3">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-1.5">
@@ -1448,7 +2010,7 @@ export default function DepartmentPage() {
                   <Filter className="w-3.5 h-3.5" /> Priority:
                 </span>
                 {[
-                  { id: "ALL", label: `All (${items.length})` },
+                  { id: "ALL", label: `All (${recruitmentItems.length})` },
                   { id: "Critical", label: "Critical" },
                   { id: "High", label: "High" },
                   { id: "Medium", label: "Medium" },
@@ -1536,156 +2098,21 @@ export default function DepartmentPage() {
               ))}
             </div>
           </div>
-        )}
 
-        {/* Technical / Strategy & Ops / Comm Action Tracker Table */}
-        {!isHR ? (
+          {/* HR & RECRUITMENT TABLE */}
           <div className="overflow-x-auto border-t border-slate-200">
             <table className="w-full text-left text-xs">
-              <thead className="bg-[#0b1329] text-white uppercase text-[11px] font-bold tracking-wider border-b border-slate-800 whitespace-nowrap">
-                <tr>
-                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">Sl. No.</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Initiative / Event / Campaign</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Deliverable</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Ownership</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Timeline</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Status</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Key Update / Dependency</th>
-                  <th className="px-4 py-3.5 text-center font-bold tracking-wider text-slate-100">Vice Chairman Decision Required</th>
-                  {canEdit && <th className="px-4 py-3.5 text-right font-bold tracking-wider text-slate-100">Actions</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {filteredWorkstreams.length === 0 ? (
-                  <tr>
-                    <td colSpan={canEdit ? 9 : 8} className="px-6 py-8 text-center text-slate-400">
-                      No action points match the active filters. Click "+ Edit or create new action" or clear filters.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredWorkstreams.map((ws: any, index: number) => {
-                    const initiative = ws.category || "--";
-                    const deliverable = ws.action_point || ws.deliverable || "--";
-                    const ownership = ws.ownership || ws.owner || "--";
-                    const timeline = ws.timeline || ws.target_date || "--";
-                    const status = ws.status || "In Progress";
-                    const ragStatus = (ws.rag_status || (["Delayed", "Blocked"].includes(status) ? "AMBER" : "GREEN")).toUpperCase();
-                    const remarks = ws.remarks || ws.risks_blockers || "--";
-                    const isVcReq = ws.vc_decision_required === "Yes";
-                    const decisionAction = ws.decision_action || "";
-
-                    return (
-                      <tr key={ws.id} className="hover:bg-slate-50/80 transition">
-                        <td className="px-3 py-3.5 font-bold text-center text-slate-500 font-mono">
-                          {index + 1}
-                        </td>
-                        <td className="px-4 py-3.5 font-semibold text-slate-800 min-w-[180px]">
-                          {initiative}
-                        </td>
-                        <td className="px-4 py-3.5 font-bold text-slate-900 min-w-[220px]">
-                          {deliverable}
-                        </td>
-                        <td className="px-4 py-3.5 font-medium text-slate-700 whitespace-nowrap">
-                          {ownership}
-                        </td>
-                        <td className="px-4 py-3 font-mono text-slate-600 whitespace-nowrap">
-                          {timeline}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border ${
-                                status === "Completed"
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                  : status === "Delayed"
-                                  ? "bg-amber-50 text-amber-700 border-amber-200"
-                                  : status === "Blocked"
-                                  ? "bg-rose-50 text-rose-700 border-rose-200"
-                                  : status === "On Hold"
-                                  ? "bg-slate-100 text-slate-700 border-slate-300"
-                                  : status === "On Track"
-                                  ? "bg-blue-50 text-blue-700 border-blue-200"
-                                  : "bg-indigo-50 text-indigo-700 border-indigo-200"
-                              }`}
-                            >
-                              {status}
-                            </span>
-                            <span
-                              className={`px-1.5 py-0.5 text-[9px] font-black rounded uppercase tracking-wider ${
-                                ragStatus === "GREEN"
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : ragStatus === "AMBER"
-                                  ? "bg-amber-100 text-amber-800"
-                                  : "bg-rose-100 text-rose-800"
-                              }`}
-                            >
-                              {ragStatus}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-slate-700 min-w-[200px] leading-relaxed">
-                          {remarks}
-                        </td>
-                        <td className="px-4 py-3 text-center whitespace-nowrap">
-                          {isVcReq ? (
-                            <div className="flex flex-col items-center gap-1">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-black rounded-lg bg-rose-600 text-white shadow-xs">
-                                YES
-                              </span>
-                              {decisionAction && (
-                                <span className="text-[10px] text-rose-700 max-w-[160px] truncate" title={decisionAction}>
-                                  {decisionAction}
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="px-2 py-0.5 text-[11px] font-semibold text-slate-400">
-                              No
-                            </span>
-                          )}
-                        </td>
-                        {canEdit && (
-                          <td className="px-4 py-3 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => openEditWsModal(ws)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition shadow-2xs"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                                <span>Edit</span>
-                              </button>
-                              <button
-                                onClick={() => handleDeleteWorkstream(ws.id)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition shadow-2xs"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                <span>Delete</span>
-                              </button>
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          /* HR & RECRUITMENT TABLE */
-          <div className="overflow-x-auto border-t border-slate-200">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#0b1329] text-white uppercase text-[11px] font-bold tracking-wider border-b border-slate-800 whitespace-nowrap">
+              <thead className="bg-[#0b1329] text-white uppercase text-[10px] font-bold tracking-wider border-b border-slate-800 whitespace-nowrap">
                 <tr>
                   <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">Sl. No.</th>
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Position / Role</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Department / Strategic Vertical</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Department / Vertical</th>
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Priority</th>
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Hiring Owner</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Target Joining Date</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Target Date</th>
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Status</th>
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Remarks</th>
-                  <th className="px-4 py-3.5 text-center font-bold tracking-wider text-slate-100">VC Decision Required</th>
+                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">VC Decision</th>
                   {canEdit && <th className="px-4 py-3.5 text-right font-bold tracking-wider text-slate-100">Actions</th>}
                 </tr>
               </thead>
@@ -1693,7 +2120,7 @@ export default function DepartmentPage() {
                 {filteredRecruitment.length === 0 ? (
                   <tr>
                     <td colSpan={canEdit ? 10 : 9} className="px-6 py-8 text-center text-slate-400">
-                      No recruitment positions match the active filters. Click "+ Edit or create new position" or clear filters.
+                      No recruitment positions match the active filters. Click "+ New Position" or clear filters.
                     </td>
                   </tr>
                 ) : (
@@ -1772,7 +2199,7 @@ export default function DepartmentPage() {
                         <td className="px-4 py-3 text-slate-700 min-w-[200px] leading-relaxed">
                           {remarks}
                         </td>
-                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                        <td className="px-3 py-3 text-center whitespace-nowrap">
                           {isVcReq ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-black rounded-lg bg-rose-600 text-white shadow-xs">
                               YES
@@ -1810,118 +2237,157 @@ export default function DepartmentPage() {
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* MODAL: ADD/EDIT ACTION POINT */}
+      {/* ========================================================================= */}
+      {/* MODAL 1: ADD / EDIT ACTION POINT */}
+      {/* ========================================================================= */}
       {showWsModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full p-6 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-base font-bold text-slate-900 mb-1">
-              {editingWs ? "Update Action Point" : "+ Add Action Point"}
-            </h3>
-            <p className="text-xs text-slate-500 mb-5">
-              {isStrategyOps
-                ? `Strategy & Operations Specialised Tracker for ${dept.name}`
-                : isComm
-                ? `Communications Specialised Tracker for ${dept.name}`
-                : `Action Tracker for ${dept.name}`}
-            </p>
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-2xl w-full p-6 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  {editingWs ? `Update Action Item [${editingWs.item_id || editingWs.id}]` : "+ Create New Action Item"}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Standardised Action Tracker • Primary Vertical: <strong>{dept.name}</strong>
+                </p>
+              </div>
+              {editingWs && (
+                <span className="px-2 py-1 rounded bg-indigo-50 text-indigo-700 font-mono text-xs font-bold">
+                  {editingWs.item_id || `ID #${editingWs.id}`}
+                </span>
+              )}
+            </div>
 
             <form onSubmit={handleSaveWorkstream} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Initiative / Event / Campaign <span className="text-rose-500">*</span>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Deliverable / Action Item <span className="text-rose-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  value={wsForm.category}
-                  onChange={(e) => setWsForm({ ...wsForm, category: e.target.value })}
-                  required
-                  placeholder="e.g. Cleanroom ISO-6 Upgrade / Strategic Initiative / Event"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-medium focus:ring-2 focus:ring-indigo-600"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Deliverable <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
+                <textarea
+                  rows={2}
                   value={wsForm.action_point}
                   onChange={(e) => setWsForm({ ...wsForm, action_point: e.target.value })}
                   required
-                  placeholder="e.g. Commissioning of ISO-6 Cleanroom with Laminar Flow HVAC"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-medium focus:ring-2 focus:ring-indigo-600"
+                  placeholder="Exact deliverable or action required..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Ownership <span className="text-rose-500">*</span>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Initiative / Category <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={wsForm.category}
+                    onChange={(e) => setWsForm({ ...wsForm, category: e.target.value })}
+                    required
+                    placeholder="e.g. Talent Acquisition / Space Lab"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Owner / Support <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={wsForm.ownership}
                     onChange={(e) => setWsForm({ ...wsForm, ownership: e.target.value })}
                     required
-                    placeholder={deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner"}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
+                    placeholder="e.g. Anamika to coordinate / Venky"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Supporting Departments
+                  </label>
+                  <input
+                    type="text"
+                    value={wsForm.supporting_departments}
+                    onChange={(e) => setWsForm({ ...wsForm, supporting_departments: e.target.value })}
+                    placeholder="e.g. Semicon, Space, HR & Recruitment"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400">Links this action to other vertical pages automatically</span>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Timeline
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Timeline <span className="text-rose-500">*</span>
                   </label>
                   <input
-                    type="date"
+                    type="text"
                     value={wsForm.timeline}
                     onChange={(e) => setWsForm({ ...wsForm, timeline: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
+                    required
+                    placeholder="e.g. Urgent; close after clarification / 2026-10-31"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Status</label>
+                  <label className="block font-bold text-slate-700 mb-1">Status</label>
                   <select
                     value={wsForm.status}
                     onChange={(e) => setWsForm({ ...wsForm, status: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 font-medium"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   >
-                    <option value="Not Started">Not Started</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Delayed">Delayed</option>
-                    <option value="On Hold">On Hold</option>
+                    <option value="OPEN">OPEN</option>
+                    <option value="IN PROGRESS">IN PROGRESS</option>
+                    <option value="BLOCKED">BLOCKED</option>
+                    <option value="DELAYED">DELAYED</option>
+                    <option value="ON HOLD">ON HOLD</option>
+                    <option value="COMPLETED">COMPLETED</option>
+                    <option value="CLOSED">CLOSED</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">RAG Status</label>
+                  <label className="block font-bold text-slate-700 mb-1">RAG Status</label>
                   <select
                     value={wsForm.rag_status}
                     onChange={(e) => setWsForm({ ...wsForm, rag_status: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 font-medium"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   >
-                    <option value="GREEN">Green</option>
-                    <option value="AMBER">Amber</option>
-                    <option value="RED">Red</option>
+                    <option value="GREEN">GREEN</option>
+                    <option value="AMBER">AMBER</option>
+                    <option value="RED">RED</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
+                  <label className="block font-bold text-slate-700 mb-1">Next Follow-up Date</label>
+                  <input
+                    type="date"
+                    value={wsForm.next_followup_date}
+                    onChange={(e) => setWsForm({ ...wsForm, next_followup_date: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
                     Vice Chairman Decision Required
                   </label>
                   <select
                     value={wsForm.vc_decision_required}
                     onChange={(e) => setWsForm({ ...wsForm, vc_decision_required: e.target.value })}
-                    className={`w-full px-3 py-2 rounded-lg border text-sm font-bold focus:ring-2 focus:ring-indigo-600 ${
+                    className={`w-full px-3 py-2 rounded-xl border text-xs font-bold focus:ring-2 focus:ring-indigo-600 focus:outline-none ${
                       wsForm.vc_decision_required === "Yes"
                         ? "border-rose-400 text-rose-700 bg-rose-50"
                         : "border-slate-300 text-slate-800"
@@ -1931,31 +2397,31 @@ export default function DepartmentPage() {
                     <option value="Yes">Yes</option>
                   </select>
                 </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    VC Decision Action Requested
+                  </label>
+                  <input
+                    type="text"
+                    value={wsForm.decision_action}
+                    onChange={(e) => setWsForm({ ...wsForm, decision_action: e.target.value })}
+                    placeholder="Specific approval or intervention required..."
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Key Update / Dependency
+                <label className="block font-bold text-slate-700 mb-1">
+                  Key Update / Remarks / Blockers
                 </label>
                 <textarea
                   rows={3}
                   value={wsForm.remarks}
                   onChange={(e) => setWsForm({ ...wsForm, remarks: e.target.value })}
-                  placeholder="Progress, risks, blockers and dependencies..."
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Decision / Action Required from VC
-                </label>
-                <textarea
-                  rows={3}
-                  value={wsForm.decision_action}
-                  onChange={(e) => setWsForm({ ...wsForm, decision_action: e.target.value })}
-                  placeholder="Exact approval, intervention or decision required from Vice Chairman (optional if No)..."
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
+                  placeholder="Progress updates, meeting notes, risks and dependencies..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                 />
               </div>
 
@@ -1985,11 +2451,151 @@ export default function DepartmentPage() {
                     type="submit"
                     className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
                   >
-                    {editingWs ? "Save Changes" : "+ Edit or create new action"}
+                    {editingWs ? "Save Changes" : "+ Create Action Item"}
                   </button>
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 2: FORMAL ACTION CLOSURE MODAL */}
+      {/* ========================================================================= */}
+      {closingAction && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6">
+            <div className="flex items-start gap-3 pb-3 border-b border-slate-100 mb-4">
+              <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-800 shrink-0">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Formally Close Action [{closingAction.item_id || closingAction.id}]
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Action items remain active until formally closed. Closing moves this record to <strong>Closed Actions / History</strong>.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1.5 mb-4">
+              <div className="font-bold text-slate-900">
+                {closingAction.action_point || closingAction.deliverable}
+              </div>
+              <div className="text-slate-500 flex flex-wrap gap-x-4">
+                <span>Owner: <strong className="text-slate-700">{closingAction.ownership || closingAction.owner}</strong></span>
+                <span>Timeline: <strong className="text-slate-700">{closingAction.timeline || closingAction.target_date}</strong></span>
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmClose} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Closure Remarks / Verification Details <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={closureRemarks}
+                  onChange={(e) => setClosureRemarks(e.target.value)}
+                  required
+                  placeholder="Record verification notes, resolution summary, or approval evidence..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClosingAction(null);
+                    setClosureRemarks("");
+                  }}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-sm transition inline-flex items-center gap-2"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Confirm & Close Action</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 3: ACTION HISTORY & AUDIT TRAIL MODAL */}
+      {/* ========================================================================= */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-2">
+                <History className="w-5 h-5 text-indigo-600" />
+                <h3 className="text-base font-bold text-slate-900">
+                  Action History [{showHistoryModal.item_id || showHistoryModal.id}]
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowHistoryModal(null)}
+                className="text-slate-400 hover:text-slate-700 text-xs font-semibold px-2 py-1 rounded-lg hover:bg-slate-100"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Action Deliverable</span>
+                <p className="font-bold text-slate-900 leading-snug">
+                  {showHistoryModal.action_point || showHistoryModal.deliverable}
+                </p>
+                <div className="text-[11px] text-slate-500 mt-2 grid grid-cols-2 gap-2">
+                  <div>Owner: <strong className="text-slate-700">{showHistoryModal.ownership || showHistoryModal.owner}</strong></div>
+                  <div>Status: <strong className="text-slate-700">{showHistoryModal.status}</strong></div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-2">Audit Trail Log</h4>
+                <div className="space-y-2">
+                  {Array.isArray(showHistoryModal.action_history) && showHistoryModal.action_history.length > 0 ? (
+                    showHistoryModal.action_history.map((log: any, i: number) => (
+                      <div key={i} className="p-2.5 bg-slate-50/80 rounded-xl border border-slate-200 text-[11px]">
+                        <div className="flex items-center justify-between text-slate-400 mb-1">
+                          <span className="font-semibold text-slate-700">{log.action || "Update"}</span>
+                          <span>{log.timestamp ? new Date(log.timestamp).toLocaleString("en-IN") : ""}</span>
+                        </div>
+                        <p className="text-slate-600">{log.notes || log.remarks || JSON.stringify(log)}</p>
+                        {log.user && <span className="text-[10px] text-indigo-600 font-semibold block mt-1">User: {log.user}</span>}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-500 text-center">
+                      <p>Created: {showHistoryModal.created_at ? new Date(showHistoryModal.created_at).toLocaleString("en-IN") : "Initial Seed (Weekly Management Review - 12 Oct 2026)"}</p>
+                      <p className="mt-1">Last Updated: {showHistoryModal.updated_at ? new Date(showHistoryModal.updated_at).toLocaleString("en-IN") : "Active"}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 mt-4 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowHistoryModal(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

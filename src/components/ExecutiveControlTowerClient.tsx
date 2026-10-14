@@ -632,19 +632,20 @@ export default function ExecutiveControlTowerClient({
           <table className="w-full text-left text-xs">
             <thead className="bg-[#0b1329] text-white uppercase text-[10px] font-bold tracking-wider border-b border-slate-800 whitespace-nowrap">
               <tr>
+                <th className="px-3 py-3.5 text-center font-bold text-slate-100">ID</th>
                 <th className="px-5 py-3.5 text-left font-bold text-slate-100">Action item</th>
                 <th className="px-5 py-3.5 text-left font-bold text-slate-100">Owner / support</th>
                 <th className="px-5 py-3.5 text-left font-bold text-slate-100">Timeline</th>
-                <th className="px-5 py-3.5 text-left font-bold text-slate-100">Status</th>
+                <th className="px-5 py-3.5 text-left font-bold text-slate-100">Status & RAG</th>
                 <th className="px-5 py-3.5 text-left font-bold text-slate-100">Department</th>
                 <th className="px-5 py-3.5 text-left font-bold text-slate-100">Remarks / Key Update</th>
-                <th className="px-5 py-3.5 text-center font-bold text-slate-100">VC Decision Required</th>
+                <th className="px-4 py-3.5 text-center font-bold text-slate-100">VC Decision Required</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {filteredAttention.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-slate-400">
+                  <td colSpan={8} className="px-6 py-8 text-center text-slate-400">
                     No action items match the selected filters.
                   </td>
                 </tr>
@@ -655,8 +656,21 @@ export default function ExecutiveControlTowerClient({
 
                   return (
                     <tr key={`${item.department_id}-${item.id}`} className="hover:bg-slate-50 transition">
+                      <td className="px-3 py-4 text-center whitespace-nowrap font-mono">
+                        <span className="px-2 py-1 rounded bg-indigo-50 text-indigo-700 font-extrabold text-[11px] border border-indigo-200">
+                          {item.item_id || `ID #${item.id}`}
+                        </span>
+                      </td>
                       <td className="px-5 py-4 font-bold text-slate-900 max-w-sm leading-relaxed">
-                        {item.item}
+                        <div>{item.item}</div>
+                        {item.supporting_departments && (
+                          <div className="text-[10px] text-slate-500 font-normal mt-1 flex items-center gap-1">
+                            <span className="font-semibold text-slate-600">Supporting:</span>
+                            <span className="bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-medium">
+                              {item.supporting_departments}
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td className="px-5 py-4 text-slate-700 font-medium max-w-xs">
                         {item.owner || "--"}
@@ -667,9 +681,22 @@ export default function ExecutiveControlTowerClient({
                         </span>
                       </td>
                       <td className="px-5 py-4 whitespace-nowrap">
-                        <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md border ${getStatusBadge(item.status)}`}>
-                          {item.status}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md border ${getStatusBadge(item.status)}`}>
+                            {item.status}
+                          </span>
+                          <span
+                            className={`px-1.5 py-0.5 text-[9px] font-black rounded uppercase tracking-wider ${
+                              ragStatus === "GREEN"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : ragStatus === "AMBER"
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-rose-100 text-rose-800"
+                            }`}
+                          >
+                            {ragStatus}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-5 py-4 whitespace-nowrap">
                         <Link
@@ -682,7 +709,7 @@ export default function ExecutiveControlTowerClient({
                       <td className="px-5 py-4 text-slate-600 max-w-xs text-[11px] leading-relaxed">
                         {item.decision_action || item.issue || "--"}
                       </td>
-                      <td className="px-5 py-4 text-center whitespace-nowrap">
+                      <td className="px-4 py-4 text-center whitespace-nowrap">
                         {isVcReq ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-black rounded-lg bg-rose-600 text-white shadow-xs">
                             YES

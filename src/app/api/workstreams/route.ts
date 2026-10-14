@@ -32,6 +32,10 @@ export async function POST(req: Request) {
       decision_action,
       remarks,
       vc_decision_required,
+      supporting_departments,
+      supporting_department_ids,
+      next_followup_date,
+      meeting_context,
     } = body;
 
     const deptId = parseInt(department_id, 10);
@@ -55,7 +59,7 @@ export async function POST(req: Request) {
     const finalCategory = (category || "General").trim();
     const finalOwnership = (ownership || owner || user.name || "").trim();
     const finalTimeline = (timeline || target_date || "").trim();
-    const finalStatus = (status || "In Progress").trim();
+    const finalStatus = (status || "OPEN").trim();
     const finalRag = (rag_status || (["Delayed", "Blocked"].includes(finalStatus) ? "AMBER" : "GREEN")).trim().toUpperCase();
     const finalRemarks = (remarks || risks_blockers || "").trim();
     const finalDecisionAction = (decision_action || "").trim();
@@ -75,7 +79,7 @@ export async function POST(req: Request) {
     if (!finalItemId) {
       const countRes = await query("SELECT COUNT(*) as count FROM workstreams WHERE department_id = $1", [deptId]);
       const currentCount = parseInt(countRes.rows[0]?.count || "0", 10);
-      finalItemId = `WS-${String(currentCount + 1).padStart(2, "0")}`;
+      finalItemId = `ACT-${String(currentCount + 1).padStart(2, "0")}`;
     }
 
     // Insert workstream
@@ -84,8 +88,9 @@ export async function POST(req: Request) {
         item_id, department_id, category, deliverable, infrastructure_partnership, 
         target_date, status, capex, revenue_pipeline, owner, 
         risks_blockers, decision_action, action_point, ownership, timeline,
-        rag_status, remarks, vc_decision_required, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        rag_status, remarks, vc_decision_required,
+        supporting_departments, supporting_department_ids, next_followup_date, meeting_context, updated_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
       RETURNING *`,
       [
         finalItemId,
@@ -106,6 +111,10 @@ export async function POST(req: Request) {
         finalRag,
         finalRemarks,
         finalVcReq,
+        supporting_departments || "",
+        supporting_department_ids || "",
+        next_followup_date || "",
+        meeting_context || "Weekly Management Review - 12 Oct 2026",
         user.name,
       ]
     );

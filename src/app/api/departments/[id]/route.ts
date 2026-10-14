@@ -42,15 +42,31 @@ export async function GET(req: Request, { params }: Params) {
       updated_by: null,
     };
 
-    let items: any[] = [];
+    const wsRes = await query(
+      `SELECT w.*, 
+              d.name as primary_department_name, 
+              d.code as primary_department_code,
+              CASE WHEN w.department_id = $1 THEN true ELSE false END as is_primary
+       FROM workstreams w
+       JOIN departments d ON w.department_id = d.id
+       WHERE (w.department_id = $1 
+          OR w.supporting_departments ILIKE $2
+          OR w.supporting_departments ILIKE $3
+          OR w.supporting_department_ids LIKE '%' || $1::text || '%')
+       ORDER BY 
+         CASE WHEN w.status IN ('CLOSED', 'Closed') THEN 2 ELSE 1 END,
+         CASE WHEN w.vc_decision_required = 'Yes' THEN 1 ELSE 2 END,
+         w.id ASC`,
+      [deptId, `%${department.name}%`, `%${department.code}%`]
+    );
+
+    let recruitment: any[] = [];
     if (department.code === "HR_REC" || department.code === "HR" || Number(deptId) === 7) {
       const recRes = await query("SELECT * FROM recruitment ORDER BY priority ASC, id ASC");
-      items = recRes.rows;
-    } else {
-      const wsRes = await query("SELECT * FROM workstreams WHERE department_id = $1 ORDER BY id ASC", [deptId]);
-      items = wsRes.rows;
+      recruitment = recRes.rows;
     }
 
+    const items = wsRes.rows;
     const userCanEdit = canEditDepartment(user, deptId);
 
     return NextResponse.json({
@@ -58,6 +74,7 @@ export async function GET(req: Request, { params }: Params) {
       overview,
       items,
       workstreams: items,
+      recruitment,
       canEdit: userCanEdit,
       isExecutive: user.role === ROLES.EXECUTIVE,
       isAdmin: user.role === ROLES.ADMIN,
