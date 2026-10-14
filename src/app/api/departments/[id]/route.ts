@@ -66,6 +66,18 @@ export async function GET(req: Request, { params }: Params) {
       recruitment = recRes.rows;
     }
 
+    const allDeptsRes = await query("SELECT id, name, code FROM departments WHERE active = TRUE ORDER BY id ASC");
+    const allDepartments = allDeptsRes.rows;
+
+    let nextItemId = "ACT-16";
+    try {
+      const maxRes = await query("SELECT item_id FROM workstreams WHERE item_id ~ '^ACT-[0-9]+' ORDER BY id DESC LIMIT 1");
+      if (maxRes.rows.length > 0) {
+        const match = maxRes.rows[0].item_id.match(/ACT-(\d+)/);
+        if (match) nextItemId = `ACT-${String(parseInt(match[1], 10) + 1).padStart(2, "0")}`;
+      }
+    } catch {}
+
     const items = wsRes.rows;
     const userCanEdit = canEditDepartment(user, deptId);
 
@@ -75,6 +87,8 @@ export async function GET(req: Request, { params }: Params) {
       items,
       workstreams: items,
       recruitment,
+      allDepartments,
+      nextItemId,
       canEdit: userCanEdit,
       isExecutive: user.role === ROLES.EXECUTIVE,
       isAdmin: user.role === ROLES.ADMIN,

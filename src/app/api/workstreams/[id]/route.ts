@@ -46,6 +46,7 @@ export async function PUT(req: Request, { params }: Params) {
       category,
       deliverable,
       action_point,
+      priority,
       infrastructure_partnership,
       target_date,
       timeline,
@@ -134,9 +135,10 @@ export async function PUT(req: Request, { params }: Params) {
         closure_remarks = $22,
         closed_by = $23,
         action_history = $24,
+        priority = COALESCE($25, priority),
         updated_at = CURRENT_TIMESTAMP,
-        updated_by = $25
-      WHERE id = $26
+        updated_by = $26
+      WHERE id = $27
       RETURNING *`,
       [
         item_id !== undefined ? (item_id || null) : null,
@@ -163,6 +165,7 @@ export async function PUT(req: Request, { params }: Params) {
         finalClosureRemarks,
         finalClosedBy,
         JSON.stringify(history),
+        priority !== undefined ? priority : null,
         user.name,
         wsId,
       ]

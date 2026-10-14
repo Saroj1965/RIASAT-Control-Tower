@@ -19,6 +19,7 @@ export async function POST(req: Request) {
       category,
       deliverable,
       action_point,
+      priority,
       infrastructure_partnership,
       target_date,
       timeline,
@@ -59,6 +60,7 @@ export async function POST(req: Request) {
     const finalCategory = (category || "General").trim();
     const finalOwnership = (ownership || owner || user.name || "").trim();
     const finalTimeline = (timeline || target_date || "").trim();
+    const finalPriority = (priority || "Medium").trim();
     const finalStatus = (status || "OPEN").trim();
     const finalRag = (rag_status || (["Delayed", "Blocked"].includes(finalStatus) ? "AMBER" : "GREEN")).trim().toUpperCase();
     const finalRemarks = (remarks || risks_blockers || "").trim();
@@ -77,9 +79,18 @@ export async function POST(req: Request) {
     // Auto-generate Item_ID if not supplied
     let finalItemId = (item_id || "").trim();
     if (!finalItemId) {
-      const countRes = await query("SELECT COUNT(*) as count FROM workstreams WHERE department_id = $1", [deptId]);
-      const currentCount = parseInt(countRes.rows[0]?.count || "0", 10);
-      finalItemId = `ACT-${String(currentCount + 1).padStart(2, "0")}`;
+      try {
+        const maxRes = await query("SELECT item_id FROM workstreams WHERE item_id ~ '^ACT-[0-9]+' ORDER BY id DESC LIMIT 1");
+        let nextNum = 16;
+        if (maxRes.rows.length > 0) {
+          const match = maxRes.rows[0].item_id.match(/ACT-(\d+)/);
+          if (match) nextNum = parseInt(match[1], 10) + 1;
+        }
+        finalItemId = `ACT-${String(nextNum).padStart(2, "0")}`;
+      } catch {
+        const countRes = await query("SELECT COUNT(*) as count FROM workstreams");
+        finalItemId = `ACT-${String(parseInt(countRes.rows[0]?.count || "15", 10) + 1).padStart(2, "0")}`;
+      }
     }
 
     // Insert workstream
@@ -89,8 +100,8 @@ export async function POST(req: Request) {
         target_date, status, capex, revenue_pipeline, owner, 
         risks_blockers, decision_action, action_point, ownership, timeline,
         rag_status, remarks, vc_decision_required,
-        supporting_departments, supporting_department_ids, next_followup_date, meeting_context, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+        supporting_departments, supporting_department_ids, next_followup_date, meeting_context, updated_by, priority
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
       RETURNING *`,
       [
         finalItemId,
@@ -116,6 +127,7 @@ export async function POST(req: Request) {
         next_followup_date || "",
         meeting_context || "Weekly Management Review - 12 Oct 2026",
         user.name,
+        finalPriority,
       ]
     );
 

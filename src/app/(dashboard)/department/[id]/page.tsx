@@ -77,16 +77,19 @@ export default function DepartmentPage() {
   const [editingWs, setEditingWs] = useState<any>(null);
   const [wsForm, setWsForm] = useState({
     item_id: "",
-    category: "",
+    department_id: deptId,
+    category: "Operational Initiative",
     action_point: "",
     ownership: "",
     timeline: "",
+    priority: "Medium",
     status: "OPEN",
     rag_status: "AMBER",
     remarks: "",
     vc_decision_required: "No",
     decision_action: "",
     supporting_departments: "",
+    supporting_department_ids: "",
     next_followup_date: "",
     closure_remarks: "",
   });
@@ -125,6 +128,15 @@ export default function DepartmentPage() {
       setReadiness(data.overview.readiness_percentage || 0);
       setRag(data.overview.rag_status || "NOT STARTED");
       setKeyFocus(data.overview.key_focus || "");
+
+      if (data.nextItemId && !editingWs) {
+        setWsForm((prev) => ({
+          ...prev,
+          item_id: prev.item_id || data.nextItemId,
+          department_id: prev.department_id || deptId,
+          ownership: prev.ownership || (data.department?.name ? `${data.department.name} Head` : "Lead Owner"),
+        }));
+      }
 
       if (formRes.ok) {
         const formData = await formRes.json();
@@ -199,46 +211,117 @@ export default function DepartmentPage() {
     }
   };
 
-  // Open modal for new Action Point
+  // Open modal or form for new Action Point
   const openNewWsModal = () => {
     setEditingWs(null);
     setWsForm({
-      item_id: "",
+      item_id: deptData?.nextItemId || "",
+      department_id: deptId,
       category: "Operational Initiative",
       action_point: "",
       ownership: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
       timeline: "Urgent; close after clarification",
+      priority: "Medium",
       status: "OPEN",
       rag_status: "AMBER",
       remarks: "",
       vc_decision_required: "No",
       decision_action: "",
       supporting_departments: "",
+      supporting_department_ids: "",
       next_followup_date: "",
       closure_remarks: "",
     });
-    setShowWsModal(true);
+    setShowInlineWsForm(true);
+    setTimeout(() => {
+      const el = document.getElementById("action-entry-form");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
   };
 
-  // Open modal for editing Action Point
+  // Open inline form for editing Action Point
   const openEditWsModal = (ws: any) => {
     setEditingWs(ws);
     setWsForm({
       item_id: ws.item_id || "",
+      department_id: ws.department_id || deptId,
       category: ws.category || "Operational Initiative",
       action_point: ws.action_point || ws.deliverable || "",
       ownership: ws.ownership || ws.owner || "",
       timeline: ws.timeline || ws.target_date || "",
+      priority: ws.priority || "Medium",
       status: ws.status || "OPEN",
       rag_status: (ws.rag_status || (["Delayed", "Blocked"].includes(ws.status) ? "AMBER" : "GREEN")).toUpperCase(),
       remarks: ws.remarks || ws.risks_blockers || "",
       vc_decision_required: ws.vc_decision_required === "Yes" ? "Yes" : "No",
       decision_action: ws.decision_action || "",
       supporting_departments: ws.supporting_departments || "",
+      supporting_department_ids: ws.supporting_department_ids || "",
       next_followup_date: ws.next_followup_date || "",
       closure_remarks: ws.closure_remarks || "",
     });
-    setShowWsModal(true);
+    setShowInlineWsForm(true);
+    setTimeout(() => {
+      const el = document.getElementById("action-entry-form");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  };
+
+  // Cancel Edit Action
+  const cancelEditWs = () => {
+    setEditingWs(null);
+    setWsForm({
+      item_id: deptData?.nextItemId || "",
+      department_id: deptId,
+      category: "Operational Initiative",
+      action_point: "",
+      ownership: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
+      timeline: "",
+      priority: "Medium",
+      status: "OPEN",
+      rag_status: "AMBER",
+      remarks: "",
+      vc_decision_required: "No",
+      decision_action: "",
+      supporting_departments: "",
+      supporting_department_ids: "",
+      next_followup_date: "",
+      closure_remarks: "",
+    });
+  };
+
+  // Toggle Supporting Department in wsForm
+  const toggleSupportingDept = (deptName: string) => {
+    const current = wsForm.supporting_departments
+      ? wsForm.supporting_departments.split(",").map((s: string) => s.trim()).filter(Boolean)
+      : [];
+    const updated = current.includes(deptName)
+      ? current.filter((s: string) => s !== deptName)
+      : [...current, deptName];
+    setWsForm((prev) => ({ ...prev, supporting_departments: updated.join(", ") }));
+  };
+
+  // Quick Status change from table row
+  const handleQuickStatusChange = async (ws: any, newStatus: string) => {
+    if (newStatus === "CLOSED" || newStatus === "COMPLETED") {
+      setClosingAction(ws);
+      setClosureRemarks("");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/workstreams/${ws.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update status");
+      setSuccessMsg(`Status of ${ws.item_id || 'action'} updated to ${newStatus}`);
+      setTimeout(() => setSuccessMsg(null), 3000);
+      await fetchDepartment();
+    } catch (err: any) {
+      setError(err.message);
+    }
   };
 
   // Confirm Closure of an Action
@@ -304,7 +387,7 @@ export default function DepartmentPage() {
       const method = editingWs ? "PUT" : "POST";
       const payload = editingWs
         ? wsForm
-        : { ...wsForm, department_id: deptId };
+        : { ...wsForm, department_id: wsForm.department_id || deptId };
 
       const res = await fetch(url, {
         method,
@@ -313,31 +396,39 @@ export default function DepartmentPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save action point");
+      if (!res.ok) throw new Error(data.error || "Failed to save action item");
 
       setShowWsModal(false);
+      const savedItemId = editingWs?.item_id || data.workstream?.item_id || wsForm.item_id;
       setEditingWs(null);
 
       // Prepare wsForm for the next entry
       setWsForm({
         item_id: "",
+        department_id: deptId,
         category: "Operational Initiative",
         action_point: "",
         ownership: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
-        timeline: new Date().toISOString().split("T")[0],
+        timeline: "",
+        priority: "Medium",
         status: "OPEN",
         rag_status: "AMBER",
         remarks: "",
         vc_decision_required: "No",
         decision_action: "",
         supporting_departments: "",
+        supporting_department_ids: "",
         next_followup_date: "",
         closure_remarks: "",
       });
 
-      setSuccessMsg(editingWs ? "Action point updated successfully!" : "New action point added successfully!");
-      setTimeout(() => setSuccessMsg(null), 4000);
-      fetchDepartment();
+      setSuccessMsg(
+        editingWs
+          ? `Action item ${savedItemId} updated successfully!`
+          : `Action item ${savedItemId} saved successfully and added to ${deptData?.department?.name || 'department'}!`
+      );
+      setTimeout(() => setSuccessMsg(null), 5000);
+      await fetchDepartment();
     } catch (err: any) {
       setError(err.message);
     }
@@ -625,12 +716,28 @@ export default function DepartmentPage() {
         {canEdit && (
           <div className="flex items-center gap-2">
             <button
-              onClick={isHR ? openNewRecModal : openNewWsModal}
-              className="inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-xs transition"
+              onClick={() => {
+                cancelEditWs();
+                setShowInlineWsForm(true);
+                setTimeout(() => {
+                  const el = document.getElementById("action-entry-form");
+                  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                }, 50);
+              }}
+              className="inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
             >
               <Plus className="w-4 h-4" />
-              <span>{isHR ? "+ Edit or create new position" : "+ Edit or create new action"}</span>
+              <span>+ Add Action Item</span>
             </button>
+            {isHR && (
+              <button
+                onClick={openNewRecModal}
+                className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Add Recruitment Role</span>
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -1011,19 +1118,19 @@ export default function DepartmentPage() {
       </div>
 
       {/* ========================================================================= */}
-      {/* 1. OPEN ACTION ITEMS / FOLLOW-UP ACTIONS TRACKER */}
+      {/* B. MANAGEMENT REVIEW — ACTION ITEMS & FOLLOW-UP */}
       {/* ========================================================================= */}
-      <div id="workstreams" className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-4">
+      <div id="management-review" className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-4">
         {/* Table Header with Tabs & Actions */}
         <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/60 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-2.5">
               <h2 className="text-base font-black text-slate-900 tracking-tight uppercase flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse" />
-                <span>OPEN ACTION ITEMS & FOLLOW-UP ACTIONS</span>
+                <span>MANAGEMENT REVIEW — ACTION ITEMS & FOLLOW-UP</span>
               </h2>
               <span className="px-2.5 py-0.5 bg-indigo-100 text-indigo-800 text-[10px] font-extrabold rounded-full border border-indigo-200">
-                Weekly Review & Persistent Follow-up
+                Direct Department Action Management
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
@@ -1059,7 +1166,7 @@ export default function DepartmentPage() {
                     : "text-slate-600 hover:text-emerald-700"
                 }`}
               >
-                <span>📁 Closed Actions / History</span>
+                <span>📁 Closed Action History</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
                   actionViewTab === "CLOSED" ? "bg-white/20 text-white" : "bg-slate-300 text-slate-700"
                 }`}>
@@ -1083,7 +1190,7 @@ export default function DepartmentPage() {
                   className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition shadow-xs"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>+ New Action Point</span>
+                  <span>+ Add Action Item</span>
                 </button>
               </div>
             )}
@@ -1092,39 +1199,98 @@ export default function DepartmentPage() {
 
         {/* INLINE ACTION DATA ENTRY FORM */}
         {canEdit && showInlineWsForm && (
-          <div className="mx-6 p-5 bg-gradient-to-r from-slate-50 via-indigo-50/20 to-slate-50 rounded-2xl border border-indigo-100 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2.5">
+          <div id="action-entry-form" className="mx-6 p-5 bg-gradient-to-r from-slate-50 via-indigo-50/25 to-slate-50 rounded-2xl border border-indigo-200 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-indigo-100/90 pb-3">
               <div className="flex items-center gap-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  ACTION ITEM DATA ENTRY FORM
-                </h3>
-                <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-md">
+                <span className="p-1.5 bg-indigo-600 text-white rounded-lg">
+                  <FileText className="w-4 h-4" />
+                </span>
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">
+                    {editingWs ? `EDIT ACTION ITEM [${wsForm.item_id || editingWs.item_id}]` : "ADD NEW ACTION ITEM"}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    {editingWs ? "Modify action parameters, status, remarks or assignees" : `Create a new tracked directive for ${dept.name}`}
+                  </p>
+                </div>
+                {editingWs && (
+                  <span className="text-[10px] font-black px-2 py-0.5 bg-amber-100 text-amber-800 rounded-md border border-amber-300">
+                    ✏️ Editing Mode
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold px-2.5 py-1 bg-indigo-100 text-indigo-800 rounded-lg">
                   Primary Domain: {dept.name}
                 </span>
+                {editingWs && (
+                  <button
+                    type="button"
+                    onClick={cancelEditWs}
+                    className="px-2.5 py-1 text-slate-600 hover:text-slate-900 bg-white border border-slate-300 rounded-lg text-xs font-bold transition"
+                  >
+                    Cancel Edit
+                  </button>
+                )}
               </div>
-              <span className="text-[11px] text-slate-500 italic">
-                Add an action item directly to {dept.name} with cross-department routing
-              </span>
             </div>
 
-            <form onSubmit={handleSaveWorkstream} className="space-y-3.5 text-xs">
-              {/* Row 1: Action Item / Deliverable, Category, Ownership, Supporting Depts */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
-                <div className="md:col-span-5">
+            <form onSubmit={handleSaveWorkstream} className="space-y-4 text-xs">
+              {/* Row 1: Action ID, Primary Department, Priority, Initiative/Category */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3.5">
+                <div className="md:col-span-2">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Action Item / Deliverable <span className="text-rose-500">*</span>
+                    Action ID <span className="text-slate-400 font-normal">(Auto/Ref)</span>
                   </label>
                   <input
                     type="text"
-                    value={wsForm.action_point}
-                    onChange={(e) => setWsForm({ ...wsForm, action_point: e.target.value })}
-                    required
-                    placeholder="Exact decision or action required..."
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                    value={wsForm.item_id}
+                    onChange={(e) => setWsForm({ ...wsForm, item_id: e.target.value })}
+                    placeholder={deptData?.nextItemId || "ACT-XX"}
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-mono font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
 
                 <div className="md:col-span-3">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Primary Department / Vertical <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={wsForm.department_id || dept.id}
+                    onChange={(e) => setWsForm({ ...wsForm, department_id: e.target.value })}
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  >
+                    {(deptData?.allDepartments || []).map((d: any) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="md:col-span-3">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Priority <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={wsForm.priority || "Medium"}
+                    onChange={(e) => setWsForm({ ...wsForm, priority: e.target.value })}
+                    className={`w-full px-3 py-2 bg-white rounded-xl border font-bold focus:ring-2 focus:ring-indigo-600 focus:outline-none ${
+                      wsForm.priority === "Critical"
+                        ? "border-rose-300 text-rose-700 bg-rose-50/50"
+                        : wsForm.priority === "High"
+                        ? "border-amber-300 text-amber-700 bg-amber-50/50"
+                        : "border-slate-300 text-slate-800"
+                    }`}
+                  >
+                    <option value="Critical">🔴 Critical</option>
+                    <option value="High">🟠 High</option>
+                    <option value="Medium">🔵 Medium</option>
+                    <option value="Low">⚪ Low</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-4">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
                     Initiative / Category <span className="text-rose-500">*</span>
                   </label>
@@ -1133,12 +1299,30 @@ export default function DepartmentPage() {
                     value={wsForm.category}
                     onChange={(e) => setWsForm({ ...wsForm, category: e.target.value })}
                     required
-                    placeholder="e.g. Talent Acquisition / Space Lab"
+                    placeholder="e.g. Talent Acquisition / Space Lab / Metrology"
                     className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
+              </div>
 
-                <div className="md:col-span-2">
+              {/* Row 2: Action Item / Directive / Milestone (detailed description) */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Action Item / Directive / Milestone <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={2}
+                  value={wsForm.action_point}
+                  onChange={(e) => setWsForm({ ...wsForm, action_point: e.target.value })}
+                  required
+                  placeholder="Detailed description of the action item, target deliverable, or executive decision required..."
+                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none leading-relaxed"
+                />
+              </div>
+
+              {/* Row 3: Owner / Support, Timeline, Next Follow-up, Status, RAG */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3.5">
+                <div className="md:col-span-3">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
                     Owner / Support <span className="text-rose-500">*</span>
                   </label>
@@ -1147,42 +1331,26 @@ export default function DepartmentPage() {
                     value={wsForm.ownership}
                     onChange={(e) => setWsForm({ ...wsForm, ownership: e.target.value })}
                     required
-                    placeholder="e.g. Anamika / Venky"
+                    placeholder="e.g. Anamika / Venky / RUAS HR"
                     className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
 
-                <div className="md:col-span-2">
+                <div className="md:col-span-3">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Supporting Depts
-                  </label>
-                  <input
-                    type="text"
-                    value={wsForm.supporting_departments}
-                    onChange={(e) => setWsForm({ ...wsForm, supporting_departments: e.target.value })}
-                    placeholder="e.g. Semicon, Space"
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Row 2: Timeline, Next Follow-up, Status, RAG, VC Decision */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3.5">
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Timeline <span className="text-rose-500">*</span>
+                    Timeline / Target Date <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={wsForm.timeline}
                     onChange={(e) => setWsForm({ ...wsForm, timeline: e.target.value })}
                     required
-                    placeholder="e.g. Urgent / By Dec 2026 / 2026-10-31"
+                    placeholder="e.g. Urgent / By December 2026 / 2026-11-15"
                     className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
 
-                <div>
+                <div className="md:col-span-2">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
                     Next Follow-up Date
                   </label>
@@ -1190,13 +1358,13 @@ export default function DepartmentPage() {
                     type="date"
                     value={wsForm.next_followup_date}
                     onChange={(e) => setWsForm({ ...wsForm, next_followup_date: e.target.value })}
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none font-medium"
                   />
                 </div>
 
-                <div>
+                <div className="md:col-span-2">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Status
+                    Status <span className="text-rose-500">*</span>
                   </label>
                   <select
                     value={wsForm.status}
@@ -1208,26 +1376,72 @@ export default function DepartmentPage() {
                     <option value="BLOCKED">BLOCKED</option>
                     <option value="DELAYED">DELAYED</option>
                     <option value="ON HOLD">ON HOLD</option>
-                    <option value="COMPLETED">COMPLETED</option>
+                    <option value="CLOSED">CLOSED</option>
                   </select>
                 </div>
 
-                <div>
+                <div className="md:col-span-2">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    RAG Status
+                    RAG Status <span className="text-rose-500">*</span>
                   </label>
                   <select
                     value={wsForm.rag_status}
                     onChange={(e) => setWsForm({ ...wsForm, rag_status: e.target.value })}
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                    className={`w-full px-3 py-2 bg-white rounded-xl border font-bold focus:ring-2 focus:ring-indigo-600 focus:outline-none ${
+                      wsForm.rag_status === "GREEN"
+                        ? "text-emerald-700 border-emerald-300 bg-emerald-50/40"
+                        : wsForm.rag_status === "RED"
+                        ? "text-rose-700 border-rose-300 bg-rose-50/40"
+                        : "text-amber-700 border-amber-300 bg-amber-50/40"
+                    }`}
                   >
-                    <option value="GREEN">GREEN</option>
-                    <option value="AMBER">AMBER</option>
-                    <option value="RED">RED</option>
+                    <option value="GREEN">🟢 GREEN</option>
+                    <option value="AMBER">🟡 AMBER</option>
+                    <option value="RED">🔴 RED</option>
                   </select>
                 </div>
+              </div>
 
-                <div>
+              {/* Row 4: Supporting Departments (Quick selection pills + text) */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                    Supporting Department(s) <span className="text-slate-400 font-normal">(Click to toggle or type)</span>
+                  </label>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                  {(deptData?.allDepartments || []).map((d: any) => {
+                    const isSelected = (wsForm.supporting_departments || "")
+                      .toLowerCase()
+                      .includes(d.name.toLowerCase());
+                    return (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => toggleSupportingDept(d.name)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition border ${
+                          isSelected
+                            ? "bg-indigo-600 text-white border-indigo-700 shadow-xs"
+                            : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                        }`}
+                      >
+                        {isSelected ? `✓ ${d.name}` : `+ ${d.name}`}
+                      </button>
+                    );
+                  })}
+                </div>
+                <input
+                  type="text"
+                  value={wsForm.supporting_departments}
+                  onChange={(e) => setWsForm({ ...wsForm, supporting_departments: e.target.value })}
+                  placeholder="e.g. Semicon, Space, Aerospace & Defence"
+                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none font-medium"
+                />
+              </div>
+
+              {/* Row 5: VC Decision Required & Action Required */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+                <div className="md:col-span-3">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
                     VC Decision Required
                   </label>
@@ -1241,72 +1455,118 @@ export default function DepartmentPage() {
                     }`}
                   >
                     <option value="No">No</option>
-                    <option value="Yes">Yes</option>
+                    <option value="Yes">Yes — Requires VC Intervention</option>
                   </select>
                 </div>
-              </div>
 
-              {/* Row 3: Remarks & VC Decision Action */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Remarks / Key Update / Blockers
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={wsForm.remarks}
-                    onChange={(e) => setWsForm({ ...wsForm, remarks: e.target.value })}
-                    placeholder="Progress, risks, dependencies, or blockers..."
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-
-                <div>
+                <div className="md:col-span-9">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
                     Decision / Action Required from VC (if applicable)
                   </label>
-                  <textarea
-                    rows={2}
+                  <input
+                    type="text"
                     value={wsForm.decision_action}
                     onChange={(e) => setWsForm({ ...wsForm, decision_action: e.target.value })}
-                    placeholder="Specific decision or intervention requested from Vice Chairman..."
+                    placeholder="Specific decision, approval, budget sign-off or intervention requested from Vice Chairman..."
                     className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
               </div>
 
-              {/* Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setWsForm({
-                      item_id: "",
-                      category: "Operational Initiative",
-                      action_point: "",
-                      ownership: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
-                      timeline: "Urgent",
-                      status: "OPEN",
-                      rag_status: "AMBER",
-                      remarks: "",
-                      vc_decision_required: "No",
-                      decision_action: "",
-                      supporting_departments: "",
-                      next_followup_date: "",
-                      closure_remarks: "",
-                    });
-                  }}
-                  className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-semibold rounded-xl hover:bg-white/80 border border-transparent hover:border-slate-300 transition"
-                >
-                  Clear Form
-                </button>
-                <button
-                  type="submit"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-sm transition"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>+ Save Action Item</span>
-                </button>
+              {/* Row 6: Latest Update / Remarks / Blockers */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Latest Update / Remarks / Key Progress / Blockers
+                </label>
+                <textarea
+                  rows={2}
+                  value={wsForm.remarks}
+                  onChange={(e) => setWsForm({ ...wsForm, remarks: e.target.value })}
+                  placeholder="Progress updates, latest meeting notes, dependencies, risks or blockers..."
+                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none leading-relaxed"
+                />
+              </div>
+
+              {/* Row 7: Conditional Closure Fields (when Status is CLOSED) */}
+              {wsForm.status === "CLOSED" && (
+                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 grid grid-cols-1 md:grid-cols-12 gap-3">
+                  <div className="md:col-span-12">
+                    <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Formal Action Closure Details
+                    </span>
+                  </div>
+                  <div className="md:col-span-12">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-emerald-900 mb-1">
+                      Closure Remarks / Evidence of Completion <span className="text-rose-500">*</span>
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={wsForm.closure_remarks}
+                      onChange={(e) => setWsForm({ ...wsForm, closure_remarks: e.target.value })}
+                      placeholder="Explain how this action was formally resolved, deliverables achieved, or sign-offs obtained..."
+                      required={wsForm.status === "CLOSED"}
+                      className="w-full px-3 py-2 bg-white rounded-xl border border-emerald-300 text-emerald-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Submit Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-2 border-t border-indigo-100">
+                {editingWs ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={cancelEditWs}
+                      className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-xl hover:bg-white border border-slate-300 transition"
+                    >
+                      Cancel Edit
+                    </button>
+                    <button
+                      type="submit"
+                      className="inline-flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>💾 Update Action Item</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWsForm({
+                          item_id: deptData?.nextItemId || "",
+                          department_id: deptId,
+                          category: "Operational Initiative",
+                          action_point: "",
+                          ownership: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
+                          timeline: "Urgent",
+                          priority: "Medium",
+                          status: "OPEN",
+                          rag_status: "AMBER",
+                          remarks: "",
+                          vc_decision_required: "No",
+                          decision_action: "",
+                          supporting_departments: "",
+                          supporting_department_ids: "",
+                          next_followup_date: "",
+                          closure_remarks: "",
+                        });
+                      }}
+                      className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-semibold rounded-xl hover:bg-white border border-transparent hover:border-slate-300 transition"
+                    >
+                      Clear Form
+                    </button>
+                    <button
+                      type="submit"
+                      className="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>+ Save Action Item</span>
+                    </button>
+                  </>
+                )}
               </div>
             </form>
           </div>
@@ -1442,8 +1702,10 @@ export default function DepartmentPage() {
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100 min-w-[240px]">Action Item / Deliverable</th>
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Owner / Support</th>
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Timeline</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Status & RAG</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Remarks / Key Update</th>
+                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">Priority</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Status</th>
+                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">RAG</th>
+                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100 min-w-[200px]">Latest Update / Next Follow-up</th>
                   <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">VC Decision</th>
                   {canEdit && <th className="px-4 py-3.5 text-right font-bold tracking-wider text-slate-100">Actions</th>}
                 </tr>
@@ -1451,12 +1713,12 @@ export default function DepartmentPage() {
               <tbody className="divide-y divide-slate-200">
                 {filteredWorkstreams.length === 0 ? (
                   <tr>
-                    <td colSpan={canEdit ? 9 : 8} className="px-6 py-12 text-center text-slate-400">
+                    <td colSpan={canEdit ? 11 : 10} className="px-6 py-12 text-center text-slate-400">
                       <div className="max-w-md mx-auto space-y-2">
                         <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
                         <p className="font-bold text-slate-700 text-sm">No Open Action Items Found</p>
                         <p className="text-xs text-slate-500">
-                          All action items matching active filters are either closed or cleared. Switch to <strong>Closed Actions / History</strong> or add a new action.
+                          All action items matching active filters are either closed or cleared. Switch to <strong>Closed Action History</strong> or add a new action.
                         </p>
                       </div>
                     </td>
@@ -1467,6 +1729,7 @@ export default function DepartmentPage() {
                     const deliverable = ws.action_point || ws.deliverable || "--";
                     const ownership = ws.ownership || ws.owner || "--";
                     const timeline = ws.timeline || ws.target_date || "--";
+                    const priority = ws.priority || "Medium";
                     const status = (ws.status || "OPEN").toUpperCase();
                     const ragStatus = (ws.rag_status || (["DELAYED", "BLOCKED"].includes(status) ? "AMBER" : "GREEN")).toUpperCase();
                     const remarks = ws.remarks || ws.risks_blockers || "--";
@@ -1544,9 +1807,50 @@ export default function DepartmentPage() {
                           </div>
                         </td>
 
-                        {/* 6. Status & RAG */}
+                        {/* 6. Priority */}
+                        <td className="px-3 py-3.5 text-center whitespace-nowrap">
+                          <span
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold border ${
+                              priority === "Critical"
+                                ? "bg-rose-50 text-rose-700 border-rose-200"
+                                : priority === "High"
+                                ? "bg-amber-50 text-amber-700 border-amber-200"
+                                : priority === "Low"
+                                ? "bg-slate-100 text-slate-600 border-slate-200"
+                                : "bg-blue-50 text-blue-700 border-blue-200"
+                            }`}
+                          >
+                            {priority === "Critical" ? "🔴 " : priority === "High" ? "🟠 " : priority === "Low" ? "⚪ " : "🔵 "}
+                            {priority}
+                          </span>
+                        </td>
+
+                        {/* 7. Status (Interactive Dropdown for quick update) */}
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="flex items-center gap-1.5">
+                          {canEdit ? (
+                            <select
+                              value={status}
+                              onChange={(e) => handleQuickStatusChange(ws, e.target.value)}
+                              className={`px-2.5 py-1 text-xs font-bold rounded-lg border focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer ${
+                                status === "COMPLETED" || status === "CLOSED"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                                  : status === "DELAYED"
+                                  ? "bg-amber-50 text-amber-700 border-amber-300"
+                                  : status === "BLOCKED"
+                                  ? "bg-rose-50 text-rose-700 border-rose-300"
+                                  : status === "ON HOLD"
+                                  ? "bg-slate-100 text-slate-700 border-slate-300"
+                                  : "bg-indigo-50 text-indigo-700 border-indigo-300"
+                              }`}
+                            >
+                              <option value="OPEN">OPEN</option>
+                              <option value="IN PROGRESS">IN PROGRESS</option>
+                              <option value="BLOCKED">BLOCKED</option>
+                              <option value="DELAYED">DELAYED</option>
+                              <option value="ON HOLD">ON HOLD</option>
+                              <option value="CLOSED">CLOSED ✓</option>
+                            </select>
+                          ) : (
                             <span
                               className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border ${
                                 status === "COMPLETED" || status === "CLOSED"
@@ -1562,31 +1866,36 @@ export default function DepartmentPage() {
                             >
                               {status}
                             </span>
-                            <span
-                              className={`px-1.5 py-0.5 text-[9px] font-black rounded uppercase tracking-wider ${
-                                ragStatus === "GREEN"
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : ragStatus === "AMBER"
-                                  ? "bg-amber-100 text-amber-800"
-                                  : "bg-rose-100 text-rose-800"
-                              }`}
-                            >
-                              {ragStatus}
-                            </span>
-                          </div>
+                          )}
                         </td>
 
-                        {/* 7. Remarks / Key Update */}
+                        {/* 8. RAG Status */}
+                        <td className="px-3 py-3.5 text-center whitespace-nowrap">
+                          <span
+                            className={`px-1.5 py-0.5 text-[9px] font-black rounded uppercase tracking-wider ${
+                              ragStatus === "GREEN"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : ragStatus === "AMBER"
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-rose-100 text-rose-800"
+                            }`}
+                          >
+                            {ragStatus}
+                          </span>
+                        </td>
+
+                        {/* 9. Remarks / Next Follow-up */}
                         <td className="px-4 py-3 text-slate-700 min-w-[200px] leading-relaxed">
-                          {remarks}
+                          <div className="line-clamp-2" title={remarks}>{remarks}</div>
                           {ws.next_followup_date && (
-                            <div className="text-[10px] text-indigo-600 font-semibold mt-1">
-                              Next Follow-up: {ws.next_followup_date}
+                            <div className="text-[10px] text-indigo-600 font-semibold mt-1 flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              <span>Follow-up: {ws.next_followup_date}</span>
                             </div>
                           )}
                         </td>
 
-                        {/* 8. VC Decision Required */}
+                        {/* 10. VC Decision Required */}
                         <td className="px-3 py-3 text-center whitespace-nowrap">
                           {isVcReq ? (
                             <div className="flex flex-col items-center gap-1">
@@ -1606,15 +1915,15 @@ export default function DepartmentPage() {
                           )}
                         </td>
 
-                        {/* 9. Actions Column */}
+                        {/* 11. Actions Column */}
                         {canEdit && (
                           <td className="px-4 py-3 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1.5">
-                              {/* Edit Action */}
+                              {/* Edit Action (Scrolls to Inline Form) */}
                               <button
                                 onClick={() => openEditWsModal(ws)}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition shadow-2xs"
-                                title="Edit Action Item"
+                                title="Edit this action in the department form"
                               >
                                 <Edit2 className="w-3 h-3" />
                                 <span>Edit</span>
@@ -1642,7 +1951,7 @@ export default function DepartmentPage() {
                                 <History className="w-3.5 h-3.5" />
                               </button>
 
-                              {/* Delete (if admin or creator) */}
+                              {/* Delete */}
                               <button
                                 onClick={() => handleDeleteWorkstream(ws.id)}
                                 className="p-1 rounded-lg text-rose-400 hover:text-rose-700 hover:bg-rose-50 transition"
@@ -1670,6 +1979,7 @@ export default function DepartmentPage() {
                   <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">Scope</th>
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100 min-w-[240px]">Action Item / Deliverable</th>
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Owner / Support</th>
+                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">Priority</th>
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Closed Date & User</th>
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Closure Remarks / Evidence</th>
                   {canEdit && <th className="px-4 py-3.5 text-right font-bold tracking-wider text-slate-100">Actions</th>}
@@ -1678,7 +1988,7 @@ export default function DepartmentPage() {
               <tbody className="divide-y divide-slate-200">
                 {filteredWorkstreams.length === 0 ? (
                   <tr>
-                    <td colSpan={canEdit ? 7 : 6} className="px-6 py-12 text-center text-slate-400">
+                    <td colSpan={canEdit ? 8 : 7} className="px-6 py-12 text-center text-slate-400">
                       <p className="font-semibold text-slate-600">No Closed Actions Recorded Yet</p>
                       <p className="text-xs text-slate-400 mt-1">
                         All open directives remain permanently active in the <strong>Open Action Items</strong> tab until formally closed.
@@ -1690,6 +2000,7 @@ export default function DepartmentPage() {
                     const actionId = ws.item_id || `ACT-${String(index + 1).padStart(2, "0")}`;
                     const deliverable = ws.action_point || ws.deliverable || "--";
                     const ownership = ws.ownership || ws.owner || "--";
+                    const priority = ws.priority || "Medium";
                     const isSupporting = ws.is_supporting || (ws.department_id && Number(ws.department_id) !== Number(dept.id));
 
                     return (
@@ -1729,7 +2040,14 @@ export default function DepartmentPage() {
                           {ownership}
                         </td>
 
-                        {/* 5. Closed Date & User */}
+                        {/* 5. Priority */}
+                        <td className="px-3 py-3.5 text-center whitespace-nowrap">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                            {priority}
+                          </span>
+                        </td>
+
+                        {/* 6. Closed Date & User */}
                         <td className="px-4 py-3.5 whitespace-nowrap text-slate-700">
                           <div className="font-bold text-emerald-800">
                             {ws.closure_date ? new Date(ws.closure_date).toLocaleDateString("en-IN") : "Closed"}
@@ -1739,14 +2057,14 @@ export default function DepartmentPage() {
                           </div>
                         </td>
 
-                        {/* 6. Closure Remarks */}
+                        {/* 7. Closure Remarks */}
                         <td className="px-4 py-3.5 text-slate-700 leading-relaxed max-w-md">
                           <div className="p-2 bg-emerald-50/80 rounded-xl border border-emerald-100 text-[11px] text-emerald-900">
                             {ws.closure_remarks || "Action formally verified, resolved and closed."}
                           </div>
                         </td>
 
-                        {/* 7. Actions (Reopen & History) */}
+                        {/* 8. Actions (Reopen & History) */}
                         {canEdit && (
                           <td className="px-4 py-3 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-2">

@@ -268,6 +268,7 @@ export async function ensureDbInitialized() {
     "ALTER TABLE workstreams ADD COLUMN IF NOT EXISTS closed_by TEXT;",
     "ALTER TABLE workstreams ADD COLUMN IF NOT EXISTS meeting_context TEXT DEFAULT 'Weekly Management Review - 12 Oct 2026';",
     "ALTER TABLE workstreams ADD COLUMN IF NOT EXISTS action_history TEXT DEFAULT '[]';",
+    "ALTER TABLE workstreams ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'Medium';",
     "ALTER TABLE recruitment ADD COLUMN IF NOT EXISTS candidates_shortlisted INTEGER DEFAULT 0;",
     "ALTER TABLE recruitment ADD COLUMN IF NOT EXISTS candidates_joined INTEGER DEFAULT 0;",
     "ALTER TABLE recruitment ADD COLUMN IF NOT EXISTS remarks TEXT;",
