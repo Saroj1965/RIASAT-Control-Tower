@@ -11,6 +11,8 @@ import {
   Filter,
   Search,
   ChevronRight,
+  ArrowRight,
+  Zap,
 } from "lucide-react";
 import DashboardGraphs from "@/components/DashboardGraphs";
 import {
@@ -89,6 +91,9 @@ export default function ExecutiveControlTowerClient({
   // Filter attention items based on selected filter buttons & search
   const filteredAttention = attentionList.filter((item) => {
     if (attentionDeptFilter !== "ALL" && item.department_name !== attentionDeptFilter) {
+      return false;
+    }
+    if (attentionStatusFilter === "PENDING" && (item.status === "Completed" || item.status === "Closed")) {
       return false;
     }
     if (attentionStatusFilter === "BLOCKED" && item.status !== "Blocked") {
@@ -193,6 +198,41 @@ export default function ExecutiveControlTowerClient({
           </div>
         </div>
       )}
+
+      {/* PENDING ACTIONS TRIGGER BANNER */}
+      <div className="bg-gradient-to-r from-rose-50 via-amber-50 to-indigo-50 border-2 border-rose-300 rounded-2xl p-4 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-start sm:items-center gap-3">
+          <div className="relative mt-1 sm:mt-0 shrink-0">
+            <span className="w-3.5 h-3.5 rounded-full bg-rose-500 block animate-ping absolute inset-0 opacity-75" />
+            <span className="w-3.5 h-3.5 rounded-full bg-rose-600 block relative shadow-xs" />
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-2.5 py-0.5 text-[10px] font-black tracking-wider uppercase rounded-md bg-rose-600 text-white shadow-xs">
+                ⚡ PENDING ACTIONS TRIGGER
+              </span>
+              <span className="text-sm font-extrabold text-slate-900">
+                {attentionList.filter((x) => x.status !== "Completed" && x.status !== "Closed").length} Action Items Require Management Attention
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 mt-1">
+              Live executive tracking of open directives: Trainer tenure, IIT Madras/Keysight curriculum, Space lab consolidation, and CATIA licence timelines.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => {
+            setAttentionStatusFilter("PENDING");
+            const el = document.getElementById("management-attention-table");
+            if (el) el.scrollIntoView({ behavior: "smooth" });
+          }}
+          className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition inline-flex items-center gap-2 shrink-0 self-stretch sm:self-auto justify-center"
+        >
+          <span>Trigger Pending Actions View ({attentionList.filter((x) => x.status !== "Completed" && x.status !== "Closed").length})</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
 
       {/* KPI CARDS (6 HIGH LEVEL TILES) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
@@ -496,20 +536,20 @@ export default function ExecutiveControlTowerClient({
       </div>
 
       {/* 4. VICE CHAIRMAN / MANAGEMENT ATTENTION (WITH FILTER BUTTONS) */}
-      <div id="decisions" className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+      <div id="management-attention-table" className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="p-6 border-b border-slate-200 bg-slate-50/60 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <div className="flex items-center gap-2">
               <ShieldAlert className="w-5 h-5 text-rose-600" />
               <h2 className="text-base font-bold text-slate-900 tracking-tight uppercase">
-                VICE CHAIRMAN / MANAGEMENT ATTENTION
+                ACTION ITEMS & MANAGEMENT ATTENTION
               </h2>
               <span className="px-2.5 py-0.5 bg-rose-100 text-rose-800 text-[10px] font-black rounded-full border border-rose-300">
-                {attentionList.filter((x) => x.vc_decision_required === "Yes").length} Decisions Required
+                {attentionList.filter((x) => x.status !== "Completed" && x.status !== "Closed").length} Pending Actions
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Action points where <strong>Vice Chairman Decision Required = YES</strong> or priority operational blockers are active
+              Live Action Tracker with <strong>Action item</strong>, <strong>Owner / support</strong>, <strong>Timeline</strong>, and <strong>Status</strong>
             </p>
           </div>
 
@@ -520,7 +560,7 @@ export default function ExecutiveControlTowerClient({
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search issues..."
+                placeholder="Search action item, owner..."
                 value={attentionSearch}
                 onChange={(e) => setAttentionSearch(e.target.value)}
                 className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-600"
@@ -544,6 +584,14 @@ export default function ExecutiveControlTowerClient({
             {/* Issue Filter Buttons */}
             <div className="flex items-center bg-slate-200/80 p-1 rounded-xl text-xs font-semibold gap-1">
               <button
+                onClick={() => setAttentionStatusFilter("PENDING")}
+                className={`px-2.5 py-1 rounded-lg transition ${
+                  attentionStatusFilter === "PENDING" ? "bg-rose-600 text-white shadow-xs font-bold" : "text-slate-600 hover:text-rose-700"
+                }`}
+              >
+                ⚡ Pending ({attentionList.filter((x) => x.status !== "Completed" && x.status !== "Closed").length})
+              </button>
+              <button
                 onClick={() => setAttentionStatusFilter("ALL")}
                 className={`px-2.5 py-1 rounded-lg transition ${
                   attentionStatusFilter === "ALL" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-600"
@@ -554,7 +602,7 @@ export default function ExecutiveControlTowerClient({
               <button
                 onClick={() => setAttentionStatusFilter("VC_DECISION")}
                 className={`px-2.5 py-1 rounded-lg transition ${
-                  attentionStatusFilter === "VC_DECISION" ? "bg-rose-600 text-white shadow-xs font-bold" : "text-slate-600 hover:text-rose-700"
+                  attentionStatusFilter === "VC_DECISION" ? "bg-rose-700 text-white shadow-xs font-bold" : "text-slate-600 hover:text-rose-700"
                 }`}
               >
                 VC Decisions ({attentionList.filter((x) => x.vc_decision_required === "Yes").length})
@@ -562,7 +610,7 @@ export default function ExecutiveControlTowerClient({
               <button
                 onClick={() => setAttentionStatusFilter("BLOCKED")}
                 className={`px-2.5 py-1 rounded-lg transition ${
-                  attentionStatusFilter === "BLOCKED" ? "bg-rose-700 text-white shadow-xs font-bold" : "text-slate-600 hover:text-rose-800"
+                  attentionStatusFilter === "BLOCKED" ? "bg-rose-800 text-white shadow-xs font-bold" : "text-slate-600 hover:text-rose-800"
                 }`}
               >
                 Blocked
@@ -584,21 +632,20 @@ export default function ExecutiveControlTowerClient({
           <table className="w-full text-left text-xs">
             <thead className="bg-[#0b1329] text-white uppercase text-[10px] font-bold tracking-wider border-b border-slate-800 whitespace-nowrap">
               <tr>
-                <th className="px-5 py-3.5 text-left font-bold text-slate-100">Department</th>
-                <th className="px-5 py-3.5 text-left font-bold text-slate-100">Action Point</th>
-                <th className="px-5 py-3.5 text-left font-bold text-slate-100">Ownership</th>
+                <th className="px-5 py-3.5 text-left font-bold text-slate-100">Action item</th>
+                <th className="px-5 py-3.5 text-left font-bold text-slate-100">Owner / support</th>
                 <th className="px-5 py-3.5 text-left font-bold text-slate-100">Timeline</th>
                 <th className="px-5 py-3.5 text-left font-bold text-slate-100">Status</th>
-                <th className="px-5 py-3.5 text-left font-bold text-slate-100">RAG Status</th>
-                <th className="px-5 py-3.5 text-left font-bold text-slate-100">Remarks / Decision Required</th>
+                <th className="px-5 py-3.5 text-left font-bold text-slate-100">Department</th>
+                <th className="px-5 py-3.5 text-left font-bold text-slate-100">Remarks / Key Update</th>
                 <th className="px-5 py-3.5 text-center font-bold text-slate-100">VC Decision Required</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {filteredAttention.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-slate-400">
-                    No critical issues match the selected filters.
+                  <td colSpan={7} className="px-6 py-8 text-center text-slate-400">
+                    No action items match the selected filters.
                   </td>
                 </tr>
               ) : (
@@ -608,6 +655,22 @@ export default function ExecutiveControlTowerClient({
 
                   return (
                     <tr key={`${item.department_id}-${item.id}`} className="hover:bg-slate-50 transition">
+                      <td className="px-5 py-4 font-bold text-slate-900 max-w-sm leading-relaxed">
+                        {item.item}
+                      </td>
+                      <td className="px-5 py-4 text-slate-700 font-medium max-w-xs">
+                        {item.owner || "--"}
+                      </td>
+                      <td className="px-5 py-4 whitespace-nowrap text-slate-700 font-semibold text-[11px]">
+                        <span className="px-2 py-1 bg-slate-100 border border-slate-200 rounded-md">
+                          {item.target_date || "--"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md border ${getStatusBadge(item.status)}`}>
+                          {item.status}
+                        </span>
+                      </td>
                       <td className="px-5 py-4 whitespace-nowrap">
                         <Link
                           href={`/department/${item.department_id}`}
@@ -616,34 +679,7 @@ export default function ExecutiveControlTowerClient({
                           {item.department_name}
                         </Link>
                       </td>
-                      <td className="px-5 py-4 font-bold text-slate-900 max-w-xs">
-                        {item.item}
-                      </td>
-                      <td className="px-5 py-4 whitespace-nowrap text-slate-600 font-medium">
-                        {item.owner || "--"}
-                      </td>
-                      <td className="px-5 py-4 whitespace-nowrap text-slate-600 font-mono text-[11px]">
-                        {item.target_date || "--"}
-                      </td>
-                      <td className="px-5 py-4 whitespace-nowrap">
-                        <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md border ${getStatusBadge(item.status)}`}>
-                          {item.status}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 whitespace-nowrap">
-                        <span
-                          className={`px-2 py-0.5 text-[10px] font-black rounded-md border uppercase tracking-wider ${
-                            ragStatus === "GREEN"
-                              ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-                              : ragStatus === "AMBER"
-                              ? "bg-amber-100 text-amber-800 border-amber-300"
-                              : "bg-rose-100 text-rose-800 border-rose-300"
-                          }`}
-                        >
-                          {ragStatus}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 text-slate-800 max-w-sm leading-relaxed">
+                      <td className="px-5 py-4 text-slate-600 max-w-xs text-[11px] leading-relaxed">
                         {item.decision_action || item.issue || "--"}
                       </td>
                       <td className="px-5 py-4 text-center whitespace-nowrap">

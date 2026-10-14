@@ -273,16 +273,11 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
            w.capex, w.revenue_pipeline
     FROM workstreams w
     JOIN departments d ON w.department_id = d.id
-    WHERE (
-      w.vc_decision_required = 'Yes' 
-      OR (w.decision_action IS NOT NULL AND TRIM(w.decision_action) != '' AND w.decision_action != 'None')
-      OR w.status IN ('Delayed', 'Blocked')
-    )
-      AND w.status != 'Completed'
+    WHERE w.status NOT IN ('Completed', 'Closed')
     ORDER BY 
       CASE WHEN w.vc_decision_required = 'Yes' THEN 1 ELSE 2 END,
       w.id ASC
-    LIMIT 30
+    LIMIT 100
   `);
 
   const attentionHrRes = await query(`

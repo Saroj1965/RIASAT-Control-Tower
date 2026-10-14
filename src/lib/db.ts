@@ -387,28 +387,169 @@ export async function ensureDbInitialized() {
     }
   }
 
-  // Workstreams and Recruitment tables are kept empty, completely ready for authentic user entries.
+  // Seed the 12 authentic leadership Action Items if not already present
+  const executiveActionItems = [
+    {
+      deptId: 9,
+      itemId: "ACT-01",
+      category: "Faculty & Trainers",
+      deliverable: "Confirm contract/tenure terms and permanent-conversion process for existing trainers; standardise and communicate the variable-pay approach.",
+      owner: "Anamika to coordinate with relevant RUAS/HR contacts",
+      timeline: "Urgent; close after clarification",
+      status: "Open",
+      remarks: "Standardise variable-pay approach and tenure terms",
+      vc_req: "Yes",
+    },
+    {
+      deptId: 1,
+      itemId: "ACT-02",
+      category: "Talent Acquisition",
+      deliverable: "Progress the two semiconductor candidates (Dr. Durga Prakash and RUAS PhD candidate Darshan); confirm role, fit, package and offer route.",
+      owner: "Anamika; Venky to guide/meet candidates",
+      timeline: "Urgent",
+      status: "Open",
+      remarks: "Confirm role, fit, package and offer route",
+      vc_req: "Yes",
+    },
+    {
+      deptId: 7,
+      itemId: "ACT-03",
+      category: "Technical Hiring",
+      deliverable: "Arrange remaining interviews and joining-date follow-ups for trainer and IT application roles; prioritise IT applications over infrastructure.",
+      owner: "Recruitment team; relevant technical interviewers",
+      timeline: "As soon as possible",
+      status: "Open",
+      remarks: "Prioritise IT applications over infrastructure",
+      vc_req: "No",
+    },
+    {
+      deptId: 8,
+      itemId: "ACT-04",
+      category: "Marketing & Sales",
+      deliverable: "Review and strengthen the two marketing/sales-related job descriptions; source experienced candidates and move recruitment quickly.",
+      owner: "Marketing/Recruitment team",
+      timeline: "Immediate; before Dec 2026 launch",
+      status: "Open",
+      remarks: "Source experienced candidates before Dec 2026 launch",
+      vc_req: "No",
+    },
+    {
+      deptId: 8,
+      itemId: "ACT-05",
+      category: "Brand & Outreach",
+      deliverable: "Prepare launch-ready programme positioning, website content, online application flow, corporate outreach and campaign collateral.",
+      owner: "Marketing/Communications with programme leads",
+      timeline: "By December 2026",
+      status: "Open",
+      remarks: "Prepare website, application flow, and collateral",
+      vc_req: "No",
+    },
+    {
+      deptId: 1,
+      itemId: "ACT-06",
+      category: "Curriculum & Labs",
+      deliverable: "Compile curriculum and equipment requirements for reliability/testing, metrology and characterisation; review with IIT Madras and Keysight and propose programme/pricing options.",
+      owner: "Programme/technical team",
+      timeline: "Follow up after IIT Madras discussions",
+      status: "Open",
+      remarks: "Review with IIT Madras and Keysight for pricing options",
+      vc_req: "Yes",
+    },
+    {
+      deptId: 6,
+      itemId: "ACT-07",
+      category: "Executive Training",
+      deliverable: "Confirm trainer capacity, infrastructure, location and schedule for prospective HiCAG training; Vice Chairman to join the follow-up discussion.",
+      owner: "Business/programme team and technical leads",
+      timeline: "Follow up immediately",
+      status: "Open",
+      remarks: "Vice Chairman to join the follow-up discussion",
+      vc_req: "Yes",
+    },
+    {
+      deptId: 3,
+      itemId: "ACT-08",
+      category: "Lab Infrastructure",
+      deliverable: "Obtain written space-lab proposal and consolidate lab space plan for semiconductor, space, cybersecurity and AI; validate approximate areas.",
+      owner: "Facilities/Strategy and programme team",
+      timeline: "After partner proposals and IIT Madras visit",
+      status: "Open",
+      remarks: "Consolidate lab space plan across four verticals",
+      vc_req: "Yes",
+    },
+    {
+      deptId: 9,
+      itemId: "ACT-09",
+      category: "Facilities & Architecture",
+      deliverable: "Revise architect/facility proposal to include validation/testing equipment; obtain final scope and submit for approval.",
+      owner: "Facilities/Strategy team",
+      timeline: "Target work start discussed around 15 Oct 2026; confirm",
+      status: "Open",
+      remarks: "Target work start around 15 Oct 2026",
+      vc_req: "Yes",
+    },
+    {
+      deptId: 9,
+      itemId: "ACT-10",
+      category: "IT & Infrastructure",
+      deliverable: "Escalate laptop procurement and IT application hiring delays; arrange a call with the Vice Chairman and relevant contacts.",
+      owner: "Avinash / Administration / relevant vendor contacts",
+      timeline: "Immediate",
+      status: "Open",
+      remarks: "Arrange call with Vice Chairman and vendors",
+      vc_req: "Yes",
+    },
+    {
+      deptId: 2,
+      itemId: "ACT-11",
+      category: "Software & Licences",
+      deliverable: "Notify vendor that charges for inactive Dassault/CATIA licences should commence only from activation date; clarify licence categories.",
+      owner: "Programme/Operations team",
+      timeline: "Immediate",
+      status: "Open",
+      remarks: "Charges should commence only from activation date",
+      vc_req: "No",
+    },
+    {
+      deptId: 9,
+      itemId: "ACT-12",
+      category: "Governance & Review",
+      deliverable: "Resend revised faculty compensation/revenue proposal for review; then schedule stakeholder discussion.",
+      owner: "HR/Programme team; Sarojini to coordinate meeting after review",
+      timeline: "Proposal review requested on 12 Oct",
+      status: "Open",
+      remarks: "Sarojini to coordinate meeting after review",
+      vc_req: "Yes",
+    },
+  ];
 
-  // Initial audit log
-  const existingAudit = await client.query("SELECT COUNT(*) as count FROM audit_log");
-  if (parseInt(existingAudit.rows[0].count, 10) === 0) {
-    await client.query(
-      `INSERT INTO audit_log (user_id, user_name, action, department_id, department_name, record_id, details)
-       VALUES 
-       (1, 'System Administrator', 'SYSTEM_INIT', NULL, 'System', NULL, 'Database schema initialized with clean blank dashboard and forms for RIASAT Executive Dashboard.')`
+  for (const act of executiveActionItems) {
+    const actExists = await client.query(
+      "SELECT id FROM workstreams WHERE item_id = $1 OR deliverable = $2",
+      [act.itemId, act.deliverable]
     );
+    if (actExists.rows.length === 0) {
+      await client.query(
+        `INSERT INTO workstreams (
+          department_id, item_id, category, deliverable, action_point,
+          owner, ownership, target_date, timeline,
+          status, remarks, vc_decision_required, updated_by
+        ) VALUES ($1, $2, $3, $4, $4, $5, $5, $6, $6, $7, $8, $9, 'Executive Secretariat')`,
+        [act.deptId, act.itemId, act.category, act.deliverable, act.owner, act.timeline, act.status, act.remarks, act.vc_req]
+      );
+    }
   }
 
-  // Seed official Dynamic Form Configuration fields for all 9 verticals
+  // Seed official Dynamic Form Configuration fields for all 9 verticals with exact required headings
   const actionFields = [
-    { order: 1, key: "sl_no", label: "Sl. No. — automatically generated", type: "Number", required: true, help: "Automatically generated sequential row number" },
-    { order: 2, key: "category", label: "Initiative / Event / Campaign", type: "Short Text", required: true, help: "Strategic initiative, event, campaign or project theme" },
-    { order: 3, key: "deliverable", label: "Deliverable", type: "Short Text", required: true, help: "Action point or operational deliverable" },
-    { order: 4, key: "ownership", label: "Ownership", type: "Short Text", required: true, help: "Responsible person, role or departmental owner" },
-    { order: 5, key: "timeline", label: "Timeline", type: "Date", required: false, help: "Target completion date (YYYY-MM-DD)" },
-    { order: 6, key: "status", label: "Status", type: "Dropdown", required: true, help: "Not Started / In Progress / Completed / Delayed / On Hold" },
-    { order: 7, key: "remarks", label: "Key Update / Dependency", type: "Long Text", required: false, help: "Progress, dependencies, risks, blockers or leadership notes" },
-    { order: 8, key: "vc_decision_required", label: "Vice Chairman Decision Required", type: "Dropdown", required: true, help: "Yes / No - escalation required for Vice Chairman intervention" },
+    { order: 1, key: "deliverable", label: "Action item", type: "Short Text", required: true, help: "Specific action item or key operational deliverable" },
+    { order: 2, key: "ownership", label: "Owner / support", type: "Short Text", required: true, help: "Responsible person, team, or support coordinator" },
+    { order: 3, key: "timeline", label: "Timeline", type: "Short Text", required: true, help: "Target completion deadline (e.g. Urgent, Immediate, Dec 2026)" },
+    { order: 4, key: "status", label: "Status", type: "Dropdown", required: true, help: "Open / In Progress / Completed / Delayed / Blocked" },
+    { order: 5, key: "remarks", label: "Remarks / Dependencies", type: "Long Text", required: false, help: "Progress notes, dependencies, or blockers" },
+    { order: 6, key: "vc_decision_required", label: "Vice Chairman Decision Required", type: "Dropdown", required: true, help: "Yes / No - escalation required for leadership action" },
+    { order: 7, key: "category", label: "Initiative / Event / Campaign", type: "Short Text", required: false, help: "Strategic initiative or functional theme" },
+    { order: 8, key: "sl_no", label: "Sl. No. — automatically generated", type: "Number", required: false, help: "Sequential line item number" },
   ];
 
   const recruitmentFields = [

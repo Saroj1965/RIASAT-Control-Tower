@@ -85,6 +85,7 @@ function AdminPageContent() {
   const [fieldMandatoryFilter, setFieldMandatoryFilter] = useState<string>("ALL"); // 'ALL', 'REQUIRED', 'OPTIONAL'
   const [fieldTypeFilter, setFieldTypeFilter] = useState<string>("ALL");
   const [fieldSearch, setFieldSearch] = useState<string>("");
+  const [formConfigView, setFormConfigView] = useState<"vertical" | "table">("vertical");
 
   // Add/Edit Field modal state
   const [showAddFieldModal, setShowAddFieldModal] = useState(false);
@@ -1176,23 +1177,45 @@ function AdminPageContent() {
 
           {/* FIELDS TABLE */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 tracking-tight">
                   Active Web Form Fields for: <span className="text-indigo-600 font-extrabold">{selectedDepartmentName}</span>
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Headings and labels appear directly in the Department Head data entry form
+                  Headings are placed vertically with Edit, Modify, and Delete options.
                 </p>
               </div>
 
-              <button
-                onClick={openAddFieldModal}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-xs transition"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>+ Add New Field</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2.5">
+                {/* View Switcher */}
+                <div className="flex items-center bg-slate-200/80 p-1 rounded-xl text-xs font-semibold gap-1">
+                  <button
+                    onClick={() => setFormConfigView("vertical")}
+                    className={`px-3 py-1 rounded-lg transition ${
+                      formConfigView === "vertical" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    📋 Vertical Headings
+                  </button>
+                  <button
+                    onClick={() => setFormConfigView("table")}
+                    className={`px-3 py-1 rounded-lg transition ${
+                      formConfigView === "table" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    📊 Table View
+                  </button>
+                </div>
+
+                <button
+                  onClick={openAddFieldModal}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Add New Field</span>
+                </button>
+              </div>
             </div>
 
             {loadingFields ? (
@@ -1200,7 +1223,120 @@ function AdminPageContent() {
                 <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
                 <span className="text-xs font-semibold">Loading configurable fields...</span>
               </div>
+            ) : filteredFormFields.length === 0 ? (
+              <div className="p-10 text-center text-slate-400">
+                <p className="text-sm font-medium">No form fields found matching criteria.</p>
+                <button
+                  onClick={openAddFieldModal}
+                  className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Add New Field in Form</span>
+                </button>
+              </div>
+            ) : formConfigView === "vertical" ? (
+              /* VERTICAL HEADINGS LAYOUT */
+              <div className="p-6 space-y-3.5">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between pb-1">
+                  <span>Vertically Configured Headings ({filteredFormFields.length})</span>
+                  <span>Drag or adjust display order in Modify</span>
+                </div>
+
+                {filteredFormFields.map((f, idx) => (
+                  <div
+                    key={f.id}
+                    className="p-4 bg-white rounded-xl border border-slate-200 hover:border-indigo-300 shadow-2xs hover:shadow-xs transition flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+                  >
+                    {/* Left: Order and Heading Details */}
+                    <div className="flex items-start gap-3.5 min-w-0">
+                      <span className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 font-black text-xs flex items-center justify-center shrink-0">
+                        #{f.display_order || idx + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="text-sm font-extrabold text-slate-900 tracking-tight">
+                            {f.label}
+                          </h4>
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                            {f.field_type}
+                          </span>
+                          {f.required ? (
+                            <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-800 border border-amber-300">
+                              Required
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 text-[10px] font-medium rounded bg-slate-100 text-slate-500">
+                              Optional
+                            </span>
+                          )}
+                          <button
+                            onClick={() => handleToggleFieldActive(f)}
+                            className={`px-2 py-0.5 text-[10px] font-bold rounded-full transition ${
+                              f.active
+                                ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                                : "bg-rose-100 text-rose-800 hover:bg-rose-200"
+                            }`}
+                            title="Click to toggle active status"
+                          >
+                            {f.active ? "Active" : "Inactive"}
+                          </button>
+                        </div>
+
+                        {f.help_text && (
+                          <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
+                            <HelpCircle className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>{f.help_text}</span>
+                          </p>
+                        )}
+                        <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                          Internal Key: <code className="text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">{f.field_key}</code>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: Vertically Placed Actions (Edit, Modify, Delete) */}
+                    <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                      <button
+                        onClick={() => openEditFieldModal(f)}
+                        className="px-3 py-1.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition inline-flex items-center gap-1.5 shadow-2xs"
+                        title="Edit field heading / label"
+                      >
+                        <Edit2 className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Edit</span>
+                      </button>
+                      <button
+                        onClick={() => openModifyFieldModal(f)}
+                        className="px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-xl transition inline-flex items-center gap-1.5 shadow-2xs"
+                        title="Modify field properties, type, order and options"
+                      >
+                        <Sliders className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Modify</span>
+                      </button>
+                      <button
+                        onClick={() => setDeletingField(f)}
+                        className="px-3 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition inline-flex items-center gap-1.5 shadow-2xs"
+                        title="Delete this field from web form"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Delete</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Option to Add Fields in the Form (at bottom of vertical list) */}
+                <div className="pt-2">
+                  <button
+                    onClick={openAddFieldModal}
+                    className="w-full py-3.5 border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/40 hover:bg-emerald-50 text-emerald-700 text-xs font-bold rounded-2xl transition flex items-center justify-center gap-2 shadow-2xs"
+                  >
+                    <Plus className="w-4 h-4 text-emerald-600" />
+                    <span>+ Add New Field in Form</span>
+                  </button>
+                </div>
+              </div>
             ) : (
+              /* COMPACT TABLE VIEW */
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-100/70 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
@@ -1215,90 +1351,82 @@ function AdminPageContent() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {filteredFormFields.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="px-6 py-8 text-center text-slate-400">
-                          No form fields found matching criteria. Click "+ Add New Field" to configure one.
+                    {filteredFormFields.map((f) => (
+                      <tr key={f.id} className="hover:bg-slate-50/80 transition">
+                        <td className="px-5 py-3 text-center font-mono font-bold text-slate-500">
+                          {f.display_order}
+                        </td>
+                        <td className="px-5 py-3 font-bold text-slate-900">
+                          <div>{f.label}</div>
+                          {f.help_text && (
+                            <div className="text-[11px] font-normal text-slate-400 flex items-center gap-1 mt-0.5">
+                              <HelpCircle className="w-3 h-3 text-slate-400 inline" />
+                              {f.help_text}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 font-mono text-[11px] text-slate-500">
+                          <span className="px-2 py-0.5 bg-slate-100 rounded border border-slate-200 text-slate-700">
+                            {f.field_key}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 whitespace-nowrap">
+                          <span className="px-2 py-0.5 text-[11px] font-semibold rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                            {f.field_type}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 whitespace-nowrap">
+                          {f.required ? (
+                            <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-800 border border-amber-300">
+                              Required
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 font-medium">Optional</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 whitespace-nowrap">
+                          <button
+                            onClick={() => handleToggleFieldActive(f)}
+                            className={`px-2 py-0.5 text-[10px] font-bold rounded-full transition ${
+                              f.active
+                                ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                                : "bg-rose-100 text-rose-800 hover:bg-rose-200"
+                            }`}
+                            title="Click to toggle active/inactive"
+                          >
+                            {f.active ? "Active" : "Inactive"}
+                          </button>
+                        </td>
+                        <td className="px-5 py-3 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => openEditFieldModal(f)}
+                              className="px-2.5 py-1 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition inline-flex items-center gap-1 shadow-2xs"
+                              title="Edit field heading / label"
+                            >
+                              <Edit2 className="w-3 h-3 text-indigo-600" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              onClick={() => openModifyFieldModal(f)}
+                              className="px-2.5 py-1 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg transition inline-flex items-center gap-1 shadow-2xs"
+                              title="Modify field configuration, type, order and properties"
+                            >
+                              <Sliders className="w-3 h-3 text-slate-500" />
+                              <span>Modify</span>
+                            </button>
+                            <button
+                              onClick={() => setDeletingField(f)}
+                              className="px-2.5 py-1 text-xs font-bold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition inline-flex items-center gap-1 shadow-2xs"
+                              title="Delete this field from web form"
+                            >
+                              <Trash2 className="w-3 h-3 text-rose-600" />
+                              <span>Delete</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
-                    ) : (
-                      filteredFormFields.map((f) => (
-                        <tr key={f.id} className="hover:bg-slate-50/80 transition">
-                          <td className="px-5 py-3 text-center font-mono font-bold text-slate-500">
-                            {f.display_order}
-                          </td>
-                          <td className="px-5 py-3 font-bold text-slate-900">
-                            <div>{f.label}</div>
-                            {f.help_text && (
-                              <div className="text-[11px] font-normal text-slate-400 flex items-center gap-1 mt-0.5">
-                                <HelpCircle className="w-3 h-3 text-slate-400 inline" />
-                                {f.help_text}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-5 py-3 font-mono text-[11px] text-slate-500">
-                            <span className="px-2 py-0.5 bg-slate-100 rounded border border-slate-200 text-slate-700">
-                              {f.field_key}
-                            </span>
-                          </td>
-                          <td className="px-5 py-3 whitespace-nowrap">
-                            <span className="px-2 py-0.5 text-[11px] font-semibold rounded-md bg-blue-50 text-blue-700 border border-blue-200">
-                              {f.field_type}
-                            </span>
-                          </td>
-                          <td className="px-5 py-3 whitespace-nowrap">
-                            {f.required ? (
-                              <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-800 border border-amber-300">
-                                Required
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 font-medium">Optional</span>
-                            )}
-                          </td>
-                          <td className="px-5 py-3 whitespace-nowrap">
-                            <button
-                              onClick={() => handleToggleFieldActive(f)}
-                              className={`px-2 py-0.5 text-[10px] font-bold rounded-full transition ${
-                                f.active
-                                  ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
-                                  : "bg-rose-100 text-rose-800 hover:bg-rose-200"
-                              }`}
-                              title="Click to toggle active/inactive"
-                            >
-                              {f.active ? "Active" : "Inactive"}
-                            </button>
-                          </td>
-                          <td className="px-5 py-3 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => openEditFieldModal(f)}
-                                className="px-2.5 py-1 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition inline-flex items-center gap-1 shadow-2xs"
-                                title="Edit field heading / label"
-                              >
-                                <Edit2 className="w-3 h-3 text-indigo-600" />
-                                <span>Edit</span>
-                              </button>
-                              <button
-                                onClick={() => openModifyFieldModal(f)}
-                                className="px-2.5 py-1 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg transition inline-flex items-center gap-1 shadow-2xs"
-                                title="Modify field configuration, type, order and properties"
-                              >
-                                <Sliders className="w-3 h-3 text-slate-500" />
-                                <span>Modify</span>
-                              </button>
-                              <button
-                                onClick={() => setDeletingField(f)}
-                                className="px-2.5 py-1 text-xs font-bold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition inline-flex items-center gap-1 shadow-2xs"
-                                title="Delete this field from web form"
-                              >
-                                <Trash2 className="w-3 h-3 text-rose-600" />
-                                <span>Delete</span>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
+                    ))}
                   </tbody>
                 </table>
               </div>
