@@ -151,10 +151,10 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Quick Demo Accounts Selection */}
+          {/* Institutional Role Credentials */}
           <div className="mt-8 pt-6 border-t border-slate-100">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider text-center mb-3">
-              Quick Test Credentials (Click to auto-fill)
+              Institutional Role Credentials (Click to populate)
             </p>
             <div className="space-y-3">
               {/* Leadership accounts */}

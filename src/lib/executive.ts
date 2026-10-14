@@ -11,6 +11,10 @@ export interface ExecutiveSummary {
   total_revenue_pipeline: number;
   pending_decisions: number;
   critical_openings: number;
+  total_actions: number;
+  open_actions: number;
+  urgent_actions: number;
+  closed_actions: number;
 }
 
 export interface DepartmentCard {
@@ -61,6 +65,7 @@ export interface ExecutiveDashboardData {
   graphs: {
     readiness: { name: string; code: string; readiness: number; rag: string }[];
     financials: { name: string; code: string; capex: number; revenue: number }[];
+    actionsDistribution: { name: string; code: string; primary: number; supporting: number; total: number }[];
     ragDistribution: { label: string; count: number; color: string; percent: number }[];
     statusBreakdown: { [key: string]: number };
   };
@@ -87,7 +92,8 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
   const allWsRes = await query(`
     SELECT id, department_id, deliverable, category, status, capex, revenue_pipeline, 
            owner, risks_blockers, decision_action, target_date,
-           action_point, ownership, timeline, rag_status, remarks, vc_decision_required
+           action_point, ownership, timeline, rag_status, remarks, vc_decision_required,
+           supporting_departments, supporting_department_ids
     FROM workstreams
     ORDER BY id ASC
   `);
@@ -328,6 +334,58 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
 
   const managementAttention: AttentionItem[] = [...attentionWsRes.rows, ...attentionHrRes.rows];
 
+  let totalActions = 0;
+  let openActions = 0;
+  let urgentActions = 0;
+  let closedActions = 0;
+
+  for (const ws of allWsRes.rows) {
+    totalActions++;
+    const stUpper = (ws.status || "OPEN").trim().toUpperCase();
+    const isClosed = stUpper === "COMPLETED" || stUpper === "CLOSED";
+    if (isClosed) {
+      closedActions++;
+    } else {
+      openActions++;
+      const timeline = (ws.timeline || ws.target_date || "").toLowerCase();
+      if (
+        timeline.includes("urgent") ||
+        timeline.includes("immediate") ||
+        stUpper === "DELAYED" ||
+        stUpper === "BLOCKED"
+      ) {
+        urgentActions++;
+      }
+    }
+  }
+
+  const actionsDistribution = departmentCards.map((d) => {
+    let primary = 0;
+    let supporting = 0;
+    for (const ws of allWsRes.rows) {
+      if (Number(ws.department_id) === Number(d.id)) {
+        primary++;
+      } else {
+        const supp = (ws.supporting_departments || "").toLowerCase();
+        const suppIds = (ws.supporting_department_ids || "").split(",").map((s: string) => s.trim());
+        if (
+          supp.includes(d.name.toLowerCase()) ||
+          supp.includes(d.code.toLowerCase()) ||
+          suppIds.includes(String(d.id))
+        ) {
+          supporting++;
+        }
+      }
+    }
+    return {
+      name: d.name,
+      code: d.code,
+      primary,
+      supporting,
+      total: primary + supporting,
+    };
+  });
+
   return {
     summary: {
       overall_readiness: overallReadiness,
@@ -347,11 +405,16 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
       total_revenue_pipeline: Math.round(totalGlobalRevenue * 10) / 10,
       pending_decisions: totalPendingDecisions,
       critical_openings: parseInt(hrCount.critical_issues || "0", 10),
+      total_actions: totalActions,
+      open_actions: openActions,
+      urgent_actions: urgentActions,
+      closed_actions: closedActions,
     },
     departments: departmentCards,
     graphs: {
       readiness: readinessGraph,
       financials: capexRevenueGraph,
+      actionsDistribution,
       ragDistribution,
       statusBreakdown: globalStatusCounts,
     },

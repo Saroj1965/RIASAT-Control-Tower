@@ -234,67 +234,53 @@ export default function ExecutiveControlTowerClient({
         </button>
       </div>
 
-      {/* KPI CARDS (6 HIGH LEVEL TILES) */}
+      {/* KPI CARDS (6 HIGH LEVEL MANAGEMENT TILES) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
-        {/* Tile 1: Overall Readiness */}
+        {/* Tile 1: Total Management Actions */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
           <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            Overall Readiness
+            Total Action Directives
           </div>
-          <div className="text-2xl font-black text-slate-900 mt-1 flex items-baseline gap-1">
-            {summary.overall_readiness}%
+          <div className="text-2xl font-black text-indigo-700 mt-1 flex items-baseline gap-1">
+            {summary.total_actions ?? 15}
           </div>
-          <div className="mt-2 text-[10px] font-semibold text-emerald-600 flex items-center gap-1">
+          <div className="mt-2 text-[10px] font-semibold text-slate-500 flex items-center gap-1">
+            <span>Weekly Review - 12 Oct</span>
+          </div>
+        </div>
+
+        {/* Tile 2: Active Open Actions */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            Active Open Actions
+          </div>
+          <div className="text-2xl font-black text-indigo-900 mt-1 flex items-baseline gap-1">
+            {summary.open_actions ?? 15}
+          </div>
+          <div className="mt-2 text-[10px] font-semibold text-indigo-600 flex items-center gap-1">
             <TrendingUp className="w-3 h-3" />
-            <span>Target: 75% Benchmark</span>
+            <span>Persistent Follow-Up</span>
           </div>
         </div>
 
-        {/* Tile 2: Overall RAG */}
+        {/* Tile 3: Urgent / Immediate Directives */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
           <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            Overall RAG Status
+            Urgent Directives
           </div>
-          <div className="mt-1">
-            <span className={`inline-block px-2.5 py-1 text-xs font-black rounded-lg border ${getRagBadge(summary.overall_rag)}`}>
-              {summary.overall_rag}
-            </span>
+          <div className="text-2xl font-black text-amber-600 mt-1">
+            {summary.urgent_actions ?? 6}
           </div>
-          <div className="mt-2 text-[10px] text-slate-500 font-medium">
-            G:{summary.green_count} • A:{summary.amber_count} • R:{summary.red_count}
+          <div className="mt-2 text-[10px] text-amber-700 font-semibold flex items-center gap-1">
+            <Clock className="w-3 h-3 text-amber-600" />
+            <span>Immediate / Urgent</span>
           </div>
         </div>
 
-        {/* Tile 3: Total Capex */}
+        {/* Tile 4: Vice Chairman Decisions Required */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
           <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            Total Capex Outlay
-          </div>
-          <div className="text-2xl font-black text-indigo-700 mt-1">
-            ₹ {summary.total_capex} Cr
-          </div>
-          <div className="mt-2 text-[10px] text-slate-500 font-medium">
-            Infrastructure & Lab setup
-          </div>
-        </div>
-
-        {/* Tile 4: Revenue Pipeline */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            Total Revenue Pipeline
-          </div>
-          <div className="text-2xl font-black text-emerald-600 mt-1">
-            ₹ {summary.total_revenue_pipeline} Cr
-          </div>
-          <div className="mt-2 text-[10px] text-slate-500 font-medium">
-            Cohorts, consulting & labs
-          </div>
-        </div>
-
-        {/* Tile 5: Vice Chairman Decisions Required */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            Vice Chairman Decisions Required
+            VC Decisions Required
           </div>
           <div className="text-2xl font-black text-rose-600 mt-1">
             {summary.pending_decisions}
@@ -305,16 +291,29 @@ export default function ExecutiveControlTowerClient({
           </div>
         </div>
 
-        {/* Tile 6: Critical Leadership Openings */}
+        {/* Tile 5: Strategic Verticals Monitored */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
           <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            Critical Openings
+            Strategic Verticals
           </div>
-          <div className="text-2xl font-black text-rose-600 mt-1">
-            {summary.critical_openings}
+          <div className="text-2xl font-black text-slate-900 mt-1">
+            9
           </div>
-          <div className="mt-2 text-[10px] text-rose-700 font-semibold">
-            Talent engine priorities
+          <div className="mt-2 text-[10px] text-slate-500 font-medium">
+            Cross-Functional Oversight
+          </div>
+        </div>
+
+        {/* Tile 6: Formally Closed Actions */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            Closed / Completed
+          </div>
+          <div className="text-2xl font-black text-emerald-600 mt-1">
+            {summary.closed_actions ?? 0}
+          </div>
+          <div className="mt-2 text-[10px] text-emerald-700 font-semibold">
+            Formally Resolved
           </div>
         </div>
       </div>

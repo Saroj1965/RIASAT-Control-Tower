@@ -7,22 +7,29 @@ interface GraphsProps {
   graphs: {
     readiness: { name: string; code: string; readiness: number; rag: string }[];
     financials: { name: string; code: string; capex: number; revenue: number }[];
+    actionsDistribution?: { name: string; code: string; primary: number; supporting: number; total: number }[];
     ragDistribution: { label: string; count: number; color: string; percent: number }[];
     statusBreakdown: { [key: string]: number };
   };
 }
 
 export default function DashboardGraphs({ graphs }: GraphsProps) {
-  const [activeTab, setActiveTab] = useState<"readiness" | "financials">("readiness");
+  const [activeTab, setActiveTab] = useState<"actions" | "readiness" | "financials">("actions");
 
   if (!graphs) return null;
 
   const financials = Array.isArray(graphs.financials) ? graphs.financials : [];
   const readiness = Array.isArray(graphs.readiness) ? graphs.readiness : [];
+  const actionsDist = Array.isArray(graphs.actionsDistribution) ? graphs.actionsDistribution : [];
 
   const maxFinancial = Math.max(
     ...financials.map((f) => Math.max(f.capex || 0, f.revenue || 0)),
     30
+  );
+
+  const maxActions = Math.max(
+    ...actionsDist.map((a) => a.total || 0),
+    6
   );
 
   return (
@@ -33,16 +40,27 @@ export default function DashboardGraphs({ graphs }: GraphsProps) {
           <div className="flex items-center gap-2">
             <Activity className="w-5 h-5 text-indigo-600" />
             <h2 className="text-base font-bold text-slate-900 tracking-tight">
-              Executive Analytics & Performance Graphs
+              Executive Analytics & Performance Insights
             </h2>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Cross-vertical readiness benchmarks, financial pipeline comparisons, and operational RAG distribution
+            Management review directive allocations, sector readiness benchmarks, and operational health
           </p>
         </div>
 
         {/* View Switcher Buttons */}
-        <div className="flex items-center p-1 bg-slate-200/70 rounded-xl text-xs font-semibold">
+        <div className="flex items-center p-1 bg-slate-200/70 rounded-xl text-xs font-semibold gap-1">
+          <button
+            onClick={() => setActiveTab("actions")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition ${
+              activeTab === "actions"
+                ? "bg-white text-indigo-700 shadow-xs font-bold"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Action Directives</span>
+          </button>
           <button
             onClick={() => setActiveTab("readiness")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition ${
@@ -63,12 +81,86 @@ export default function DashboardGraphs({ graphs }: GraphsProps) {
             }`}
           >
             <DollarSign className="w-3.5 h-3.5" />
-            <span>Capex vs. Revenue (₹ Cr)</span>
+            <span>Capex vs Revenue</span>
           </button>
         </div>
       </div>
 
       <div className="p-6">
+        {/* GRAPH 0: ACTION DIRECTIVES BY VERTICAL */}
+        {activeTab === "actions" && (
+          <div>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
+              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Management Review Directives per Vertical (Primary vs Supporting)
+              </span>
+              <div className="flex items-center gap-4 text-xs font-medium">
+                <span className="flex items-center gap-1.5 text-indigo-700 font-bold">
+                  <span className="w-2.5 h-2.5 rounded bg-indigo-600" /> Primary Owner
+                </span>
+                <span className="flex items-center gap-1.5 text-amber-700 font-bold">
+                  <span className="w-2.5 h-2.5 rounded bg-amber-500" /> Supporting Department
+                </span>
+                <span className="border-l border-slate-300 pl-3 text-slate-500">
+                  Total Directives: <strong>15 Active</strong>
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-1">
+              {actionsDist.map((item) => {
+                const total = item.total || 0;
+                const primaryPct = maxActions > 0 ? (item.primary / maxActions) * 100 : 0;
+                const supportingPct = maxActions > 0 ? (item.supporting / maxActions) * 100 : 0;
+
+                return (
+                  <div key={item.code} className="space-y-1">
+                    <div className="flex justify-between items-center text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-slate-800">{item.name}</span>
+                        {item.total > 0 && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                            {item.primary} Lead{item.primary !== 1 ? "s" : ""}
+                            {item.supporting > 0 ? ` + ${item.supporting} Support` : ""}
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-bold text-slate-900">
+                        {total} {total === 1 ? "item" : "items"}
+                      </span>
+                    </div>
+
+                    <div className="w-full h-4 bg-slate-100 rounded-full overflow-hidden flex border border-slate-200/60">
+                      {item.primary > 0 && (
+                        <div
+                          className="bg-indigo-600 h-full transition-all duration-500 flex items-center justify-center text-[9px] text-white font-bold"
+                          style={{ width: `${primaryPct}%` }}
+                          title={`Primary Owner: ${item.primary}`}
+                        >
+                          {item.primary > 1 ? item.primary : ""}
+                        </div>
+                      )}
+                      {item.supporting > 0 && (
+                        <div
+                          className="bg-amber-500 h-full transition-all duration-500 flex items-center justify-center text-[9px] text-amber-950 font-bold"
+                          style={{ width: `${supportingPct}%` }}
+                          title={`Supporting: ${item.supporting}`}
+                        >
+                          {item.supporting > 1 ? item.supporting : ""}
+                        </div>
+                      )}
+                      {total === 0 && (
+                        <div className="h-full w-full bg-slate-50 flex items-center pl-2 text-[10px] text-slate-400 italic">
+                          No active directives assigned
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         {/* GRAPH 1: VERTICAL READINESS COMPARISON */}
         {activeTab === "readiness" && (
           <div>
@@ -195,7 +287,7 @@ export default function DashboardGraphs({ graphs }: GraphsProps) {
                 <PieChart className="w-3.5 h-3.5 text-indigo-500" />
                 RAG Composition
               </span>
-              <span className="text-[11px] text-slate-500">8 Strategic Verticals</span>
+              <span className="text-[11px] text-slate-500">9 Strategic Verticals</span>
             </div>
             <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex">
               {graphs.ragDistribution.map((r) =>

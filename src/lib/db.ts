@@ -416,9 +416,9 @@ export async function ensureDbInitialized() {
       deptId: 7, // HR & Recruitment
       itemId: "ACT-02",
       category: "Talent Acquisition",
-      deliverable: "Progress the two semiconductor candidates, Dr. Durga Prakash and RUAS PhD candidate Darshan; confirm role, fit, package and offer route.",
+      deliverable: "Progress Dr. Durga Prakash and RUAS PhD candidate Darshan; confirm role, fit, package and offer route.",
       owner: "Anamika; Venky to guide/meet candidates",
-      timeline: "URGENT",
+      timeline: "Urgent",
       status: "OPEN",
       rag_status: "AMBER",
       remarks: "Venky to guide and meet candidates; confirm role, fit, package and offer route.",
@@ -448,7 +448,7 @@ export async function ensureDbInitialized() {
       category: "Marketing & Sales",
       deliverable: "Review and strengthen the two marketing/sales-related job descriptions; source experienced candidates and move recruitment quickly.",
       owner: "Anamika/Naukri team",
-      timeline: "Immediate; before the December 2026 launch",
+      timeline: "Immediate; before December 2026 launch",
       status: "OPEN",
       rag_status: "AMBER",
       remarks: "Strengthen JDs with Naukri team; source experienced candidates before Dec 2026 launch.",
@@ -462,7 +462,7 @@ export async function ensureDbInitialized() {
       itemId: "ACT-05",
       category: "Brand & Outreach",
       deliverable: "Prepare launch-ready programme positioning, website content, online application flow, corporate outreach and campaign collateral.",
-      owner: "Vinila along with programme leads",
+      owner: "Vinila and programme leads",
       timeline: "By December 2026",
       status: "OPEN",
       rag_status: "GREEN",
@@ -759,7 +759,7 @@ export async function ensureDbInitialized() {
   }
 
   isInitialized = true;
-  console.log("RIASAT PostgreSQL database initialized successfully with 8 departments, sample users, and demo data.");
+  console.log("RIASAT database initialized successfully with 9 strategic verticals and institutional users.");
 }
 
 export async function logAudit(params: {
