@@ -362,17 +362,17 @@ export default function ReportsPage() {
         </div>
 
         <div className="overflow-x-auto border-t border-slate-200">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-xs table-fixed border-collapse">
             <thead className="bg-slate-100/70 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
               <tr>
-                <th className="px-6 py-3.5">Department</th>
-                <th className="px-6 py-3.5">Readiness %</th>
-                <th className="px-6 py-3.5">RAG Status</th>
-                <th className="px-6 py-3.5">Key Strategic Focus</th>
-                <th className="px-6 py-3.5">Open Items</th>
-                <th className="px-6 py-3.5">Completed</th>
-                <th className="px-6 py-3.5">Last Updated</th>
-                <th className="px-6 py-3.5">Updated By</th>
+                <th className="w-[17%] px-3 py-2.5">Department</th>
+                <th className="w-[10%] px-2.5 py-2.5">Readiness %</th>
+                <th className="w-[11%] px-2.5 py-2.5">RAG Status</th>
+                <th className="w-[28%] px-3 py-2.5">Key Strategic Focus</th>
+                <th className="w-[8%] px-2 py-2.5 text-center">Open Items</th>
+                <th className="w-[8%] px-2 py-2.5 text-center">Completed</th>
+                <th className="w-[9%] px-2.5 py-2.5">Last Updated</th>
+                <th className="w-[9%] px-2.5 py-2.5">Updated By</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -385,13 +385,13 @@ export default function ReportsPage() {
               ) : (
                 filteredDepartments.map((d) => (
                   <tr key={d.id} className="hover:bg-slate-50/80 transition">
-                    <td className="px-6 py-3.5 font-bold text-slate-900 whitespace-nowrap">
+                    <td className="px-3 py-2.5 font-bold text-slate-900 whitespace-nowrap">
                       {d.name}
                     </td>
-                    <td className="px-6 py-3.5 whitespace-nowrap">
+                    <td className="px-2.5 py-2.5 whitespace-nowrap">
                       <span className="font-bold text-slate-800">{d.readiness_percentage}%</span>
                     </td>
-                    <td className="px-6 py-3.5 whitespace-nowrap">
+                    <td className="px-2.5 py-2.5 whitespace-nowrap">
                       <span
                         className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${
                           d.rag_status === "GREEN"
@@ -406,19 +406,19 @@ export default function ReportsPage() {
                         {d.rag_status}
                       </span>
                     </td>
-                    <td className="px-6 py-3.5 text-slate-600 max-w-xs truncate">
+                    <td className="px-3 py-2.5 text-slate-600 break-words leading-tight text-[11px]">
                       {d.key_focus || "--"}
                     </td>
-                    <td className="px-6 py-3.5 font-semibold text-slate-700 whitespace-nowrap">
+                    <td className="px-2 py-2.5 font-semibold text-slate-700 text-center whitespace-nowrap">
                       {d.stats?.open || 0}
                     </td>
-                    <td className="px-6 py-3.5 font-semibold text-emerald-700 whitespace-nowrap">
+                    <td className="px-2 py-2.5 font-semibold text-emerald-700 text-center whitespace-nowrap">
                       {d.stats?.completed || 0}
                     </td>
-                    <td className="px-6 py-3.5 text-slate-500 whitespace-nowrap">
+                    <td className="px-2.5 py-2.5 text-slate-500 whitespace-nowrap text-[11px]">
                       {d.last_updated ? new Date(d.last_updated).toLocaleDateString("en-IN") : "--"}
                     </td>
-                    <td className="px-6 py-3.5 text-slate-600 whitespace-nowrap font-medium">
+                    <td className="px-2.5 py-2.5 text-slate-600 whitespace-nowrap font-medium text-[11px]">
                       {d.updated_by || "--"}
                     </td>
                   </tr>
@@ -515,14 +515,14 @@ export default function ReportsPage() {
         </div>
 
         <div className="overflow-x-auto border-t border-slate-200">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-xs table-fixed border-collapse">
             <thead className="bg-slate-100/70 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
               <tr>
-                <th className="px-6 py-3.5">Timestamp</th>
-                <th className="px-6 py-3.5">User</th>
-                <th className="px-6 py-3.5">Department</th>
-                <th className="px-6 py-3.5">Action</th>
-                <th className="px-6 py-3.5">Details</th>
+                <th className="w-[18%] px-3 py-2.5">Timestamp</th>
+                <th className="w-[15%] px-3 py-2.5">User</th>
+                <th className="w-[15%] px-3 py-2.5">Department</th>
+                <th className="w-[14%] px-3 py-2.5">Action</th>
+                <th className="w-[38%] px-3 py-2.5">Details</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -535,7 +535,7 @@ export default function ReportsPage() {
               ) : (
                 filteredLogs.map((log) => (
                   <tr key={log.id} className="hover:bg-slate-50/80 transition">
-                    <td className="px-6 py-3.5 text-slate-500 font-mono text-[11px] whitespace-nowrap">
+                    <td className="px-3 py-2.5 text-slate-500 font-mono text-[11px] whitespace-nowrap">
                       {new Date(log.timestamp).toLocaleString("en-IN", {
                         day: "2-digit",
                         month: "short",
@@ -545,13 +545,13 @@ export default function ReportsPage() {
                         second: "2-digit",
                       })}
                     </td>
-                    <td className="px-6 py-3.5 font-bold text-slate-900 whitespace-nowrap">
+                    <td className="px-3 py-2.5 font-bold text-slate-900 whitespace-nowrap">
                       {log.user_name || "System"}
                     </td>
-                    <td className="px-6 py-3.5 text-slate-700 whitespace-nowrap font-medium">
+                    <td className="px-3 py-2.5 text-slate-700 whitespace-nowrap font-medium">
                       {log.department_name || log.department_name_full || "--"}
                     </td>
-                    <td className="px-6 py-3.5 whitespace-nowrap">
+                    <td className="px-3 py-2.5 whitespace-nowrap">
                       <span className="px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-slate-100 text-slate-700 border">
                         {log.action}
                       </span>

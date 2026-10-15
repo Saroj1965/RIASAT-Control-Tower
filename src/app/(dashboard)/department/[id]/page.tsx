@@ -91,6 +91,7 @@ export default function DepartmentPage() {
   const [wsOwnerFilter, setWsOwnerFilter] = useState<string>("ALL");
   const [wsPriorityFilter, setWsPriorityFilter] = useState<string>("ALL");
   const [wsDeptFilter, setWsDeptFilter] = useState<string>("ALL");
+  const [wsRoleFilter, setWsRoleFilter] = useState<"ALL" | "LEAD" | "SUPPORTING">("ALL");
   const [wsPageSize, setWsPageSize] = useState<number | "ALL">(25);
   const [wsCurrentPage, setWsCurrentPage] = useState<number>(1);
 
@@ -634,6 +635,8 @@ export default function DepartmentPage() {
     if (wsMeetingDateFilter !== "ALL" && (ws.review_meeting_date || "").slice(0, 10) !== wsMeetingDateFilter) return false;
     if (wsOwnerFilter !== "ALL" && (ws.ownership || ws.owner || "") !== wsOwnerFilter) return false;
     if (wsDeptFilter !== "ALL" && String(ws.department_id) !== wsDeptFilter) return false;
+    if (wsRoleFilter === "LEAD" && ws.department_id && Number(ws.department_id) !== Number(dept.id)) return false;
+    if (wsRoleFilter === "SUPPORTING" && (!ws.department_id || Number(ws.department_id) === Number(dept.id))) return false;
 
     if (wsSearch.trim()) {
       const q = wsSearch.toLowerCase().trim();
@@ -859,6 +862,28 @@ export default function DepartmentPage() {
             </div>
           </div>
 
+          {/* Role Scope Filter */}
+          <div className="w-28 sm:w-32">
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+              Role Scope
+            </label>
+            <div className="relative">
+              <select
+                value={wsRoleFilter}
+                onChange={(e) => {
+                  setWsRoleFilter(e.target.value as any);
+                  setWsCurrentPage(1);
+                }}
+                className="w-full appearance-none px-2.5 pr-6 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white cursor-pointer"
+              >
+                <option value="ALL">All ({items.length})</option>
+                <option value="LEAD">{dept.code || "Dept"} Lead ({items.filter((x: any) => !x.department_id || Number(x.department_id) === Number(dept.id)).length})</option>
+                <option value="SUPPORTING">Supporting ({items.filter((x: any) => x.department_id && Number(x.department_id) !== Number(dept.id)).length})</option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2.5 pointer-events-none" />
+            </div>
+          </div>
+
           {/* Status */}
           <div className="w-24">
             <label className="block text-[11px] font-bold text-slate-600 mb-1">
@@ -967,46 +992,46 @@ export default function DepartmentPage() {
         {/* Action Register Table */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
           <div className="overflow-x-auto max-h-[750px] relative">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead className="sticky top-0 z-10 bg-[#f8fafc] text-slate-700 text-xs font-bold border-b border-slate-200 whitespace-nowrap shadow-2xs">
+            <table className="w-full text-left text-xs table-fixed border-collapse">
+              <thead className="sticky top-0 z-10 bg-[#f8fafc] text-slate-700 text-[11px] font-bold border-b border-slate-200 shadow-2xs">
                 <tr>
-                  <th className="px-2 py-3 text-center font-bold text-slate-700 whitespace-nowrap" data-col="1. Sl.No.">
+                  <th className="w-[3%] px-1 py-2.5 text-center font-bold text-slate-700 whitespace-nowrap" data-col="1. Sl.No.">
                     Sl.No.
                   </th>
-                  <th className="px-2.5 py-3 text-left font-bold text-slate-700 whitespace-nowrap" data-col="2. Review Meeting Date">
+                  <th className="w-[7%] px-1.5 py-2.5 text-left font-bold text-slate-700 whitespace-nowrap" data-col="2. Review Meeting Date">
                     Review Meeting Date
                   </th>
-                  <th className="px-2.5 py-3 text-left font-bold text-slate-700 whitespace-nowrap" data-col="3. Department">
+                  <th className="w-[8.5%] px-1.5 py-2.5 text-left font-bold text-slate-700" data-col="3. Department">
                     Department
                   </th>
-                  <th className="px-3 py-3 text-left font-bold text-slate-700 whitespace-nowrap min-w-[200px]" data-col="4. Action Item / Deliverable">
+                  <th className="w-[22%] px-2 py-2.5 text-left font-bold text-slate-700" data-col="4. Action Item / Deliverable">
                     Action Item / Deliverable
                   </th>
-                  <th className="px-2.5 py-3 text-left font-bold text-slate-700 whitespace-nowrap" data-col="5. Action Owner">
+                  <th className="w-[9.5%] px-1.5 py-2.5 text-left font-bold text-slate-700" data-col="5. Action Owner">
                     Action Owner
                   </th>
-                  <th className="px-2.5 py-3 text-left font-bold text-slate-700 whitespace-nowrap min-w-[120px]" data-col="6. Support Required From">
+                  <th className="w-[8%] px-1.5 py-2.5 text-left font-bold text-slate-700" data-col="6. Support Required From">
                     Support Required From
                   </th>
-                  <th className="px-2 py-3 text-center font-bold text-slate-700 whitespace-nowrap" data-col="7. Priority">
+                  <th className="w-[6%] px-1 py-2.5 text-center font-bold text-slate-700 whitespace-nowrap" data-col="7. Priority">
                     Priority
                   </th>
-                  <th className="px-2.5 py-3 text-left font-bold text-slate-700 whitespace-nowrap" data-col="8. Completion Date">
+                  <th className="w-[7%] px-1.5 py-2.5 text-left font-bold text-slate-700 whitespace-nowrap" data-col="8. Completion Date">
                     Completion Date
                   </th>
-                  <th className="px-2 py-3 text-center font-bold text-slate-700 whitespace-nowrap" data-col="9. Status">
+                  <th className="w-[7%] px-1 py-2.5 text-center font-bold text-slate-700 whitespace-nowrap" data-col="9. Status">
                     Status
                   </th>
-                  <th className="px-3 py-3 text-left font-bold text-slate-700 whitespace-nowrap min-w-[180px]" data-col="10. Progress Update / Remarks">
+                  <th className="w-[10%] px-1.5 py-2.5 text-left font-bold text-slate-700" data-col="10. Progress Update / Remarks">
                     Progress Update / Remarks
                   </th>
-                  <th className="px-2.5 py-3 text-left font-bold text-slate-700 whitespace-nowrap" data-col="11. Next Follow-up Date">
+                  <th className="w-[7%] px-1.5 py-2.5 text-left font-bold text-slate-700 whitespace-nowrap" data-col="11. Next Follow-up Date">
                     Next Follow-up Date
                   </th>
-                  <th className="px-2 py-3 text-center font-bold text-slate-700 whitespace-nowrap" data-col="12. VC Decision Required">
+                  <th className="w-[4%] px-1 py-2.5 text-center font-bold text-slate-700 whitespace-nowrap" data-col="12. VC Decision Required">
                     VC Decision Required
                   </th>
-                  <th className="px-2 py-3 text-center font-bold text-slate-700 whitespace-nowrap" data-col="13. Actions">
+                  <th className="w-[7%] px-1 py-2.5 text-center font-bold text-slate-700 whitespace-nowrap" data-col="13. Actions">
                     Actions
                   </th>
                 </tr>
@@ -1042,41 +1067,50 @@ export default function DepartmentPage() {
                         className="hover:bg-slate-50/80 transition border-b border-slate-100 last:border-b-0"
                       >
                         {/* 1. Sl.No. */}
-                        <td className="px-2 py-2.5 text-center whitespace-nowrap text-slate-700 font-medium text-xs">
+                        <td className="px-1 py-2 text-center whitespace-nowrap text-slate-700 font-bold text-xs align-top">
                           {serialNo}
                         </td>
 
                         {/* 2. Review Meeting Date */}
-                        <td className="px-2.5 py-2.5 whitespace-nowrap text-left text-slate-800 font-medium text-xs">
+                        <td className="px-1.5 py-2 whitespace-nowrap text-left text-slate-800 font-medium text-[11px] align-top">
                           {formatDisplayDate(ws.review_meeting_date || "2026-10-12")}
                         </td>
 
                         {/* 3. Department */}
-                        <td className="px-2.5 py-2.5 whitespace-nowrap text-left text-slate-800 font-medium text-xs">
-                          {deptName}
+                        <td className="px-1.5 py-2 text-left text-slate-800 font-medium text-[11px] align-top break-words">
+                          <div className="font-bold text-slate-900 leading-tight">{dept.name}</div>
+                          {ws.department_id && Number(ws.department_id) !== Number(dept.id) ? (
+                            <span className="inline-block px-1 py-0.2 rounded text-[9px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 mt-0.5 leading-tight" title={"Lead: " + (ws.primary_department_name || "")}>
+                              Supporting ({ws.primary_department_name || "Lead"})
+                            </span>
+                          ) : (
+                            <span className="inline-block px-1 py-0.2 rounded text-[9px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 mt-0.5 leading-tight">
+                              Lead Vertical
+                            </span>
+                          )}
                         </td>
 
                         {/* 4. Action Item / Deliverable */}
-                        <td className="px-3 py-2.5 min-w-[200px] max-w-md text-left">
-                          <div className="font-semibold text-slate-900 text-xs leading-snug">
+                        <td className="px-2 py-2 text-left align-top">
+                          <div className="font-semibold text-slate-900 text-xs leading-snug break-words">
                             {deliverable}
                           </div>
                         </td>
 
                         {/* 5. Action Owner */}
-                        <td className="px-2.5 py-2.5 whitespace-nowrap text-left text-slate-800 font-medium text-xs">
+                        <td className="px-1.5 py-2 text-left text-slate-800 font-medium text-[11px] leading-snug break-words align-top">
                           {ownership}
                         </td>
 
                         {/* 6. Support Required From */}
-                        <td className="px-2.5 py-2.5 text-left min-w-[120px] text-slate-700 font-normal text-xs">
+                        <td className="px-1.5 py-2 text-left text-slate-700 font-normal text-[10px] leading-snug break-words align-top">
                           {ws.supporting_departments || "--"}
                         </td>
 
                         {/* 7. Priority */}
-                        <td className="px-2 py-2.5 text-center whitespace-nowrap">
+                        <td className="px-1 py-2 text-center whitespace-nowrap align-top">
                           <span
-                            className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+                            className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${
                               priority.toLowerCase() === "critical"
                                 ? "bg-red-50 text-red-600 border-red-200"
                                 : priority.toLowerCase() === "high"
@@ -1091,14 +1125,14 @@ export default function DepartmentPage() {
                         </td>
 
                         {/* 8. Completion Date */}
-                        <td className="px-2.5 py-2.5 whitespace-nowrap text-left text-slate-800 font-medium text-xs">
+                        <td className="px-1.5 py-2 whitespace-nowrap text-left text-slate-800 font-medium text-[11px] align-top">
                           {formatDisplayDate(timeline)}
                         </td>
 
                         {/* 9. Status */}
-                        <td className="px-2 py-2.5 text-center whitespace-nowrap">
+                        <td className="px-1 py-2 text-center whitespace-nowrap align-top">
                           <span
-                            className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                            className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
                               status === "IN PROGRESS"
                                 ? "bg-sky-100 text-sky-700"
                                 : status === "OPEN"
@@ -1125,37 +1159,37 @@ export default function DepartmentPage() {
                         </td>
 
                         {/* 10. Progress Update / Remarks */}
-                        <td className="px-3 py-2.5 text-left min-w-[180px] max-w-sm text-slate-700 font-normal text-xs leading-relaxed">
+                        <td className="px-1.5 py-2 text-left text-slate-700 font-normal text-[10px] leading-snug break-words align-top">
                           {remarks}
                         </td>
 
                         {/* 11. Next Follow-up Date */}
-                        <td className="px-2.5 py-2.5 whitespace-nowrap text-left text-slate-800 font-medium text-xs">
+                        <td className="px-1.5 py-2 whitespace-nowrap text-left text-slate-800 font-medium text-[10px] align-top">
                           {ws.next_followup_date ? formatDisplayDate(ws.next_followup_date) : "--"}
                         </td>
 
                         {/* 12. VC Decision Required */}
-                        <td className="px-2 py-2.5 text-center whitespace-nowrap">
+                        <td className="px-1 py-2 text-center whitespace-nowrap align-top">
                           {isVcReq ? (
-                            <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                               Yes
                             </span>
                           ) : (
-                            <span className="text-slate-500 font-medium text-xs">
+                            <span className="text-slate-400 font-medium text-[10px]">
                               No
                             </span>
                           )}
                         </td>
 
                         {/* 13. Actions */}
-                        <td className="px-2 py-2.5 text-center whitespace-nowrap">
-                          <div className="flex items-center justify-center gap-2">
+                        <td className="px-1 py-2 text-center whitespace-nowrap align-top">
+                          <div className="flex items-center justify-center gap-1">
                             <button
                               onClick={() => openEditWsModal(ws)}
                               className="p-1 text-sky-600 hover:text-sky-800 hover:bg-sky-50 rounded transition"
                               title="Edit Action"
                             >
-                              <Edit2 className="w-4 h-4" />
+                              <Edit2 className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => {
@@ -1165,7 +1199,7 @@ export default function DepartmentPage() {
                               className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded transition"
                               title="Close / Complete Action"
                             >
-                              <SlidersHorizontal className="w-4 h-4" />
+                              <SlidersHorizontal className="w-3.5 h-3.5" />
                             </button>
                             {canEdit && (
                               <button
@@ -1173,7 +1207,7 @@ export default function DepartmentPage() {
                                 className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition"
                                 title="Delete Action"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             )}
                           </div>
