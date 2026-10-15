@@ -9,6 +9,36 @@ interface Params {
   params: { id: string };
 }
 
+export async function GET(req: Request, { params }: Params) {
+  try {
+    const user = await getSessionUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const wsId = parseInt(params.id, 10);
+    if (isNaN(wsId)) {
+      return NextResponse.json({ error: "Invalid workstream ID" }, { status: 400 });
+    }
+
+    const res = await query(
+      `SELECT w.*, d.name as department_name, d.code as department_code
+       FROM workstreams w
+       JOIN departments d ON w.department_id = d.id
+       WHERE w.id = $1`,
+      [wsId]
+    );
+
+    if (res.rows.length === 0) {
+      return NextResponse.json({ error: "Workstream not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ workstream: res.rows[0] });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
 export async function PUT(req: Request, { params }: Params) {
   try {
     const user = await getSessionUser();
@@ -43,6 +73,7 @@ export async function PUT(req: Request, { params }: Params) {
     const body = await req.json();
     const {
       item_id,
+      department_id,
       category,
       deliverable,
       action_point,
@@ -139,8 +170,9 @@ export async function PUT(req: Request, { params }: Params) {
         updated_at = CURRENT_TIMESTAMP,
         updated_by = $26,
         review_meeting_date = COALESCE($27, review_meeting_date),
-        review_week = COALESCE($28, review_week)
-      WHERE id = $29
+        review_week = COALESCE($28, review_week),
+        department_id = COALESCE($29, department_id)
+      WHERE id = $30
       RETURNING *`,
       [
         item_id !== undefined ? (item_id || null) : null,
@@ -171,6 +203,7 @@ export async function PUT(req: Request, { params }: Params) {
         user.name,
         body.review_meeting_date !== undefined ? (body.review_meeting_date || null) : null,
         body.review_week !== undefined ? (body.review_week || null) : null,
+        department_id !== undefined ? parseInt(department_id, 10) : null,
         wsId,
       ]
     );

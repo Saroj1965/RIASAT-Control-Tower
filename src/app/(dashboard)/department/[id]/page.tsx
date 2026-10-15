@@ -73,6 +73,14 @@ export default function DepartmentPage() {
   const [showHistoryModal, setShowHistoryModal] = useState<any | null>(null);
   const [wsOverdueFilter, setWsOverdueFilter] = useState<boolean>(false);
 
+  // Detailed Filter and Pagination states
+  const [wsMeetingDateFilter, setWsMeetingDateFilter] = useState<string>("ALL");
+  const [wsOwnerFilter, setWsOwnerFilter] = useState<string>("ALL");
+  const [wsPriorityFilter, setWsPriorityFilter] = useState<string>("ALL");
+  const [wsDeptFilter, setWsDeptFilter] = useState<string>("ALL");
+  const [wsPageSize, setWsPageSize] = useState<number | "ALL">(25);
+  const [wsCurrentPage, setWsCurrentPage] = useState<number>(1);
+
   // Modal & inline state for Action Tracker
   const [showWsModal, setShowWsModal] = useState(false);
   const [showInlineWsForm, setShowInlineWsForm] = useState(true);
@@ -624,6 +632,10 @@ export default function DepartmentPage() {
   // Filter Action Points based on active tab, interactive buttons & search
   const displayedActions = actionViewTab === "OPEN" ? openActions : closedActions;
 
+  // Extract distinct filter criteria for Action Register
+  const distinctMeetingDates = Array.from(new Set(items.map((x: any) => (x.review_meeting_date || "").slice(0, 10)).filter(Boolean))) as string[];
+  const distinctOwners = Array.from(new Set(items.map((x: any) => x.ownership || x.owner).filter(Boolean))) as string[];
+
   const filteredWorkstreams = displayedActions.filter((ws: any) => {
     if (wsStatusFilter !== "ALL" && ws.status !== wsStatusFilter) return false;
     const itemRag = (ws.effective_rag || ws.rag_status || (["Delayed", "Blocked"].includes(ws.status) ? "AMBER" : "GREEN")).toUpperCase();
@@ -634,6 +646,11 @@ export default function DepartmentPage() {
     if (wsCycleFilter === "NEW" && !(ws.is_new_this_week || (!ws.weeks_outstanding && !ws.is_carried_forward))) return false;
     if (wsCycleFilter === "BLOCKED" && ws.status !== "BLOCKED" && ws.status !== "Blocked") return false;
     if (wsCycleFilter === "VC" && ws.vc_decision_required !== "Yes") return false;
+    if (wsPriorityFilter !== "ALL" && (ws.priority || "Medium").toLowerCase() !== wsPriorityFilter.toLowerCase()) return false;
+    if (wsMeetingDateFilter !== "ALL" && (ws.review_meeting_date || "").slice(0, 10) !== wsMeetingDateFilter) return false;
+    if (wsOwnerFilter !== "ALL" && (ws.ownership || ws.owner || "") !== wsOwnerFilter) return false;
+    if (wsDeptFilter !== "ALL" && String(ws.department_id) !== wsDeptFilter) return false;
+
     if (wsSearch.trim()) {
       const q = wsSearch.toLowerCase().trim();
       const matchId = (ws.item_id || "").toLowerCase().includes(q);
@@ -647,6 +664,12 @@ export default function DepartmentPage() {
     }
     return true;
   });
+
+  // Pagination calculation
+  const totalActionPages = wsPageSize === "ALL" ? 1 : Math.ceil(filteredWorkstreams.length / (wsPageSize as number)) || 1;
+  const paginatedWorkstreams = wsPageSize === "ALL"
+    ? filteredWorkstreams
+    : filteredWorkstreams.slice((wsCurrentPage - 1) * (wsPageSize as number), wsCurrentPage * (wsPageSize as number));
 
   // Filter Recruitment positions (HR)
   const filteredRecruitment = recruitmentItems.filter((r: any) => {
@@ -1791,363 +1814,475 @@ export default function DepartmentPage() {
               ))}
             </div>
 
-            {/* Action Item Search */}
-            <div className="relative w-full md:w-64">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                placeholder="Search ID, action, owner, dept..."
-                value={wsSearch}
-                onChange={(e) => setWsSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:bg-white"
-              />
+            {/* Action Item Search & Multi-Criteria Filter Bar */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Search deliverable, owner, ID..."
+                  value={wsSearch}
+                  onChange={(e) => {
+                    setWsSearch(e.target.value);
+                    setWsCurrentPage(1);
+                  }}
+                  className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:bg-white"
+                />
+              </div>
+
+              {/* Review Meeting Date Filter */}
+              <select
+                value={wsMeetingDateFilter}
+                onChange={(e) => {
+                  setWsMeetingDateFilter(e.target.value);
+                  setWsCurrentPage(1);
+                }}
+                className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+              >
+                <option value="ALL">📅 All Meeting Dates</option>
+                {distinctMeetingDates.map((dt) => (
+                  <option key={dt} value={dt}>
+                    {dt}
+                  </option>
+                ))}
+              </select>
+
+              {/* Department Dropdown Filter (9 verticals) */}
+              <select
+                value={wsDeptFilter}
+                onChange={(e) => {
+                  setWsDeptFilter(e.target.value);
+                  setWsCurrentPage(1);
+                }}
+                className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+              >
+                <option value="ALL">🏛️ All Departments</option>
+                {(deptData?.allDepartments || []).map((d: any) => (
+                  <option key={d.id} value={String(d.id)}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+
+              {/* Priority Filter */}
+              <select
+                value={wsPriorityFilter}
+                onChange={(e) => {
+                  setWsPriorityFilter(e.target.value);
+                  setWsCurrentPage(1);
+                }}
+                className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+              >
+                <option value="ALL">🎯 All Priorities</option>
+                <option value="Critical">🔴 Critical</option>
+                <option value="High">🟠 High</option>
+                <option value="Medium">🔵 Medium</option>
+                <option value="Low">⚪ Low</option>
+              </select>
+
+              {/* Owner Filter */}
+              {distinctOwners.length > 0 && (
+                <select
+                  value={wsOwnerFilter}
+                  onChange={(e) => {
+                    setWsOwnerFilter(e.target.value);
+                    setWsCurrentPage(1);
+                  }}
+                  className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                >
+                  <option value="ALL">👤 All Owners</option>
+                  {distinctOwners.map((ownerName) => (
+                    <option key={ownerName} value={ownerName}>
+                      {ownerName}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {/* Page Size Selector */}
+              <select
+                value={wsPageSize}
+                onChange={(e) => {
+                  const val = e.target.value === "ALL" ? "ALL" : parseInt(e.target.value, 10);
+                  setWsPageSize(val);
+                  setWsCurrentPage(1);
+                }}
+                className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                title="Page size"
+              >
+                <option value={10}>10 / page</option>
+                <option value={25}>25 / page</option>
+                <option value={50}>50 / page</option>
+                <option value="ALL">All on 1 page</option>
+              </select>
+
+              {/* Clear Filters button */}
+              {(wsSearch || wsStatusFilter !== "ALL" || wsRagFilter !== "ALL" || wsCycleFilter !== "ALL" || wsMeetingDateFilter !== "ALL" || wsOwnerFilter !== "ALL" || wsPriorityFilter !== "ALL" || wsDeptFilter !== "ALL" || wsOverdueFilter) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWsSearch("");
+                    setWsStatusFilter("ALL");
+                    setWsRagFilter("ALL");
+                    setWsCycleFilter("ALL");
+                    setWsMeetingDateFilter("ALL");
+                    setWsOwnerFilter("ALL");
+                    setWsPriorityFilter("ALL");
+                    setWsDeptFilter("ALL");
+                    setWsOverdueFilter(false);
+                    setWsCurrentPage(1);
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 transition"
+                  title="Reset all filters"
+                >
+                  Reset
+                </button>
+              )}
             </div>
           </div>
-
-          {/* RAG Filter Buttons (for Open Actions) */}
-          {actionViewTab === "OPEN" && (
-            <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-1">
-                RAG Status:
-              </span>
-              {[
-                { id: "ALL", label: "All RAG" },
-                { id: "GREEN", label: "GREEN" },
-                { id: "AMBER", label: "AMBER" },
-                { id: "RED", label: "RED" },
-              ].map((ragBtn) => (
-                <button
-                  key={ragBtn.id}
-                  onClick={() => setWsRagFilter(ragBtn.id)}
-                  className={`px-2.5 py-0.5 rounded-md text-[11px] font-semibold transition ${
-                    wsRagFilter === ragBtn.id
-                      ? ragBtn.id === "GREEN"
-                        ? "bg-emerald-600 text-white"
-                        : ragBtn.id === "AMBER"
-                        ? "bg-amber-600 text-white"
-                        : ragBtn.id === "RED"
-                        ? "bg-rose-600 text-white"
-                        : "bg-slate-800 text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
-                >
-                  {ragBtn.label}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
-        {/* ACTION ITEMS TABLE (OPEN VIEW) */}
+        {/* ACTION ITEMS TABLE (STANDARD HORIZONTAL REGISTER - EXACT 13 COLUMNS) */}
         {actionViewTab === "OPEN" ? (
-          <div className="overflow-x-auto border-t border-slate-200">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#0b1329] text-white uppercase text-[10px] font-bold tracking-wider border-b border-slate-800 whitespace-nowrap">
-                <tr>
-                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">Action ID</th>
-                  <th className="px-3 py-3.5 text-left font-bold tracking-wider text-slate-100 min-w-[140px]">Review Cycle</th>
-                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">Scope</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100 min-w-[240px]">Action Item / Deliverable</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Owner / Support</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Timeline</th>
-                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">Priority</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Status</th>
-                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">RAG</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100 min-w-[200px]">Latest Update / Next Follow-up</th>
-                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">VC Decision</th>
-                  {canEdit && <th className="px-4 py-3.5 text-right font-bold tracking-wider text-slate-100">Actions</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {filteredWorkstreams.length === 0 ? (
+          <div className="border-t border-slate-200">
+            <div className="overflow-x-auto shadow-inner max-h-[750px] relative">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="sticky top-0 z-10 bg-[#0b1329] text-white uppercase text-[11px] font-bold tracking-wider border-b border-slate-800 whitespace-nowrap shadow-sm">
                   <tr>
-                    <td colSpan={canEdit ? 12 : 11} className="px-6 py-12 text-center text-slate-400">
-                      <div className="max-w-md mx-auto space-y-2">
-                        <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
-                        <p className="font-bold text-slate-700 text-sm">No Open Action Items Found</p>
-                        <p className="text-xs text-slate-500">
-                          All action items matching active filters are either closed or cleared. Switch to <strong>Closed Action History</strong> or add a new action.
-                        </p>
-                      </div>
-                    </td>
+                    <th className="px-3 py-3.5 text-center font-bold text-slate-100 min-w-[70px]">1. Sl.No.</th>
+                    <th className="px-4 py-3.5 text-left font-bold text-slate-100 min-w-[150px]">2. Review Meeting Date</th>
+                    <th className="px-4 py-3.5 text-left font-bold text-slate-100 min-w-[140px]">3. Department</th>
+                    <th className="px-5 py-3.5 text-left font-bold text-slate-100 min-w-[280px]">4. Action Item / Deliverable</th>
+                    <th className="px-4 py-3.5 text-left font-bold text-slate-100 min-w-[140px]">5. Action Owner</th>
+                    <th className="px-4 py-3.5 text-left font-bold text-slate-100 min-w-[160px]">6. Support Required From</th>
+                    <th className="px-3 py-3.5 text-center font-bold text-slate-100 min-w-[100px]">7. Priority</th>
+                    <th className="px-4 py-3.5 text-left font-bold text-slate-100 min-w-[140px]">8. Completion Date</th>
+                    <th className="px-3 py-3.5 text-center font-bold text-slate-100 min-w-[130px]">9. Status</th>
+                    <th className="px-5 py-3.5 text-left font-bold text-slate-100 min-w-[240px]">10. Progress Update / Remarks</th>
+                    <th className="px-4 py-3.5 text-left font-bold text-slate-100 min-w-[130px]">11. Next Follow-up Date</th>
+                    <th className="px-3 py-3.5 text-center font-bold text-slate-100 min-w-[140px]">12. VC Decision Required</th>
+                    <th className="px-4 py-3.5 text-center font-bold text-slate-100 min-w-[150px]">13. Actions</th>
                   </tr>
-                ) : (
-                  filteredWorkstreams.map((ws: any, index: number) => {
-                    const actionId = ws.item_id || `ACT-${String(index + 1).padStart(2, "0")}`;
-                    const deliverable = ws.action_point || ws.deliverable || "--";
-                    const ownership = ws.ownership || ws.owner || "--";
-                    const timeline = ws.timeline || ws.target_date || "--";
-                    const priority = ws.priority || "Medium";
-                    const status = (ws.status || "OPEN").toUpperCase();
-                    const isOverdue = isActionOverdue(ws) || ws.effective_rag === "RED" || ws.rag_status === "RED";
-                    const isBlocked = status === "BLOCKED";
-                    const weeksOutstanding = ws.weeks_outstanding ?? 0;
-                    const isCarried = ws.is_carried_forward || weeksOutstanding > 0;
-                    const ragStatus = (isOverdue ? "RED" : (ws.effective_rag || ws.rag_status || (["DELAYED", "BLOCKED"].includes(status) ? "AMBER" : "GREEN"))).toUpperCase();
-                    const remarks = ws.remarks || ws.risks_blockers || "--";
-                    const isVcReq = ws.vc_decision_required === "Yes";
-                    const decisionAction = ws.decision_action || "";
-                    const isSupporting = ws.is_supporting || (ws.department_id && Number(ws.department_id) !== Number(dept.id));
-                    const isUrgent = timeline.toLowerCase().includes("urgent") || timeline.toLowerCase().includes("immediate");
+                </thead>
+                <tbody className="divide-y divide-slate-200 bg-white">
+                  {paginatedWorkstreams.length === 0 ? (
+                    <tr>
+                      <td colSpan={13} className="px-6 py-12 text-center text-slate-400">
+                        <div className="max-w-md mx-auto space-y-2">
+                          <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+                          <p className="font-bold text-slate-700 text-sm">No Open Action Items Found</p>
+                          <p className="text-xs text-slate-500">
+                            No action items match the active filters. Check other filters, switch to <strong>Closed Action History</strong>, or click <strong>+ Add Action Item</strong> to register a new commitment.
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedWorkstreams.map((ws: any, index: number) => {
+                      const serialNo = wsPageSize === "ALL" ? index + 1 : (wsCurrentPage - 1) * (wsPageSize as number) + index + 1;
+                      const actionId = ws.item_id || `ACT-${String(serialNo).padStart(2, "0")}`;
+                      const deliverable = ws.action_point || ws.deliverable || "--";
+                      const ownership = ws.ownership || ws.owner || "--";
+                      const timeline = ws.timeline || ws.target_date || "--";
+                      const priority = ws.priority || "Medium";
+                      const status = (ws.status || "OPEN").toUpperCase();
+                      const isOverdue = isActionOverdue(ws) || ws.effective_rag === "RED" || ws.rag_status === "RED";
+                      const isBlocked = status === "BLOCKED";
+                      const weeksOutstanding = ws.weeks_outstanding ?? 0;
+                      const isCarried = ws.is_carried_forward || weeksOutstanding > 0;
+                      const ragStatus = (isOverdue ? "RED" : (ws.effective_rag || ws.rag_status || (["DELAYED", "BLOCKED"].includes(status) ? "AMBER" : "GREEN"))).toUpperCase();
+                      const remarks = ws.remarks || ws.risks_blockers || "--";
+                      const isVcReq = ws.vc_decision_required === "Yes";
+                      const decisionAction = ws.decision_action || "";
+                      const isSupporting = ws.is_supporting || (ws.department_id && Number(ws.department_id) !== Number(dept.id));
+                      const deptName = ws.primary_department_name || dept.name;
+                      const meetingDateFormatted = ws.review_meeting_date
+                        ? new Date(ws.review_meeting_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+                        : "12 Oct 2026";
 
-                    return (
-                      <tr
-                        key={ws.id}
-                        className={`transition ${
-                          isOverdue
-                            ? "bg-rose-50/90 hover:bg-rose-100/80 border-l-4 border-l-rose-600 shadow-2xs"
-                            : isBlocked
-                            ? "bg-rose-50/40 hover:bg-rose-50/70 border-l-4 border-l-rose-400"
-                            : "hover:bg-slate-50/90"
-                        }`}
-                      >
-                        {/* 1. Action ID */}
-                        <td className="px-3 py-3.5 text-center whitespace-nowrap font-mono">
-                          <span className="px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 font-extrabold text-[11px] border border-indigo-200">
-                            {actionId}
-                          </span>
-                        </td>
-
-                        {/* 2. Review Cycle & Carry-Forward */}
-                        <td className="px-3 py-3.5 text-left whitespace-nowrap">
-                          <div className="text-[11px] font-bold text-slate-800">
-                            {ws.review_week || "Week 42 (12 Oct 2026)"}
-                          </div>
-                          <div className="mt-1 flex items-center gap-1">
-                            {isCarried ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300">
-                                🔄 Carried (+{weeksOutstanding}w)
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-100 text-emerald-900 border border-emerald-300">
-                                ⚡ New This Week
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* 3. Scope: Primary vs Supporting */}
-                        <td className="px-3 py-3.5 text-center whitespace-nowrap">
-                          {isSupporting ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200" title={`Primary: ${ws.primary_department_name || "Another Vertical"}`}>
-                              🔗 Supporting
+                      return (
+                        <tr
+                          key={ws.id}
+                          className={`transition ${
+                            isOverdue
+                              ? "bg-rose-50/90 hover:bg-rose-100/80 border-l-4 border-l-rose-600 shadow-2xs"
+                              : isBlocked
+                              ? "bg-rose-50/40 hover:bg-rose-50/70 border-l-4 border-l-rose-400"
+                              : "hover:bg-slate-50/90"
+                          }`}
+                        >
+                          {/* 1. Sl.No. */}
+                          <td className="px-3 py-4 text-center whitespace-nowrap font-mono">
+                            <div className="font-extrabold text-slate-800 text-sm">#{serialNo}</div>
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 mt-0.5 inline-block font-bold">
+                              {actionId}
                             </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                              🏛️ Primary
-                            </span>
-                          )}
-                        </td>
+                          </td>
 
-                        {/* 4. Deliverable / Action Point */}
-                        <td className="px-4 py-3.5 min-w-[240px]">
-                          <div className={`font-bold leading-snug ${isOverdue ? "text-rose-950 font-black" : "text-slate-900"}`}>
-                            {deliverable}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                            {ws.meeting_context && (
-                              <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded font-medium">
-                                📅 {ws.meeting_context}
-                              </span>
-                            )}
-                            {ws.category && ws.category !== "Operational Initiative" && (
-                              <span className="text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.2 rounded font-medium">
-                                {ws.category}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* 5. Owner / Support */}
-                        <td className="px-4 py-3.5 text-slate-700 font-medium">
-                          <div>{ownership}</div>
-                          {ws.supporting_departments && (
-                            <div className="text-[10px] text-slate-500 mt-0.5">
-                              <span className="font-semibold text-slate-600">Support:</span> {ws.supporting_departments}
-                            </div>
-                          )}
-                        </td>
-
-                        {/* 6. Timeline with Overdue / Urgent tags */}
-                        <td className="px-4 py-3 font-medium whitespace-nowrap">
-                          <div className="flex flex-col items-start gap-1">
-                            <span className={`font-bold ${isOverdue ? "text-rose-700 font-extrabold" : "text-slate-800"}`}>
-                              {timeline}
-                            </span>
-                            {isOverdue && (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white shadow-xs animate-pulse">
-                                🚨 OVERDUE {weeksOutstanding > 0 ? `• ${weeksOutstanding}w open` : ""}
-                              </span>
-                            )}
-                            {isUrgent && !isOverdue && (
-                              <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-300">
-                                🔥 URGENT
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* 7. Priority */}
-                        <td className="px-3 py-3.5 text-center whitespace-nowrap">
-                          <span
-                            className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold border ${
-                              priority === "Critical"
-                                ? "bg-rose-50 text-rose-700 border-rose-200"
-                                : priority === "High"
-                                ? "bg-amber-50 text-amber-700 border-amber-200"
-                                : priority === "Low"
-                                ? "bg-slate-100 text-slate-600 border-slate-200"
-                                : "bg-blue-50 text-blue-700 border-blue-200"
-                            }`}
-                          >
-                            {priority === "Critical" ? "🔴 " : priority === "High" ? "🟠 " : priority === "Low" ? "⚪ " : "🔵 "}
-                            {priority}
-                          </span>
-                        </td>
-
-                        {/* 8. Status (Interactive Dropdown for quick update) */}
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          {canEdit ? (
-                            <select
-                              value={status}
-                              onChange={(e) => handleQuickStatusChange(ws, e.target.value)}
-                              className={`px-2.5 py-1 text-xs font-bold rounded-lg border focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer ${
-                                status === "COMPLETED" || status === "CLOSED"
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-300"
-                                  : status === "DELAYED"
-                                  ? "bg-amber-50 text-amber-700 border-amber-300"
-                                  : status === "BLOCKED"
-                                  ? "bg-rose-600 text-white font-black border-rose-700 shadow-xs"
-                                  : status === "ON HOLD"
-                                  ? "bg-slate-100 text-slate-700 border-slate-300"
-                                  : "bg-indigo-50 text-indigo-700 border-indigo-300"
-                              }`}
-                            >
-                              <option value="OPEN">OPEN</option>
-                              <option value="IN PROGRESS">IN PROGRESS</option>
-                              <option value="BLOCKED">BLOCKED</option>
-                              <option value="DELAYED">DELAYED</option>
-                              <option value="ON HOLD">ON HOLD</option>
-                              <option value="CLOSED">CLOSED ✓</option>
-                            </select>
-                          ) : (
-                            <span
-                              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border ${
-                                status === "COMPLETED" || status === "CLOSED"
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                  : status === "DELAYED"
-                                  ? "bg-amber-50 text-amber-700 border-amber-200"
-                                  : status === "BLOCKED"
-                                  ? "bg-rose-600 text-white font-black border-rose-700 shadow-xs"
-                                  : status === "ON HOLD"
-                                  ? "bg-slate-100 text-slate-700 border-slate-300"
-                                  : "bg-indigo-50 text-indigo-700 border-indigo-200"
-                              }`}
-                            >
-                              {status === "BLOCKED" ? "⛔ BLOCKED" : status}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* 9. RAG Status */}
-                        <td className="px-3 py-3.5 text-center whitespace-nowrap">
-                          <span
-                            className={`px-2 py-0.5 text-[10px] font-black rounded uppercase tracking-wider ${
-                              ragStatus === "GREEN"
-                                ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                                : ragStatus === "AMBER"
-                                ? "bg-amber-100 text-amber-800 border border-amber-300"
-                                : "bg-rose-600 text-white shadow-xs font-black animate-pulse"
-                            }`}
-                          >
-                            {ragStatus}
-                          </span>
-                        </td>
-
-                        {/* 9. Remarks / Next Follow-up */}
-                        <td className="px-4 py-3 text-slate-700 min-w-[200px] leading-relaxed">
-                          <div className="line-clamp-2" title={remarks}>{remarks}</div>
-                          {ws.next_followup_date && (
-                            <div className="text-[10px] text-indigo-600 font-semibold mt-1 flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              <span>Follow-up: {ws.next_followup_date}</span>
-                            </div>
-                          )}
-                        </td>
-
-                        {/* 10. VC Decision Required */}
-                        <td className="px-3 py-3 text-center whitespace-nowrap">
-                          {isVcReq ? (
-                            <div className="flex flex-col items-center gap-1">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-black rounded-lg bg-rose-600 text-white shadow-xs">
-                                YES
-                              </span>
-                              {decisionAction && (
-                                <span className="text-[10px] text-rose-700 max-w-[140px] truncate" title={decisionAction}>
-                                  {decisionAction}
+                          {/* 2. Review Meeting Date */}
+                          <td className="px-4 py-4 whitespace-nowrap text-left">
+                            <div className="text-xs font-bold text-slate-900">{meetingDateFormatted}</div>
+                            <div className="text-[11px] text-slate-500 font-medium">{ws.review_week || "Week 42"}</div>
+                            <div className="mt-1">
+                              {isCarried ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300">
+                                  🔄 Carried (+{weeksOutstanding}w)
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                                  ⚡ New This Week
                                 </span>
                               )}
                             </div>
-                          ) : (
-                            <span className="px-2 py-0.5 text-[11px] font-semibold text-slate-400">
-                              No
-                            </span>
-                          )}
-                        </td>
+                          </td>
 
-                        {/* 11. Actions Column */}
-                        {canEdit && (
-                          <td className="px-4 py-3 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1.5">
-                              {/* Edit Action (Scrolls to Inline Form) */}
+                          {/* 3. Department */}
+                          <td className="px-4 py-4 whitespace-nowrap text-left">
+                            <div className="text-xs font-bold text-slate-900">{deptName}</div>
+                            <div className="mt-1">
+                              {isSupporting ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                  🔗 Supporting
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                                  🏛️ Primary
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* 4. Action Item / Deliverable */}
+                          <td className="px-5 py-4 min-w-[280px]">
+                            <div className={`text-sm font-bold leading-relaxed ${isOverdue ? "text-rose-950 font-black" : "text-slate-900"}`}>
+                              {deliverable}
+                            </div>
+                            {ws.category && ws.category !== "Operational Initiative" && (
+                              <span className="inline-block mt-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                                {ws.category}
+                              </span>
+                            )}
+                          </td>
+
+                          {/* 5. Action Owner */}
+                          <td className="px-4 py-4 whitespace-nowrap text-left">
+                            <div className="text-xs font-bold text-slate-900">{ownership}</div>
+                          </td>
+
+                          {/* 6. Support Required From */}
+                          <td className="px-4 py-4 text-left min-w-[160px]">
+                            <div className="text-xs font-medium text-slate-700">
+                              {ws.supporting_departments || <span className="text-slate-400 italic">None</span>}
+                            </div>
+                          </td>
+
+                          {/* 7. Priority */}
+                          <td className="px-3 py-4 text-center whitespace-nowrap">
+                            <span className={`px-2.5 py-1 rounded-md text-xs font-extrabold border ${
+                              priority === "Critical"
+                                ? "bg-rose-50 text-rose-700 border-rose-300"
+                                : priority === "High"
+                                ? "bg-amber-50 text-amber-700 border-amber-300"
+                                : priority === "Low"
+                                ? "bg-slate-100 text-slate-600 border-slate-200"
+                                : "bg-blue-50 text-blue-700 border-blue-200"
+                            }`}>
+                              {priority === "Critical" ? "🔴 " : priority === "High" ? "🟠 " : priority === "Low" ? "⚪ " : "🔵 "}
+                              {priority}
+                            </span>
+                          </td>
+
+                          {/* 8. Completion Date */}
+                          <td className="px-4 py-4 whitespace-nowrap text-left">
+                            <div className="flex flex-col items-start gap-1">
+                              <span className={`text-xs font-bold ${isOverdue ? "text-rose-700 font-extrabold" : "text-slate-800"}`}>
+                                {timeline}
+                              </span>
+                              {isOverdue && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white shadow-xs animate-pulse">
+                                  🚨 OVERDUE
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* 9. Status */}
+                          <td className="px-3 py-4 text-center whitespace-nowrap">
+                            <div className="flex flex-col items-center gap-1">
+                              {canEdit ? (
+                                <select
+                                  value={status}
+                                  onChange={(e) => handleQuickStatusChange(ws, e.target.value)}
+                                  className={`px-2.5 py-1 text-xs font-bold rounded-lg border focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer ${
+                                    status === "COMPLETED" || status === "CLOSED"
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                                      : status === "DELAYED"
+                                      ? "bg-amber-50 text-amber-700 border-amber-300"
+                                      : status === "BLOCKED"
+                                      ? "bg-rose-600 text-white font-black border-rose-700 shadow-xs"
+                                      : status === "ON HOLD"
+                                      ? "bg-slate-100 text-slate-700 border-slate-300"
+                                      : "bg-indigo-50 text-indigo-700 border-indigo-300"
+                                  }`}
+                                >
+                                  <option value="OPEN">OPEN</option>
+                                  <option value="IN PROGRESS">IN PROGRESS</option>
+                                  <option value="BLOCKED">BLOCKED</option>
+                                  <option value="DELAYED">DELAYED</option>
+                                  <option value="ON HOLD">ON HOLD</option>
+                                  <option value="CLOSED">CLOSED ✓</option>
+                                </select>
+                              ) : (
+                                <span className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border ${
+                                  status === "COMPLETED" || status === "CLOSED"
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    : status === "DELAYED"
+                                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                                    : status === "BLOCKED"
+                                    ? "bg-rose-600 text-white font-black border-rose-700 shadow-xs"
+                                    : status === "ON HOLD"
+                                    ? "bg-slate-100 text-slate-700 border-slate-300"
+                                    : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                }`}>
+                                  {status === "BLOCKED" ? "⛔ BLOCKED" : status}
+                                </span>
+                              )}
+                              <span className={`px-1.5 py-0.5 text-[9px] font-black rounded uppercase tracking-wider ${
+                                ragStatus === "GREEN"
+                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                  : ragStatus === "AMBER"
+                                  ? "bg-amber-100 text-amber-800 border border-amber-300"
+                                  : "bg-rose-600 text-white shadow-xs font-black animate-pulse"
+                              }`}>
+                                {ragStatus}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* 10. Progress Update / Remarks */}
+                          <td className="px-5 py-4 text-left min-w-[240px]">
+                            <div className="text-xs text-slate-700 leading-relaxed font-normal whitespace-pre-wrap">
+                              {remarks}
+                            </div>
+                          </td>
+
+                          {/* 11. Next Follow-up Date */}
+                          <td className="px-4 py-4 whitespace-nowrap text-left">
+                            <span className="text-xs font-medium text-slate-800">
+                              {ws.next_followup_date || <span className="text-slate-400 italic">--</span>}
+                            </span>
+                          </td>
+
+                          {/* 12. Vice Chairman Decision Required */}
+                          <td className="px-3 py-4 text-center whitespace-nowrap">
+                            {isVcReq ? (
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-black rounded-lg bg-rose-600 text-white shadow-xs">
+                                  YES
+                                </span>
+                                {decisionAction && (
+                                  <span className="text-[10px] text-rose-700 max-w-[150px] truncate" title={decisionAction}>
+                                    {decisionAction}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="px-2 py-0.5 text-xs font-semibold text-slate-400">
+                                No
+                              </span>
+                            )}
+                          </td>
+
+                          {/* 13. Actions */}
+                          <td className="px-4 py-4 text-center whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1.5">
                               <button
                                 onClick={() => openEditWsModal(ws)}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition shadow-2xs"
-                                title="Edit this action in the department form"
+                                title="Edit Action Item"
                               >
                                 <Edit2 className="w-3 h-3" />
                                 <span>Edit</span>
                               </button>
-
-                              {/* Formally Close Action */}
                               <button
                                 onClick={() => {
                                   setClosingAction(ws);
                                   setClosureRemarks("");
                                 }}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs border border-emerald-300 transition shadow-2xs"
-                                title="Formally Close Action Point"
+                                title="Close Action Item"
                               >
                                 <CheckCircle2 className="w-3 h-3" />
                                 <span>Close</span>
                               </button>
-
-                              {/* Audit Trail / History */}
                               <button
                                 onClick={() => setShowHistoryModal(ws)}
-                                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
-                                title="View Action History / Audit Trail"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                                title="View Action History"
                               >
                                 <History className="w-3.5 h-3.5" />
                               </button>
-
-                              {/* Delete */}
-                              <button
-                                onClick={() => handleDeleteWorkstream(ws.id)}
-                                className="p-1 rounded-lg text-rose-400 hover:text-rose-700 hover:bg-rose-50 transition"
-                                title="Delete Action Point"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              {canEdit && (
+                                <button
+                                  onClick={() => handleDeleteWorkstream(ws.id)}
+                                  className="p-1.5 rounded-lg text-rose-400 hover:text-rose-700 hover:bg-rose-50 transition"
+                                  title="Delete Action Item"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           </td>
-                        )}
-                      </tr>
-                    );
-                  })
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            {filteredWorkstreams.length > 0 && (
+              <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+                <div>
+                  Showing{" "}
+                  <strong className="text-slate-900 font-bold">
+                    {wsPageSize === "ALL" ? 1 : (wsCurrentPage - 1) * (wsPageSize as number) + 1}
+                  </strong>{" "}
+                  to{" "}
+                  <strong className="text-slate-900 font-bold">
+                    {wsPageSize === "ALL"
+                      ? filteredWorkstreams.length
+                      : Math.min(wsCurrentPage * (wsPageSize as number), filteredWorkstreams.length)}
+                  </strong>{" "}
+                  of <strong className="text-slate-900 font-bold">{filteredWorkstreams.length}</strong> actions
+                </div>
+
+                {wsPageSize !== "ALL" && totalActionPages > 1 && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={wsCurrentPage <= 1}
+                      onClick={() => setWsCurrentPage((p) => Math.max(1, p - 1))}
+                      className="px-3 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 font-semibold"
+                    >
+                      Previous
+                    </button>
+                    <span className="px-2 font-bold text-slate-700">
+                      Page {wsCurrentPage} of {totalActionPages}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={wsCurrentPage >= totalActionPages}
+                      onClick={() => setWsCurrentPage((p) => Math.min(totalActionPages, p + 1))}
+                      className="px-3 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 font-semibold"
+                    >
+                      Next
+                    </button>
+                  </div>
                 )}
-              </tbody>
-            </table>
+              </div>
+            )}
           </div>
         ) : (
           /* ACTION ITEMS TABLE (CLOSED VIEW / HISTORY) */

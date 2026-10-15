@@ -6,6 +6,40 @@ import { getCurrentReviewMeetingDate, getReviewWeekLabel } from "@/lib/action-he
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+export async function GET(req: Request) {
+  try {
+    const user = await getSessionUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const deptParam = searchParams.get("department_id");
+
+    let sql = `
+      SELECT w.*, d.name as department_name, d.code as department_code
+      FROM workstreams w
+      JOIN departments d ON w.department_id = d.id
+    `;
+    const params: any[] = [];
+
+    if (deptParam) {
+      const deptId = parseInt(deptParam, 10);
+      sql += ` WHERE (w.department_id = $1 
+               OR w.supporting_departments ILIKE '%' || (SELECT name FROM departments WHERE id = $1) || '%'
+               OR w.supporting_department_ids LIKE '%' || $1::text || '%')`;
+      params.push(deptId);
+    }
+
+    sql += " ORDER BY w.id ASC";
+
+    const res = await query(sql, params);
+    return NextResponse.json({ workstreams: res.rows });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const user = await getSessionUser();

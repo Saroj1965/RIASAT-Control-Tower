@@ -28,6 +28,7 @@ import {
   Database,
   Upload,
   Trash2,
+  Save,
 } from "lucide-react";
 import { ROLES, DEPARTMENTS } from "@/lib/constants";
 
@@ -96,10 +97,13 @@ function AdminPageContent() {
   const [newFieldForm, setNewFieldForm] = useState({
     department_id: "1",
     label: "",
+    field_key: "",
     field_type: "Short Text",
     required: false,
+    active: true,
     display_order: 10,
     help_text: "",
+    options: "",
   });
 
   const loadData = async () => {
@@ -400,10 +404,13 @@ function AdminPageContent() {
     setNewFieldForm({
       department_id: selectedDeptId,
       label: "",
+      field_key: "",
       field_type: "Short Text",
       required: false,
+      active: true,
       display_order: (formFields.length + 1) * 10,
       help_text: "",
+      options: "",
     });
     setShowAddFieldModal(true);
   };
@@ -434,6 +441,10 @@ function AdminPageContent() {
 
   // Open Edit / Modify Field Modal
   const openEditFieldModal = (f: any) => {
+    const optsStr = Array.isArray(f.options)
+      ? f.options.map((o: any) => o.option_value || o.value || o.label).join(", ")
+      : "";
+
     setEditingField({
       id: f.id,
       field_key: f.field_key,
@@ -444,6 +455,7 @@ function AdminPageContent() {
       active: Boolean(f.active),
       display_order: f.display_order,
       help_text: f.help_text || "",
+      options: optsStr,
     });
     setShowEditFieldModal(true);
   };
@@ -452,13 +464,17 @@ function AdminPageContent() {
     openEditFieldModal(f);
   };
 
-  // Delete Form Field
-  const handleDeleteField = async (f: any) => {
+  // Delete Form Field (with support for soft retirement vs permanent deletion)
+  const handleDeleteField = async (f: any, retireOnly = false) => {
     if (!f || !f.id) return;
     setIsDeletingField(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/forms/fields?id=${f.id}`, {
+      const url = retireOnly
+        ? `/api/admin/forms/fields?id=${f.id}&retire=true`
+        : `/api/admin/forms/fields?id=${f.id}&force=true`;
+
+      const res = await fetch(url, {
         method: "DELETE",
       });
       const data = await res.json();
@@ -466,7 +482,7 @@ function AdminPageContent() {
 
       setDeletingField(null);
       setShowEditFieldModal(false);
-      setSuccess(`Form field "${f.label}" deleted successfully!`);
+      setSuccess(data.message || `Form field "${f.label}" deleted successfully!`);
       setTimeout(() => setSuccess(null), 4000);
       loadFormFields(selectedDeptId);
     } catch (err: any) {
@@ -492,7 +508,7 @@ function AdminPageContent() {
       if (!res.ok) throw new Error(data.error || "Failed to update field");
 
       setShowEditFieldModal(false);
-      setSuccess(`Form field updated successfully!`);
+      setSuccess(`Form field "${editingField.label}" updated successfully!`);
       setTimeout(() => setSuccess(null), 4000);
       loadFormFields(selectedDeptId);
     } catch (err: any) {
@@ -1653,31 +1669,67 @@ function AdminPageContent() {
       {showAddFieldModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-base font-bold text-slate-900 mb-1">+ Add New Dynamic Form Field</h3>
-            <p className="text-xs text-slate-500 mb-5">
-              Add a new heading / input field for <strong className="text-indigo-600">{selectedDepartmentName}</strong> without modifying code
-            </p>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 tracking-tight">+ Add New Form Field</h3>
+                <p className="text-xs text-slate-500">
+                  Configure a new data field for <strong className="text-indigo-600">{selectedDepartmentName}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddFieldModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
             <form onSubmit={handleCreateField} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold text-slate-600 mb-1">Field Label / Heading</label>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Field Heading / Label <span className="text-rose-500">*</span>
+                </label>
                 <input
                   type="text"
                   value={newFieldForm.label}
-                  onChange={(e) => setNewFieldForm({ ...newFieldForm, label: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const autoKey = val.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+                    setNewFieldForm((prev) => ({
+                      ...prev,
+                      label: val,
+                      field_key: prev.field_key && prev.field_key !== prev.label.toLowerCase().replace(/[^a-z0-9]+/g, "_")
+                        ? prev.field_key
+                        : autoKey,
+                    }));
+                  }}
                   required
-                  placeholder="e.g. Cleanroom Facility Readiness or Key Partner"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
+                  placeholder="e.g. Cleanroom Readiness Score, Testing Lab, Vendor Name"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Internal Storage Key <span className="text-slate-400 font-normal">(Unique per department)</span>
+                </label>
+                <input
+                  type="text"
+                  value={newFieldForm.field_key}
+                  onChange={(e) => setNewFieldForm({ ...newFieldForm, field_key: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "") })}
+                  placeholder="e.g. cleanroom_readiness_score"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Field Type</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Field Type</label>
                   <select
                     value={newFieldForm.field_type}
                     onChange={(e) => setNewFieldForm({ ...newFieldForm, field_type: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 font-medium"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 font-medium focus:outline-none"
                   >
                     <option value="Short Text">Short Text</option>
                     <option value="Long Text">Long Text</option>
@@ -1692,53 +1744,85 @@ function AdminPageContent() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Display Order</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Display Order</label>
                   <input
                     type="number"
                     value={newFieldForm.display_order}
                     onChange={(e) => setNewFieldForm({ ...newFieldForm, display_order: parseInt(e.target.value || "10", 10) })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
               </div>
 
+              {/* If Dropdown, allow specifying options */}
+              {newFieldForm.field_type === "Dropdown" && (
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Dropdown Options <span className="text-slate-400 font-normal">(Separate with commas or new lines)</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={newFieldForm.options}
+                    onChange={(e) => setNewFieldForm({ ...newFieldForm, options: e.target.value })}
+                    placeholder="e.g. Planned, Sourced, In Review, Approved, Rejected"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+              )}
+
               <div>
-                <label className="block font-semibold text-slate-600 mb-1">Help Text / Description (Optional)</label>
+                <label className="block font-semibold text-slate-700 mb-1">Help Text / Guidance (Optional)</label>
                 <input
                   type="text"
                   value={newFieldForm.help_text}
                   onChange={(e) => setNewFieldForm({ ...newFieldForm, help_text: e.target.value })}
                   placeholder="e.g. Provide the current setup status and validation timeline"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                 />
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
-                <input
-                  type="checkbox"
-                  id="req_checkbox"
-                  checked={newFieldForm.required}
-                  onChange={(e) => setNewFieldForm({ ...newFieldForm, required: e.target.checked })}
-                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-                />
-                <label htmlFor="req_checkbox" className="font-semibold text-slate-700">
-                  Mandatory field (Department Head must fill before submit)
-                </label>
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="req_checkbox"
+                    checked={newFieldForm.required}
+                    onChange={(e) => setNewFieldForm({ ...newFieldForm, required: e.target.checked })}
+                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                  />
+                  <label htmlFor="req_checkbox" className="font-semibold text-slate-700">
+                    Mandatory Field
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="active_checkbox"
+                    checked={newFieldForm.active}
+                    onChange={(e) => setNewFieldForm({ ...newFieldForm, active: e.target.checked })}
+                    className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
+                  />
+                  <label htmlFor="active_checkbox" className="font-semibold text-slate-700">
+                    Active on Form
+                  </label>
+                </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowAddFieldModal(false)}
-                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition"
+                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition font-semibold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl shadow-xs transition"
+                  className="inline-flex items-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-xs transition"
                 >
-                  Create Field
+                  <Save className="w-4 h-4" />
+                  <span>Save Field</span>
                 </button>
               </div>
             </form>
@@ -1754,37 +1838,51 @@ function AdminPageContent() {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <div>
-                <h3 className="text-base font-bold text-slate-900 tracking-tight">Edit & Modify Field Configuration</h3>
+                <h3 className="text-base font-bold text-slate-900 tracking-tight">Edit Field Configuration</h3>
                 <p className="text-xs text-slate-500">
-                  Modify heading, field type, display order, help text, or delete this field if not needed.
+                  Update field heading, options, mandatory status, or order
                 </p>
               </div>
-              {editingField.field_key && (
-                <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-md font-mono text-[11px] border border-slate-200">
-                  Key: {editingField.field_key}
-                </span>
-              )}
+              <button
+                type="button"
+                onClick={() => setShowEditFieldModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
             <form onSubmit={handleSaveEditField} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold text-slate-600 mb-1">Field Label / Heading</label>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Field Label / Heading <span className="text-rose-500">*</span>
+                </label>
                 <input
                   type="text"
                   value={editingField.label}
                   onChange={(e) => setEditingField({ ...editingField, label: e.target.value })}
                   required
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Internal Key</label>
+                <input
+                  type="text"
+                  value={editingField.field_key || ""}
+                  onChange={(e) => setEditingField({ ...editingField, field_key: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "") })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Field Type</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Field Type</label>
                   <select
                     value={editingField.field_type}
                     onChange={(e) => setEditingField({ ...editingField, field_type: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 font-medium"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 font-medium focus:outline-none"
                   >
                     <option value="Short Text">Short Text</option>
                     <option value="Long Text">Long Text</option>
@@ -1799,23 +1897,39 @@ function AdminPageContent() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Display Order</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Display Order</label>
                   <input
                     type="number"
                     value={editingField.display_order}
                     onChange={(e) => setEditingField({ ...editingField, display_order: parseInt(e.target.value || "10", 10) })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
               </div>
 
+              {/* If Dropdown, allow editing options */}
+              {editingField.field_type === "Dropdown" && (
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Dropdown Options <span className="text-slate-400 font-normal">(Separate with commas or new lines)</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editingField.options || ""}
+                    onChange={(e) => setEditingField({ ...editingField, options: e.target.value })}
+                    placeholder="e.g. Planned, Sourced, In Review, Approved, Rejected"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+              )}
+
               <div>
-                <label className="block font-semibold text-slate-600 mb-1">Help Text / Description</label>
+                <label className="block font-semibold text-slate-700 mb-1">Help Text / Description</label>
                 <input
                   type="text"
-                  value={editingField.help_text}
+                  value={editingField.help_text || ""}
                   onChange={(e) => setEditingField({ ...editingField, help_text: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-600"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                 />
               </div>
 
@@ -1867,10 +1981,10 @@ function AdminPageContent() {
                   </button>
                   <button
                     type="submit"
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition text-xs"
+                    className="inline-flex items-center gap-1.5 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition text-xs"
                   >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Save & Modify Field</span>
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Save Changes</span>
                   </button>
                 </div>
               </div>
@@ -1890,19 +2004,19 @@ function AdminPageContent() {
                 <Trash2 className="w-5 h-5 text-rose-600" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-900">Delete Form Field</h3>
-                <p className="text-xs text-slate-500">Confirm deletion of field from web form</p>
+                <h3 className="text-base font-bold text-slate-900">Delete / Retire Form Field</h3>
+                <p className="text-xs text-slate-500">Department form configuration control</p>
               </div>
             </div>
 
             <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-slate-500 font-medium">Field Heading / Label:</span>
+                <span className="text-slate-500 font-medium">Field Heading:</span>
                 <strong className="text-slate-900 font-bold">{deletingField.label}</strong>
               </div>
               {deletingField.field_key && (
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-medium">Internal Storage Key:</span>
+                  <span className="text-slate-500 font-medium">Internal Key:</span>
                   <code className="text-indigo-600 font-mono font-bold">{deletingField.field_key}</code>
                 </div>
               )}
@@ -1912,11 +2026,22 @@ function AdminPageContent() {
               </div>
             </div>
 
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Are you sure you want to delete this field? If you do not feel this field is right, deleting it will remove it permanently from the Department Head data entry form.
-            </p>
+            {["readiness_score", "rag_status", "key_focus", "sl_no", "item_id", "status"].includes(deletingField.field_key) ? (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 space-y-1">
+                <p className="font-bold flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-amber-600" /> Protected Core System Field
+                </p>
+                <p>
+                  This field is essential to existing executive reports and historical records. It cannot be permanently deleted. You can deactivate it to hide it from new entries.
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-600 leading-relaxed">
+                If historical submissions depend on this field, choose <strong>Deactivate / Retire</strong> to preserve historical audit integrity while hiding it from future entries.
+              </p>
+            )}
 
-            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 type="button"
                 disabled={isDeletingField}
@@ -1925,19 +2050,32 @@ function AdminPageContent() {
               >
                 Cancel
               </button>
+
               <button
                 type="button"
                 disabled={isDeletingField}
-                onClick={() => handleDeleteField(deletingField)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
+                onClick={() => handleDeleteField(deletingField, true)}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold text-xs rounded-xl shadow-xs transition"
               >
-                {isDeletingField ? (
-                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Trash2 className="w-3.5 h-3.5" />
-                )}
-                <span>Yes, Delete Field</span>
+                <Power className="w-3.5 h-3.5 text-amber-600" />
+                <span>Deactivate / Retire (Safe)</span>
               </button>
+
+              {!["readiness_score", "rag_status", "key_focus", "sl_no", "item_id", "status"].includes(deletingField.field_key) && (
+                <button
+                  type="button"
+                  disabled={isDeletingField}
+                  onClick={() => handleDeleteField(deletingField, false)}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
+                >
+                  {isDeletingField ? (
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  )}
+                  <span>Permanently Delete</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
