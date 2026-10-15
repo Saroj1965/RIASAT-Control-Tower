@@ -7,12 +7,15 @@ import {
   AlertTriangle,
   Clock,
   ShieldAlert,
+  Shield,
   RefreshCw,
   Filter,
   Search,
   ChevronRight,
   ArrowRight,
   Zap,
+  Check,
+  Layers,
 } from "lucide-react";
 import DashboardGraphs from "@/components/DashboardGraphs";
 import {
@@ -208,24 +211,23 @@ export default function ExecutiveControlTowerClient({
         </div>
       )}
 
-      {/* PENDING ACTIONS TRIGGER BANNER */}
-      <div className="bg-gradient-to-r from-rose-50 via-amber-50 to-indigo-50 border-2 border-rose-300 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-start sm:items-center gap-3">
-          <div className="relative mt-1 sm:mt-0 shrink-0">
-            <span className="w-4 h-4 rounded-full bg-rose-500 block animate-ping absolute inset-0 opacity-75" />
-            <span className="w-4 h-4 rounded-full bg-rose-600 block relative shadow-xs" />
+      {/* EXECUTIVE REVIEW CYCLE STRIP */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 font-bold shrink-0">
+            <Zap className="w-5 h-5 text-indigo-600" />
           </div>
           <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-2.5 py-0.5 text-[10px] font-black tracking-wider uppercase rounded-md bg-rose-600 text-white shadow-xs">
-                ⚡ WEEKLY ACTION REGISTER
+            <div className="flex items-center gap-2.5">
+              <span className="text-sm font-bold text-slate-900 tracking-tight">
+                Weekly Executive Action Register & Oversight Tower
               </span>
-              <span className="text-sm font-extrabold text-slate-900">
-                {summary.open_actions ?? attentionList.filter((x) => x.status !== "Completed" && x.status !== "Closed").length} Pending Actions • {summary.carried_forward_actions ?? 0} Carried Forward • {summary.overdue_actions ?? 0} Overdue in Red
+              <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                {summary.current_review_week || "Week 42 (12 Oct 2026)"}
               </span>
             </div>
-            <p className="text-xs text-slate-600 mt-1">
-              Active Review Cycle: <strong className="text-slate-800">{summary.current_review_week || "Week 42 (12 Oct 2026)"}</strong> • Unfinished items carry forward automatically with red overdue alerts and zero database duplication.
+            <p className="text-xs text-slate-500 mt-0.5">
+              Tracking <strong className="text-slate-800 font-semibold">{summary.open_actions ?? 15} open deliverables</strong> across all 9 strategic verticals with continuous carry-forward and executive follow-up
             </p>
           </div>
         </div>
@@ -236,94 +238,96 @@ export default function ExecutiveControlTowerClient({
             const el = document.getElementById("management-attention-table");
             if (el) el.scrollIntoView({ behavior: "smooth" });
           }}
-          className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md transition inline-flex items-center gap-2 shrink-0 self-stretch sm:self-auto justify-center"
+          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-xs transition inline-flex items-center gap-2 justify-center self-stretch sm:self-auto"
         >
-          <Zap className="w-4 h-4" />
-          <span>Review Pending Actions ({summary.open_actions ?? attentionList.filter((x) => x.status !== "Completed" && x.status !== "Closed").length})</span>
-          <ArrowRight className="w-4 h-4" />
+          <span>View Pending Directives</span>
+          <ArrowRight className="w-3.5 h-3.5" />
         </button>
       </div>
 
-      {/* KPI CARDS (6 HIGH LEVEL WEEKLY ACTION REGISTER TILES) */}
+      {/* KPI CARDS: 6 CORE MANAGEMENT ACTION METRICS */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
         {/* Tile 1: Total Pending Actions */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition">
           <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            Total Pending Actions
+            Active Directives
           </div>
-          <div className="text-2xl font-black text-indigo-900 mt-1 flex items-baseline gap-1">
+          <div className="text-2xl font-black text-slate-900 mt-1 flex items-baseline gap-1">
             {summary.open_actions ?? 15}
           </div>
           <div className="mt-2 text-[10px] font-semibold text-indigo-600 flex items-center gap-1">
             <TrendingUp className="w-3 h-3" />
-            <span>Active Directives</span>
+            <span>Open & Tracked</span>
           </div>
         </div>
 
         {/* Tile 2: Carried Forward Actions */}
-        <div className="bg-white p-4 rounded-2xl border border-amber-200 bg-amber-50/20 shadow-xs">
+        <div className="bg-white p-4 rounded-2xl border border-amber-200/80 bg-amber-50/15 shadow-xs hover:border-amber-300 transition">
           <div className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
             Carried Forward
           </div>
-          <div className="text-2xl font-black text-amber-700 mt-1 flex items-baseline gap-1">
+          <div className="text-2xl font-black text-amber-800 mt-1 flex items-baseline gap-1">
             {summary.carried_forward_actions ?? 0}
           </div>
           <div className="mt-2 text-[10px] font-semibold text-amber-800 flex items-center gap-1">
-            <span>🔄 Prior Week Cycles</span>
+            <Clock className="w-3 h-3 text-amber-600" />
+            <span>Prior Review Cycles</span>
           </div>
         </div>
 
         {/* Tile 3: New Actions This Week */}
-        <div className="bg-white p-4 rounded-2xl border border-emerald-200 bg-emerald-50/20 shadow-xs">
+        <div className="bg-white p-4 rounded-2xl border border-emerald-200/80 bg-emerald-50/15 shadow-xs hover:border-emerald-300 transition">
           <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
             New This Week
           </div>
-          <div className="text-2xl font-black text-emerald-700 mt-1">
+          <div className="text-2xl font-black text-emerald-800 mt-1">
             {summary.new_actions_this_week ?? 15}
           </div>
           <div className="mt-2 text-[10px] text-emerald-800 font-semibold flex items-center gap-1">
-            <span>⚡ Current Review Cycle</span>
+            <Check className="w-3 h-3 text-emerald-600" />
+            <span>Current Review</span>
           </div>
         </div>
 
         {/* Tile 4: Overdue Actions in RED */}
-        <div className="bg-white p-4 rounded-2xl border border-rose-300 bg-rose-50/30 shadow-xs">
+        <div className="bg-white p-4 rounded-2xl border border-rose-200 bg-rose-50/20 shadow-xs hover:border-rose-300 transition">
           <div className="text-[10px] font-bold uppercase tracking-wider text-rose-800">
-            Overdue in Red
+            Overdue (Red Alert)
           </div>
           <div className="text-2xl font-black text-rose-600 mt-1">
             {summary.overdue_actions ?? 0}
           </div>
           <div className="mt-2 text-[10px] text-rose-700 font-semibold flex items-center gap-1">
             <Clock className="w-3 h-3 text-rose-600" />
-            <span>🚨 Automatic Alerts</span>
+            <span>Requires Follow-up</span>
           </div>
         </div>
 
         {/* Tile 5: Blocked Actions */}
-        <div className="bg-white p-4 rounded-2xl border border-rose-200 shadow-xs">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition">
           <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            Blocked Actions
+            Blocked Items
           </div>
-          <div className="text-2xl font-black text-rose-800 mt-1">
+          <div className="text-2xl font-black text-slate-800 mt-1">
             {summary.blocked_actions ?? 0}
           </div>
-          <div className="mt-2 text-[10px] text-rose-700 font-semibold flex items-center gap-1">
-            <span>⛔ Needs Escalation</span>
+          <div className="mt-2 text-[10px] text-slate-500 font-semibold flex items-center gap-1">
+            <Shield className="w-3 h-3 text-slate-400" />
+            <span>Pending Resolution</span>
           </div>
         </div>
 
         {/* Tile 6: VC Decisions Required */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            VC Decisions Required
+        <div className="bg-white p-4 rounded-2xl border border-indigo-200/80 bg-indigo-50/15 shadow-xs hover:border-indigo-300 transition">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-900">
+            VC Decisions Needed
           </div>
-          <div className="text-2xl font-black text-rose-600 mt-1">
-            {summary.pending_decisions ?? 4}
+          <div className="text-2xl font-black text-indigo-900 mt-1">
+            {summary.pending_decisions ?? 8}
           </div>
-          <div className="mt-2 text-[10px] text-rose-700 font-semibold flex items-center gap-1">
-            <AlertTriangle className="w-3 h-3 text-rose-600" />
-            <span>🏛️ VC Intervention</span>
+          <div className="mt-2 text-[10px] text-indigo-700 font-semibold flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3 text-indigo-600" />
+            <span>Leadership Focus</span>
           </div>
         </div>
       </div>
@@ -546,33 +550,33 @@ export default function ExecutiveControlTowerClient({
 
       {/* 4. VICE CHAIRMAN / MANAGEMENT ATTENTION (WITH FILTER BUTTONS) */}
       <div id="management-attention-table" className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-6 border-b border-slate-200 bg-slate-50/60 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="p-6 border-b border-slate-200 bg-slate-50/70 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <ShieldAlert className="w-5 h-5 text-rose-600" />
-              <h2 className="text-base font-bold text-slate-900 tracking-tight uppercase">
-                WEEKLY ACTION REGISTER & MANAGEMENT ATTENTION
+              <Layers className="w-5 h-5 text-indigo-600" />
+              <h2 className="text-base font-bold text-slate-900 tracking-tight">
+                Executive Action Register & Directives
               </h2>
-              <span className="px-2.5 py-0.5 bg-rose-100 text-rose-800 text-[10px] font-black rounded-full border border-rose-300">
-                {attentionList.filter((x) => x.status !== "Completed" && x.status !== "Closed").length} Pending Actions
+              <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-800 text-[11px] font-bold rounded-full border border-indigo-200">
+                {attentionList.filter((x) => x.status !== "Completed" && x.status !== "Closed").length} Active Items
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Multi-week oversight with <strong>Action item</strong>, <strong>Review Cycle</strong>, <strong>Owner / support</strong>, <strong>Timeline</strong>, and <strong>Status</strong>
+              Weekly deliverables, owners, target timelines, and leadership interventions across all verticals
             </p>
           </div>
 
           {/* Filter Controls for Attention Table */}
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
             {/* Search Input */}
-            <div className="relative flex-1 md:w-44">
+            <div className="relative flex-1 md:w-48">
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search action item, owner..."
+                placeholder="Search action, owner..."
                 value={attentionSearch}
                 onChange={(e) => setAttentionSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
               />
             </div>
 
@@ -580,9 +584,9 @@ export default function ExecutiveControlTowerClient({
             <select
               value={attentionDeptFilter}
               onChange={(e) => setAttentionDeptFilter(e.target.value)}
-              className="px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-white font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+              className="px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-600"
             >
-              <option value="ALL">All Departments</option>
+              <option value="ALL">All Verticals</option>
               {departments.map((d) => (
                 <option key={d.name} value={d.name}>
                   {d.name}
@@ -591,65 +595,65 @@ export default function ExecutiveControlTowerClient({
             </select>
 
             {/* Weekly Register Filter Buttons */}
-            <div className="flex flex-wrap items-center bg-slate-200/80 p-1 rounded-xl text-xs font-semibold gap-1">
+            <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold gap-1">
               <button
                 onClick={() => setAttentionStatusFilter("PENDING")}
                 className={`px-2.5 py-1 rounded-lg transition ${
-                  attentionStatusFilter === "PENDING" ? "bg-rose-600 text-white shadow-xs font-bold" : "text-slate-600 hover:text-rose-700"
+                  attentionStatusFilter === "PENDING" ? "bg-indigo-600 text-white shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                ⚡ Pending ({attentionList.filter((x) => x.status !== "Completed" && x.status !== "Closed").length})
+                Active ({attentionList.filter((x) => x.status !== "Completed" && x.status !== "Closed").length})
               </button>
 
               <button
                 onClick={() => setAttentionStatusFilter("CARRIED")}
                 className={`px-2.5 py-1 rounded-lg transition ${
-                  attentionStatusFilter === "CARRIED" ? "bg-amber-600 text-white shadow-xs font-bold" : "text-slate-600 hover:text-amber-700"
+                  attentionStatusFilter === "CARRIED" ? "bg-amber-600 text-white shadow-xs font-bold" : "text-slate-600 hover:text-amber-800"
                 }`}
               >
-                🔄 Carried ({attentionList.filter((x) => (x.status !== "Completed" && x.status !== "Closed") && (x.is_carried_forward || (x.weeks_outstanding && x.weeks_outstanding > 0))).length})
+                Carried ({attentionList.filter((x) => (x.status !== "Completed" && x.status !== "Closed") && (x.is_carried_forward || (x.weeks_outstanding && x.weeks_outstanding > 0))).length})
               </button>
 
               <button
                 onClick={() => setAttentionStatusFilter("NEW")}
                 className={`px-2.5 py-1 rounded-lg transition ${
-                  attentionStatusFilter === "NEW" ? "bg-emerald-600 text-white shadow-xs font-bold" : "text-slate-600 hover:text-emerald-700"
+                  attentionStatusFilter === "NEW" ? "bg-emerald-600 text-white shadow-xs font-bold" : "text-slate-600 hover:text-emerald-800"
                 }`}
               >
-                ⚡ New ({attentionList.filter((x) => (x.status !== "Completed" && x.status !== "Closed") && (x.is_new_this_week || (!x.weeks_outstanding && !x.is_carried_forward))).length})
+                New ({attentionList.filter((x) => (x.status !== "Completed" && x.status !== "Closed") && (x.is_new_this_week || (!x.weeks_outstanding && !x.is_carried_forward))).length})
               </button>
 
               <button
                 onClick={() => setAttentionStatusFilter("OVERDUE")}
                 className={`px-2.5 py-1 rounded-lg transition ${
-                  attentionStatusFilter === "OVERDUE" ? "bg-rose-700 text-white shadow-xs font-bold animate-pulse" : "text-slate-600 hover:text-rose-700"
+                  attentionStatusFilter === "OVERDUE" ? "bg-rose-600 text-white shadow-xs font-bold" : "text-slate-600 hover:text-rose-700"
                 }`}
               >
-                🚨 Overdue Red ({attentionList.filter((x) => (x.status !== "Completed" && x.status !== "Closed") && (x.is_overdue || x.effective_rag === "RED" || x.status === "Delayed")).length})
+                Overdue ({attentionList.filter((x) => (x.status !== "Completed" && x.status !== "Closed") && (x.is_overdue || x.effective_rag === "RED" || x.status === "Delayed")).length})
               </button>
 
               <button
                 onClick={() => setAttentionStatusFilter("BLOCKED")}
                 className={`px-2.5 py-1 rounded-lg transition ${
-                  attentionStatusFilter === "BLOCKED" ? "bg-rose-800 text-white shadow-xs font-bold" : "text-slate-600 hover:text-rose-800"
+                  attentionStatusFilter === "BLOCKED" ? "bg-slate-800 text-white shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                ⛔ Blocked ({attentionList.filter((x) => (x.status !== "Completed" && x.status !== "Closed") && (x.status === "Blocked" || x.is_blocked)).length})
+                Blocked ({attentionList.filter((x) => (x.status !== "Completed" && x.status !== "Closed") && (x.status === "Blocked" || x.is_blocked)).length})
               </button>
 
               <button
                 onClick={() => setAttentionStatusFilter("VC_DECISION")}
                 className={`px-2.5 py-1 rounded-lg transition ${
-                  attentionStatusFilter === "VC_DECISION" ? "bg-indigo-700 text-white shadow-xs font-bold" : "text-slate-600 hover:text-indigo-700"
+                  attentionStatusFilter === "VC_DECISION" ? "bg-purple-700 text-white shadow-xs font-bold" : "text-slate-600 hover:text-purple-700"
                 }`}
               >
-                🏛️ VC ({attentionList.filter((x) => (x.status !== "Completed" && x.status !== "Closed") && x.vc_decision_required === "Yes").length})
+                VC Decisions ({attentionList.filter((x) => (x.status !== "Completed" && x.status !== "Closed") && x.vc_decision_required === "Yes").length})
               </button>
 
               <button
                 onClick={() => setAttentionStatusFilter("ALL")}
                 className={`px-2.5 py-1 rounded-lg transition ${
-                  attentionStatusFilter === "ALL" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-600"
+                  attentionStatusFilter === "ALL" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 All

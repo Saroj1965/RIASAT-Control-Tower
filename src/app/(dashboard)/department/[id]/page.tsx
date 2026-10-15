@@ -28,6 +28,7 @@ import {
   ChevronDown,
   History,
   RotateCcw,
+  X,
 } from "lucide-react";
 import { WORKSTREAM_STATUSES, RAG_STATUSES, RECRUITMENT_PRIORITIES, RECRUITMENT_STATUSES } from "@/lib/constants";
 import { getCurrentReviewMeetingDate, getReviewWeekLabel } from "@/lib/action-helpers";
@@ -81,9 +82,8 @@ export default function DepartmentPage() {
   const [wsPageSize, setWsPageSize] = useState<number | "ALL">(25);
   const [wsCurrentPage, setWsCurrentPage] = useState<number>(1);
 
-  // Modal & inline state for Action Tracker
+  // Modal state for Action Tracker
   const [showWsModal, setShowWsModal] = useState(false);
-  const [showInlineWsForm, setShowInlineWsForm] = useState(true);
   const [editingWs, setEditingWs] = useState<any>(null);
   const [wsForm, setWsForm] = useState({
     item_id: "",
@@ -223,39 +223,7 @@ export default function DepartmentPage() {
     }
   };
 
-  // Open modal or form for new Action Point
-  const openNewWsModal = () => {
-    setEditingWs(null);
-    const initialDate = deptData?.currentReviewMeetingDate || getCurrentReviewMeetingDate();
-    const initialWeek = deptData?.currentReviewWeek || getReviewWeekLabel(initialDate);
-    setWsForm({
-      item_id: deptData?.nextItemId || "",
-      department_id: deptId,
-      category: "Operational Initiative",
-      action_point: "",
-      ownership: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
-      timeline: "Urgent; close after clarification",
-      priority: "Medium",
-      status: "OPEN",
-      rag_status: "AMBER",
-      remarks: "",
-      vc_decision_required: "No",
-      decision_action: "",
-      supporting_departments: "",
-      supporting_department_ids: "",
-      next_followup_date: "",
-      closure_remarks: "",
-      review_meeting_date: initialDate,
-      review_week: initialWeek,
-    });
-    setShowInlineWsForm(true);
-    setTimeout(() => {
-      const el = document.getElementById("action-entry-form");
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 50);
-  };
-
-  // Open inline form for editing Action Point
+  // Open modal for editing Action Point
   const openEditWsModal = (ws: any) => {
     setEditingWs(ws);
     const rDate = ws.review_meeting_date ? ws.review_meeting_date.substring(0, 10) : (deptData?.currentReviewMeetingDate || "2026-10-12");
@@ -280,14 +248,10 @@ export default function DepartmentPage() {
       review_meeting_date: rDate,
       review_week: rWeek,
     });
-    setShowInlineWsForm(true);
-    setTimeout(() => {
-      const el = document.getElementById("action-entry-form");
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 50);
+    setShowWsModal(true);
   };
 
-  // Cancel Edit Action
+  // Cancel Edit Action and reset form
   const cancelEditWs = () => {
     setEditingWs(null);
     const initialDate = deptData?.currentReviewMeetingDate || getCurrentReviewMeetingDate();
@@ -313,6 +277,14 @@ export default function DepartmentPage() {
       review_week: initialWeek,
     });
   };
+
+  // Open modal for creating a new Action Point
+  const openNewWsModal = () => {
+    cancelEditWs();
+    setShowWsModal(true);
+  };
+
+
 
   // Toggle Supporting Department in wsForm
   const toggleSupportingDept = (deptName: string) => {
@@ -775,15 +747,8 @@ export default function DepartmentPage() {
         {canEdit && (
           <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                cancelEditWs();
-                setShowInlineWsForm(true);
-                setTimeout(() => {
-                  const el = document.getElementById("action-entry-form");
-                  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-                }, 50);
-              }}
-              className="inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
+              onClick={openNewWsModal}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
             >
               <Plus className="w-4 h-4" />
               <span>+ Add Action Item</span>
@@ -874,16 +839,15 @@ export default function DepartmentPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-slate-900 tracking-tight uppercase">
-                SECTOR OVERVIEW
+              <h2 className="text-base font-bold text-slate-900 tracking-tight">
+                Sector Performance & Strategic Indicators
               </h2>
               <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded border border-indigo-200">
-                DYNAMIC FORM
+                Department Overview
               </span>
             </div>
-            <p className="text-xs text-slate-500">
-              Form headings and fields are dynamically configured by System Administrator.
-              Changes update PostgreSQL and reflect immediately on the Executive Dashboard.
+            <p className="text-xs text-slate-500 mt-0.5">
+              Readiness score, governance status, and operational targets configured for {dept.name}
             </p>
           </div>
 
@@ -899,7 +863,7 @@ export default function DepartmentPage() {
                   type="button"
                   disabled={savingForm}
                   onClick={() => handleSaveDynamicForm("DRAFT")}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl shadow-xs transition"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl shadow-xs transition"
                 >
                   <Save className="w-3.5 h-3.5 text-slate-500" />
                   <span>Save Draft</span>
@@ -908,14 +872,14 @@ export default function DepartmentPage() {
                   type="button"
                   disabled={savingForm}
                   onClick={() => handleSaveDynamicForm("SUBMITTED")}
-                  className="inline-flex items-center gap-2 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-xs transition"
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-xs transition"
                 >
                   {savingForm ? (
                     <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   ) : (
                     <Save className="w-3.5 h-3.5" />
                   )}
-                  <span>SAVE UPDATE</span>
+                  <span>Save Updates</span>
                 </button>
               </div>
             )}
@@ -1238,15 +1202,8 @@ export default function DepartmentPage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowInlineWsForm(!showInlineWsForm)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl shadow-xs transition"
-                >
-                  <span>{showInlineWsForm ? "Hide Action Form" : "Show Action Form"}</span>
-                </button>
-                <button
-                  type="button"
                   onClick={openNewWsModal}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition shadow-xs"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition shadow-sm hover:shadow"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>+ Add Action Item</span>
@@ -1255,423 +1212,6 @@ export default function DepartmentPage() {
             )}
           </div>
         </div>
-
-        {/* INLINE ACTION DATA ENTRY FORM */}
-        {canEdit && showInlineWsForm && (
-          <div id="action-entry-form" className="mx-6 p-5 bg-gradient-to-r from-slate-50 via-indigo-50/25 to-slate-50 rounded-2xl border border-indigo-200 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-indigo-100/90 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 bg-indigo-600 text-white rounded-lg">
-                  <FileText className="w-4 h-4" />
-                </span>
-                <div>
-                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">
-                    {editingWs ? `EDIT ACTION ITEM [${wsForm.item_id || editingWs.item_id}]` : "ADD NEW ACTION ITEM"}
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    {editingWs ? "Modify action parameters, status, remarks or assignees" : `Create a new tracked directive for ${dept.name}`}
-                  </p>
-                </div>
-                {editingWs && (
-                  <span className="text-[10px] font-black px-2 py-0.5 bg-amber-100 text-amber-800 rounded-md border border-amber-300">
-                    ✏️ Editing Mode
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold px-2.5 py-1 bg-indigo-100 text-indigo-800 rounded-lg">
-                  Primary Domain: {dept.name}
-                </span>
-                {editingWs && (
-                  <button
-                    type="button"
-                    onClick={cancelEditWs}
-                    className="px-2.5 py-1 text-slate-600 hover:text-slate-900 bg-white border border-slate-300 rounded-lg text-xs font-bold transition"
-                  >
-                    Cancel Edit
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <form onSubmit={handleSaveWorkstream} className="space-y-4 text-xs">
-              {/* Row 0: Weekly Action Register Review Cycle */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3.5 p-3.5 bg-indigo-50/70 rounded-xl border border-indigo-200/80">
-                <div className="md:col-span-4">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-indigo-950 mb-1 flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-indigo-700" />
-                    <span>Review Meeting Date</span>
-                    <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={wsForm.review_meeting_date}
-                    onChange={(e) => {
-                      const newDate = e.target.value;
-                      setWsForm({
-                        ...wsForm,
-                        review_meeting_date: newDate,
-                        review_week: getReviewWeekLabel(newDate),
-                      });
-                    }}
-                    required
-                    className="w-full px-3 py-1.5 bg-white rounded-xl border border-indigo-300 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-                <div className="md:col-span-5">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-indigo-950 mb-1">
-                    Week / Review Cycle
-                  </label>
-                  <input
-                    type="text"
-                    value={wsForm.review_week}
-                    onChange={(e) => setWsForm({ ...wsForm, review_week: e.target.value })}
-                    placeholder="e.g. Week 42 (12 Oct 2026)"
-                    className="w-full px-3 py-1.5 bg-white rounded-xl border border-indigo-300 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-                <div className="md:col-span-3 flex items-end pb-1 text-[11px] text-indigo-800 font-medium">
-                  <span>🔄 Outstanding items carry forward automatically</span>
-                </div>
-              </div>
-
-              {/* Row 1: Action ID, Primary Department, Priority, Initiative/Category */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3.5">
-                <div className="md:col-span-2">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Action ID <span className="text-slate-400 font-normal">(Auto/Ref)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={wsForm.item_id}
-                    onChange={(e) => setWsForm({ ...wsForm, item_id: e.target.value })}
-                    placeholder={deptData?.nextItemId || "ACT-XX"}
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-mono font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-
-                <div className="md:col-span-3">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Primary Department / Vertical <span className="text-rose-500">*</span>
-                  </label>
-                  <select
-                    value={wsForm.department_id || dept.id}
-                    onChange={(e) => setWsForm({ ...wsForm, department_id: e.target.value })}
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  >
-                    {(deptData?.allDepartments || []).map((d: any) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="md:col-span-3">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Priority <span className="text-rose-500">*</span>
-                  </label>
-                  <select
-                    value={wsForm.priority || "Medium"}
-                    onChange={(e) => setWsForm({ ...wsForm, priority: e.target.value })}
-                    className={`w-full px-3 py-2 bg-white rounded-xl border font-bold focus:ring-2 focus:ring-indigo-600 focus:outline-none ${
-                      wsForm.priority === "Critical"
-                        ? "border-rose-300 text-rose-700 bg-rose-50/50"
-                        : wsForm.priority === "High"
-                        ? "border-amber-300 text-amber-700 bg-amber-50/50"
-                        : "border-slate-300 text-slate-800"
-                    }`}
-                  >
-                    <option value="Critical">🔴 Critical</option>
-                    <option value="High">🟠 High</option>
-                    <option value="Medium">🔵 Medium</option>
-                    <option value="Low">⚪ Low</option>
-                  </select>
-                </div>
-
-                <div className="md:col-span-4">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Initiative / Category <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={wsForm.category}
-                    onChange={(e) => setWsForm({ ...wsForm, category: e.target.value })}
-                    required
-                    placeholder="e.g. Talent Acquisition / Space Lab / Metrology"
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Row 2: Action Item / Directive / Milestone (detailed description) */}
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                  Action Item / Directive / Milestone <span className="text-rose-500">*</span>
-                </label>
-                <textarea
-                  rows={2}
-                  value={wsForm.action_point}
-                  onChange={(e) => setWsForm({ ...wsForm, action_point: e.target.value })}
-                  required
-                  placeholder="Detailed description of the action item, target deliverable, or executive decision required..."
-                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none leading-relaxed"
-                />
-              </div>
-
-              {/* Row 3: Owner / Support, Timeline, Next Follow-up, Status, RAG */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3.5">
-                <div className="md:col-span-3">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Owner / Support <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={wsForm.ownership}
-                    onChange={(e) => setWsForm({ ...wsForm, ownership: e.target.value })}
-                    required
-                    placeholder="e.g. Anamika / Venky / RUAS HR"
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-
-                <div className="md:col-span-3">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Timeline / Target Date <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={wsForm.timeline}
-                    onChange={(e) => setWsForm({ ...wsForm, timeline: e.target.value })}
-                    required
-                    placeholder="e.g. Urgent / By December 2026 / 2026-11-15"
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Next Follow-up Date
-                  </label>
-                  <input
-                    type="date"
-                    value={wsForm.next_followup_date}
-                    onChange={(e) => setWsForm({ ...wsForm, next_followup_date: e.target.value })}
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none font-medium"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Status <span className="text-rose-500">*</span>
-                  </label>
-                  <select
-                    value={wsForm.status}
-                    onChange={(e) => setWsForm({ ...wsForm, status: e.target.value })}
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  >
-                    <option value="OPEN">OPEN</option>
-                    <option value="IN PROGRESS">IN PROGRESS</option>
-                    <option value="BLOCKED">BLOCKED</option>
-                    <option value="DELAYED">DELAYED</option>
-                    <option value="ON HOLD">ON HOLD</option>
-                    <option value="CLOSED">CLOSED</option>
-                  </select>
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    RAG Status <span className="text-rose-500">*</span>
-                  </label>
-                  <select
-                    value={wsForm.rag_status}
-                    onChange={(e) => setWsForm({ ...wsForm, rag_status: e.target.value })}
-                    className={`w-full px-3 py-2 bg-white rounded-xl border font-bold focus:ring-2 focus:ring-indigo-600 focus:outline-none ${
-                      wsForm.rag_status === "GREEN"
-                        ? "text-emerald-700 border-emerald-300 bg-emerald-50/40"
-                        : wsForm.rag_status === "RED"
-                        ? "text-rose-700 border-rose-300 bg-rose-50/40"
-                        : "text-amber-700 border-amber-300 bg-amber-50/40"
-                    }`}
-                  >
-                    <option value="GREEN">🟢 GREEN</option>
-                    <option value="AMBER">🟡 AMBER</option>
-                    <option value="RED">🔴 RED</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Row 4: Supporting Departments (Quick selection pills + text) */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">
-                    Supporting Department(s) <span className="text-slate-400 font-normal">(Click to toggle or type)</span>
-                  </label>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5 mb-2">
-                  {(deptData?.allDepartments || []).map((d: any) => {
-                    const isSelected = (wsForm.supporting_departments || "")
-                      .toLowerCase()
-                      .includes(d.name.toLowerCase());
-                    return (
-                      <button
-                        key={d.id}
-                        type="button"
-                        onClick={() => toggleSupportingDept(d.name)}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition border ${
-                          isSelected
-                            ? "bg-indigo-600 text-white border-indigo-700 shadow-xs"
-                            : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
-                        }`}
-                      >
-                        {isSelected ? `✓ ${d.name}` : `+ ${d.name}`}
-                      </button>
-                    );
-                  })}
-                </div>
-                <input
-                  type="text"
-                  value={wsForm.supporting_departments}
-                  onChange={(e) => setWsForm({ ...wsForm, supporting_departments: e.target.value })}
-                  placeholder="e.g. Semicon, Space, Aerospace & Defence"
-                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none font-medium"
-                />
-              </div>
-
-              {/* Row 5: VC Decision Required & Action Required */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
-                <div className="md:col-span-3">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    VC Decision Required
-                  </label>
-                  <select
-                    value={wsForm.vc_decision_required}
-                    onChange={(e) => setWsForm({ ...wsForm, vc_decision_required: e.target.value })}
-                    className={`w-full px-3 py-2 bg-white rounded-xl border font-bold focus:ring-2 focus:ring-indigo-600 focus:outline-none ${
-                      wsForm.vc_decision_required === "Yes"
-                        ? "border-rose-400 text-rose-700 bg-rose-50"
-                        : "border-slate-300 text-slate-800"
-                    }`}
-                  >
-                    <option value="No">No</option>
-                    <option value="Yes">Yes — Requires VC Intervention</option>
-                  </select>
-                </div>
-
-                <div className="md:col-span-9">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Decision / Action Required from VC (if applicable)
-                  </label>
-                  <input
-                    type="text"
-                    value={wsForm.decision_action}
-                    onChange={(e) => setWsForm({ ...wsForm, decision_action: e.target.value })}
-                    placeholder="Specific decision, approval, budget sign-off or intervention requested from Vice Chairman..."
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Row 6: Latest Update / Remarks / Blockers */}
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                  Latest Update / Remarks / Key Progress / Blockers
-                </label>
-                <textarea
-                  rows={2}
-                  value={wsForm.remarks}
-                  onChange={(e) => setWsForm({ ...wsForm, remarks: e.target.value })}
-                  placeholder="Progress updates, latest meeting notes, dependencies, risks or blockers..."
-                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none leading-relaxed"
-                />
-              </div>
-
-              {/* Row 7: Conditional Closure Fields (when Status is CLOSED) */}
-              {wsForm.status === "CLOSED" && (
-                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 grid grid-cols-1 md:grid-cols-12 gap-3">
-                  <div className="md:col-span-12">
-                    <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Formal Action Closure Details
-                    </span>
-                  </div>
-                  <div className="md:col-span-12">
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-emerald-900 mb-1">
-                      Closure Remarks / Evidence of Completion <span className="text-rose-500">*</span>
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={wsForm.closure_remarks}
-                      onChange={(e) => setWsForm({ ...wsForm, closure_remarks: e.target.value })}
-                      placeholder="Explain how this action was formally resolved, deliverables achieved, or sign-offs obtained..."
-                      required={wsForm.status === "CLOSED"}
-                      className="w-full px-3 py-2 bg-white rounded-xl border border-emerald-300 text-emerald-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Submit Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-2 border-t border-indigo-100">
-                {editingWs ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={cancelEditWs}
-                      className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-xl hover:bg-white border border-slate-300 transition"
-                    >
-                      Cancel Edit
-                    </button>
-                    <button
-                      type="submit"
-                      className="inline-flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition"
-                    >
-                      <Save className="w-4 h-4" />
-                      <span>💾 Update Action Item</span>
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setWsForm({
-                          item_id: deptData?.nextItemId || "",
-                          department_id: deptId,
-                          category: "Operational Initiative",
-                          action_point: "",
-                          ownership: deptData?.department?.name ? `${deptData.department.name} Head` : "Lead Owner",
-                          timeline: "Urgent",
-                          priority: "Medium",
-                          status: "OPEN",
-                          rag_status: "AMBER",
-                          remarks: "",
-                          vc_decision_required: "No",
-                          decision_action: "",
-                          supporting_departments: "",
-                          supporting_department_ids: "",
-                          next_followup_date: "",
-                          closure_remarks: "",
-                          review_meeting_date: deptData?.currentReviewMeetingDate || getCurrentReviewMeetingDate(),
-                          review_week: deptData?.currentReviewWeek || getReviewWeekLabel(deptData?.currentReviewMeetingDate || getCurrentReviewMeetingDate()),
-                        });
-                      }}
-                      className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-semibold rounded-xl hover:bg-white border border-transparent hover:border-slate-300 transition"
-                    >
-                      Clear Form
-                    </button>
-                    <button
-                      type="submit"
-                      className="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>+ Save Action Item</span>
-                    </button>
-                  </>
-                )}
-              </div>
-            </form>
-          </div>
-        )}
 
         {/* ACTION ITEMS FILTER CONTROLS */}
         <div className="px-6 space-y-3">
@@ -2878,26 +2418,36 @@ export default function DepartmentPage() {
       {/* ========================================================================= */}
       {showWsModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-2xl w-full p-6 max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">
-                  {editingWs ? `Update Action Item [${editingWs.item_id || editingWs.id}]` : "+ Create New Action Item"}
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Standardised Action Tracker • Primary Vertical: <strong>{dept.name}</strong>
-                </p>
-              </div>
-              {editingWs && (
-                <span className="px-2 py-1 rounded bg-indigo-50 text-indigo-700 font-mono text-xs font-bold">
-                  {editingWs.item_id || `ID #${editingWs.id}`}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-3xl w-full p-6 max-h-[92vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-4 border-b border-slate-100 mb-5">
+              <div className="flex items-center gap-3">
+                <span className="p-2 bg-indigo-50 text-indigo-700 rounded-xl border border-indigo-100">
+                  <FileText className="w-5 h-5" />
                 </span>
-              )}
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    {editingWs ? `Update Action Item • ${editingWs.item_id || `ID #${editingWs.id}`}` : "Add New Action Item"}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Weekly Management Review Action Register • Vertical: <strong className="text-indigo-900">{dept.name}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowWsModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition"
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
             <form onSubmit={handleSaveWorkstream} className="space-y-4 text-xs">
+              {/* Deliverable / Action Item */}
               <div>
-                <label className="block font-bold text-slate-700 mb-1">
+                <label className="block font-bold text-slate-800 mb-1.5">
                   Deliverable / Action Item <span className="text-rose-500">*</span>
                 </label>
                 <textarea
@@ -2905,104 +2455,184 @@ export default function DepartmentPage() {
                   value={wsForm.action_point}
                   onChange={(e) => setWsForm({ ...wsForm, action_point: e.target.value })}
                   required
-                  placeholder="Exact deliverable or action required..."
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  placeholder="Specific deliverable, directive, or milestone committed during review..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none leading-relaxed"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Review Meeting Date & Review Cycle */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Initiative / Category <span className="text-rose-500">*</span>
+                  <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Review Meeting Date</span>
+                    <span className="text-rose-500">*</span>
                   </label>
                   <input
-                    type="text"
-                    value={wsForm.category}
-                    onChange={(e) => setWsForm({ ...wsForm, category: e.target.value })}
+                    type="date"
+                    value={wsForm.review_meeting_date}
+                    onChange={(e) => {
+                      const newDate = e.target.value;
+                      setWsForm({
+                        ...wsForm,
+                        review_meeting_date: newDate,
+                        review_week: getReviewWeekLabel(newDate),
+                      });
+                    }}
                     required
-                    placeholder="e.g. Talent Acquisition / Space Lab"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
 
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
-                    Owner / Support <span className="text-rose-500">*</span>
+                    Week / Review Cycle
+                  </label>
+                  <input
+                    type="text"
+                    value={wsForm.review_week}
+                    onChange={(e) => setWsForm({ ...wsForm, review_week: e.target.value })}
+                    placeholder="e.g. Week 42 (12 Oct 2026)"
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Action Owner & Target Timeline */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-800 mb-1">
+                    Action Owner / Lead <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={wsForm.ownership}
                     onChange={(e) => setWsForm({ ...wsForm, ownership: e.target.value })}
                     required
-                    placeholder="e.g. Anamika to coordinate / Venky"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                    placeholder="e.g. Dr. Durga Prakash / RUAS Facilities"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Supporting Departments
-                  </label>
-                  <input
-                    type="text"
-                    value={wsForm.supporting_departments}
-                    onChange={(e) => setWsForm({ ...wsForm, supporting_departments: e.target.value })}
-                    placeholder="e.g. Semicon, Space, HR & Recruitment"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                  <span className="text-[10px] text-slate-400">Links this action to other vertical pages automatically</span>
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Timeline <span className="text-rose-500">*</span>
+                  <label className="block font-bold text-slate-800 mb-1">
+                    Completion Date / Timeline <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={wsForm.timeline}
                     onChange={(e) => setWsForm({ ...wsForm, timeline: e.target.value })}
                     required
-                    placeholder="e.g. Urgent; close after clarification / 2026-10-31"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                    placeholder="e.g. 2026-11-15 or Urgent; close after clarification"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
               </div>
 
+              {/* Supporting Verticals */}
+              <div>
+                <label className="block font-bold text-slate-800 mb-1.5 flex items-center justify-between">
+                  <span>Support Required From (Other Verticals)</span>
+                  <span className="text-[11px] text-slate-400 font-normal">Click vertical pills to add/remove</span>
+                </label>
+                <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                  {(deptData?.allDepartments || []).map((d: any) => {
+                    const isSelected = (wsForm.supporting_departments || "")
+                      .toLowerCase()
+                      .includes(d.name.toLowerCase());
+                    return (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => toggleSupportingDept(d.name)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition border ${
+                          isSelected
+                            ? "bg-indigo-600 text-white border-indigo-700 shadow-xs"
+                            : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        {isSelected ? `✓ ${d.name}` : `+ ${d.name}`}
+                      </button>
+                    );
+                  })}
+                </div>
+                <input
+                  type="text"
+                  value={wsForm.supporting_departments}
+                  onChange={(e) => setWsForm({ ...wsForm, supporting_departments: e.target.value })}
+                  placeholder="Supporting strategic verticals..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none font-medium"
+                />
+              </div>
+
+              {/* Priority, Status & RAG Status */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Status</label>
+                  <label className="block font-bold text-slate-800 mb-1">
+                    Priority <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={wsForm.priority || "Medium"}
+                    onChange={(e) => setWsForm({ ...wsForm, priority: e.target.value })}
+                    className={`w-full px-3 py-2 rounded-xl border font-bold focus:ring-2 focus:ring-indigo-600 focus:outline-none ${
+                      wsForm.priority === "Critical"
+                        ? "border-rose-300 text-rose-700 bg-rose-50/50"
+                        : wsForm.priority === "High"
+                        ? "border-amber-300 text-amber-700 bg-amber-50/50"
+                        : "border-slate-300 text-slate-800"
+                    }`}
+                  >
+                    <option value="Critical">🔴 Critical</option>
+                    <option value="High">🟠 High</option>
+                    <option value="Medium">🔵 Medium</option>
+                    <option value="Low">⚪ Low</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-800 mb-1">
+                    Status <span className="text-rose-500">*</span>
+                  </label>
                   <select
                     value={wsForm.status}
                     onChange={(e) => setWsForm({ ...wsForm, status: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   >
                     <option value="OPEN">OPEN</option>
                     <option value="IN PROGRESS">IN PROGRESS</option>
                     <option value="BLOCKED">BLOCKED</option>
                     <option value="DELAYED">DELAYED</option>
                     <option value="ON HOLD">ON HOLD</option>
-                    <option value="COMPLETED">COMPLETED</option>
                     <option value="CLOSED">CLOSED</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">RAG Status</label>
+                  <label className="block font-bold text-slate-800 mb-1">
+                    RAG Status <span className="text-rose-500">*</span>
+                  </label>
                   <select
                     value={wsForm.rag_status}
                     onChange={(e) => setWsForm({ ...wsForm, rag_status: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                    className={`w-full px-3 py-2 rounded-xl border font-bold focus:ring-2 focus:ring-indigo-600 focus:outline-none ${
+                      wsForm.rag_status === "GREEN"
+                        ? "text-emerald-700 border-emerald-300 bg-emerald-50/40"
+                        : wsForm.rag_status === "RED"
+                        ? "text-rose-700 border-rose-300 bg-rose-50/40"
+                        : "text-amber-700 border-amber-300 bg-amber-50/40"
+                    }`}
                   >
-                    <option value="GREEN">GREEN</option>
-                    <option value="AMBER">AMBER</option>
-                    <option value="RED">RED</option>
+                    <option value="GREEN">🟢 GREEN (On Track)</option>
+                    <option value="AMBER">🟡 AMBER (Attention)</option>
+                    <option value="RED">🔴 RED (Critical / Delay)</option>
                   </select>
                 </div>
+              </div>
 
+              {/* Next Follow-up Date */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Next Follow-up Date</label>
+                  <label className="block font-bold text-slate-800 mb-1">Next Follow-up Date</label>
                   <input
                     type="date"
                     value={wsForm.next_followup_date}
@@ -3010,12 +2640,10 @@ export default function DepartmentPage() {
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Vice Chairman Decision Required
+                  <label className="block font-bold text-slate-800 mb-1">
+                    Vice Chairman Decision Required?
                   </label>
                   <select
                     value={wsForm.vc_decision_required}
@@ -3027,44 +2655,69 @@ export default function DepartmentPage() {
                     }`}
                   >
                     <option value="No">No</option>
-                    <option value="Yes">Yes</option>
+                    <option value="Yes">Yes — VC Attention Needed</option>
                   </select>
                 </div>
+              </div>
 
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    VC Decision Action Requested
+              {/* VC Decision Action Requested (if Yes) */}
+              {wsForm.vc_decision_required === "Yes" && (
+                <div className="p-3 bg-rose-50/70 rounded-xl border border-rose-200 space-y-1">
+                  <label className="block font-bold text-rose-900">
+                    Specific VC Decision / Action Requested <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={wsForm.decision_action}
                     onChange={(e) => setWsForm({ ...wsForm, decision_action: e.target.value })}
-                    placeholder="Specific approval or intervention required..."
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                    required={wsForm.vc_decision_required === "Yes"}
+                    placeholder="Specific approval, resource allocation or escalation required..."
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-rose-300 font-semibold text-rose-950 focus:ring-2 focus:ring-rose-600 focus:outline-none"
                   />
                 </div>
-              </div>
+              )}
 
+              {/* Progress Update / Latest Remarks */}
               <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Key Update / Remarks / Blockers
+                <label className="block font-bold text-slate-800 mb-1">
+                  Progress Update / Latest Remarks / Blockers
                 </label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={wsForm.remarks}
                   onChange={(e) => setWsForm({ ...wsForm, remarks: e.target.value })}
-                  placeholder="Progress updates, meeting notes, risks and dependencies..."
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  placeholder="Record progress updates, meeting notes, vendor status or dependencies..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none leading-relaxed"
                 />
               </div>
 
-              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+              {/* If Status is CLOSED, prompt for closure notes */}
+              {wsForm.status === "CLOSED" && (
+                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-300 space-y-1">
+                  <label className="block font-bold text-emerald-900">
+                    Formal Closure Remarks & Evidence <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={wsForm.closure_remarks}
+                    onChange={(e) => setWsForm({ ...wsForm, closure_remarks: e.target.value })}
+                    required
+                    placeholder="Document completion date, final deliverable link or sign-off remarks..."
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-emerald-400 font-bold text-emerald-950 focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                  />
+                </div>
+              )}
+
+              {/* Modal Footer Controls */}
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-2">
                 {editingWs ? (
                   <button
                     type="button"
                     onClick={() => {
-                      handleDeleteWorkstream(editingWs.id);
-                      setShowWsModal(false);
+                      if (confirm(`Are you sure you want to delete action ${editingWs.item_id || editingWs.id}?`)) {
+                        handleDeleteWorkstream(editingWs.id);
+                        setShowWsModal(false);
+                      }
                     }}
                     className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 transition"
                   >
@@ -3072,19 +2725,20 @@ export default function DepartmentPage() {
                     <span>Delete Action</span>
                   </button>
                 ) : <div />}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
                   <button
                     type="button"
                     onClick={() => setShowWsModal(false)}
-                    className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition"
+                    className="px-4 py-2 border border-slate-300 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
+                    className="inline-flex items-center gap-1.5 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
                   >
-                    {editingWs ? "Save Changes" : "+ Create Action Item"}
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{editingWs ? "Save Changes" : "+ Add Action Item"}</span>
                   </button>
                 </div>
               </div>
