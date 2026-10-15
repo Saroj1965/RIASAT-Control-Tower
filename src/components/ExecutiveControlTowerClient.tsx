@@ -662,23 +662,23 @@ export default function ExecutiveControlTowerClient({
           </div>
         </div>
 
-        {/* Table of Attention Items */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-[#0b1329] text-white uppercase text-[10px] font-bold tracking-wider border-b border-slate-800 whitespace-nowrap">
+        {/* Table of Attention Items - Page to Fit Responsive Table */}
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left text-xs table-fixed border-collapse">
+            <thead className="bg-[#0b1329] text-white uppercase text-[10px] font-bold tracking-wider border-b border-slate-800">
               <tr>
-                <th className="px-3 py-3.5 text-center font-bold text-slate-100">ID</th>
-                <th className="px-4 py-3.5 text-left font-bold text-slate-100 min-w-[140px]">Review Cycle</th>
-                <th className="px-5 py-3.5 text-left font-bold text-slate-100 min-w-[220px]">Action item</th>
-                <th className="px-5 py-3.5 text-left font-bold text-slate-100">Owner / support</th>
-                <th className="px-5 py-3.5 text-left font-bold text-slate-100">Timeline</th>
-                <th className="px-5 py-3.5 text-left font-bold text-slate-100">Status & RAG</th>
-                <th className="px-5 py-3.5 text-left font-bold text-slate-100">Department</th>
-                <th className="px-5 py-3.5 text-left font-bold text-slate-100">Remarks / Key Update</th>
-                <th className="px-4 py-3.5 text-center font-bold text-slate-100">VC Decision Required</th>
+                <th className="w-[5%] px-2 py-3 text-center font-bold text-slate-100 whitespace-nowrap">ID</th>
+                <th className="w-[12%] px-2.5 py-3 text-left font-bold text-slate-100">Review Cycle</th>
+                <th className="w-[27%] px-3 py-3 text-left font-bold text-slate-100">Action Item</th>
+                <th className="w-[13%] px-2.5 py-3 text-left font-bold text-slate-100">Owner / Support</th>
+                <th className="w-[10%] px-2.5 py-3 text-left font-bold text-slate-100">Timeline</th>
+                <th className="w-[11%] px-2.5 py-3 text-left font-bold text-slate-100">Status & RAG</th>
+                <th className="w-[9%] px-2.5 py-3 text-left font-bold text-slate-100">Department</th>
+                <th className="w-[8%] px-2.5 py-3 text-left font-bold text-slate-100">Remarks / Update</th>
+                <th className="w-[5%] px-1.5 py-3 text-center font-bold text-slate-100 whitespace-nowrap">VC Dec.</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y divide-slate-200 bg-white">
               {filteredAttention.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-6 py-8 text-center text-slate-400">
@@ -706,37 +706,39 @@ export default function ExecutiveControlTowerClient({
                       }`}
                     >
                       {/* ID */}
-                      <td className="px-3 py-4 text-center whitespace-nowrap font-mono">
-                        <span className="px-2 py-1 rounded bg-indigo-50 text-indigo-700 font-extrabold text-[11px] border border-indigo-200">
+                      <td className="px-2 py-3 text-center whitespace-nowrap font-mono align-top">
+                        <span className="inline-block px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 font-extrabold text-[10px] border border-indigo-200">
                           {item.item_id || `ID #${item.id}`}
                         </span>
                       </td>
 
                       {/* Review Cycle & Carry-Forward Status */}
-                      <td className="px-4 py-4 whitespace-nowrap text-left">
-                        <div className="text-[11px] font-bold text-slate-800">
+                      <td className="px-2.5 py-3 text-left align-top">
+                        <div className="text-[11px] font-bold text-slate-800 leading-tight">
                           {item.review_week || "Week 42 (12 Oct 2026)"}
                         </div>
-                        <div className="mt-1 flex items-center gap-1">
+                        <div className="mt-1 flex items-center">
                           {isCarried ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300">
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300">
                               🔄 Carried (+{weeksOutstanding}w)
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-100 text-emerald-900 border border-emerald-300">
-                              ⚡ New This Week
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                              ⚡ New
                             </span>
                           )}
                         </div>
                       </td>
 
                       {/* Action item */}
-                      <td className="px-5 py-4 font-bold text-slate-900 max-w-sm leading-relaxed">
-                        <div className={isOverdue ? "text-rose-950 font-black" : "text-slate-900"}>{item.item}</div>
+                      <td className="px-3 py-3 text-left align-top">
+                        <div className={`text-xs font-bold leading-snug break-words ${isOverdue ? "text-rose-950 font-black" : "text-slate-900"}`}>
+                          {item.item}
+                        </div>
                         {item.supporting_departments && (
-                          <div className="text-[10px] text-slate-500 font-normal mt-1 flex items-center gap-1">
+                          <div className="text-[10px] text-slate-500 font-normal mt-1 flex flex-wrap items-center gap-1">
                             <span className="font-semibold text-slate-600">Supporting:</span>
-                            <span className="bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-medium">
+                            <span className="bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-medium text-[9px]">
                               {item.supporting_departments}
                             </span>
                           </div>
@@ -744,41 +746,41 @@ export default function ExecutiveControlTowerClient({
                       </td>
 
                       {/* Owner */}
-                      <td className="px-5 py-4 text-slate-700 font-medium max-w-xs">
+                      <td className="px-2.5 py-3 text-slate-700 font-medium text-[11px] leading-snug break-words align-top">
                         {item.owner || "--"}
                       </td>
 
                       {/* Timeline */}
-                      <td className="px-5 py-4 whitespace-nowrap font-semibold text-[11px]">
+                      <td className="px-2.5 py-3 text-left align-top">
                         <div className="flex flex-col items-start gap-1">
-                          <span className={`px-2 py-1 rounded-md border ${
-                            isOverdue ? "bg-rose-100 text-rose-800 border-rose-300 font-extrabold" : "bg-slate-100 border-slate-200 text-slate-700"
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] border whitespace-nowrap ${
+                            isOverdue ? "bg-rose-100 text-rose-800 border-rose-300 font-extrabold" : "bg-slate-100 border-slate-200 text-slate-700 font-medium"
                           }`}>
                             {item.target_date || "--"}
                           </span>
                           {isOverdue && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white shadow-xs animate-pulse">
-                              🚨 OVERDUE {weeksOutstanding > 0 ? `• ${weeksOutstanding}w open` : ""}
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-rose-600 text-white shadow-xs whitespace-nowrap">
+                              🚨 OVERDUE
                             </span>
                           )}
                         </div>
                       </td>
 
                       {/* Status & RAG */}
-                      <td className="px-5 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md border ${
+                      <td className="px-2.5 py-3 text-left align-top">
+                        <div className="flex flex-wrap items-center gap-1">
+                          <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded border whitespace-nowrap ${
                             isBlocked ? "bg-rose-600 text-white font-black border-rose-700 shadow-xs" : getStatusBadge(item.status)
                           }`}>
                             {isBlocked ? "⛔ BLOCKED" : item.status}
                           </span>
                           <span
-                            className={`px-1.5 py-0.5 text-[9px] font-black rounded uppercase tracking-wider ${
+                            className={`px-1.5 py-0.2 text-[8px] font-black rounded uppercase tracking-wider whitespace-nowrap ${
                               ragStatus === "GREEN"
                                 ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                                 : ragStatus === "AMBER"
                                 ? "bg-amber-100 text-amber-800 border border-amber-300"
-                                : "bg-rose-600 text-white shadow-xs font-black animate-pulse"
+                                : "bg-rose-600 text-white shadow-xs font-black"
                             }`}
                           >
                             {ragStatus}
@@ -787,28 +789,28 @@ export default function ExecutiveControlTowerClient({
                       </td>
 
                       {/* Department */}
-                      <td className="px-5 py-4 whitespace-nowrap">
+                      <td className="px-2.5 py-3 text-left align-top">
                         <Link
                           href={`/department/${item.department_id}`}
-                          className="font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
+                          className="font-bold text-indigo-600 hover:text-indigo-800 hover:underline text-xs break-words"
                         >
                           {item.department_name}
                         </Link>
                       </td>
 
                       {/* Remarks */}
-                      <td className="px-5 py-4 text-slate-600 max-w-xs text-[11px] leading-relaxed">
+                      <td className="px-2.5 py-3 text-slate-600 text-[11px] leading-snug break-words align-top">
                         {item.decision_action || item.issue || "--"}
                       </td>
 
                       {/* VC Decision */}
-                      <td className="px-4 py-4 text-center whitespace-nowrap">
+                      <td className="px-1.5 py-3 text-center whitespace-nowrap align-top">
                         {isVcReq ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-black rounded-lg bg-rose-600 text-white shadow-xs">
+                          <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-black rounded bg-rose-600 text-white shadow-xs">
                             YES
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 text-[11px] font-semibold text-slate-400">
+                          <span className="text-[10px] font-medium text-slate-400">
                             No
                           </span>
                         )}

@@ -970,43 +970,43 @@ export default function DepartmentPage() {
             <table className="w-full text-left text-xs border-collapse">
               <thead className="sticky top-0 z-10 bg-[#f8fafc] text-slate-700 text-xs font-bold border-b border-slate-200 whitespace-nowrap shadow-2xs">
                 <tr>
-                  <th className="px-4 py-3.5 text-center font-bold text-slate-700 whitespace-nowrap" data-col="1. Sl.No.">
+                  <th className="px-2 py-3 text-center font-bold text-slate-700 whitespace-nowrap" data-col="1. Sl.No.">
                     Sl.No.
                   </th>
-                  <th className="px-4 py-3.5 text-left font-bold text-slate-700 whitespace-nowrap" data-col="2. Review Meeting Date">
+                  <th className="px-2.5 py-3 text-left font-bold text-slate-700 whitespace-nowrap" data-col="2. Review Meeting Date">
                     Review Meeting Date
                   </th>
-                  <th className="px-4 py-3.5 text-left font-bold text-slate-700 whitespace-nowrap" data-col="3. Department">
+                  <th className="px-2.5 py-3 text-left font-bold text-slate-700 whitespace-nowrap" data-col="3. Department">
                     Department
                   </th>
-                  <th className="px-4 py-3.5 text-left font-bold text-slate-700 whitespace-nowrap min-w-[260px]" data-col="4. Action Item / Deliverable">
+                  <th className="px-3 py-3 text-left font-bold text-slate-700 whitespace-nowrap min-w-[200px]" data-col="4. Action Item / Deliverable">
                     Action Item / Deliverable
                   </th>
-                  <th className="px-4 py-3.5 text-left font-bold text-slate-700 whitespace-nowrap" data-col="5. Action Owner">
+                  <th className="px-2.5 py-3 text-left font-bold text-slate-700 whitespace-nowrap" data-col="5. Action Owner">
                     Action Owner
                   </th>
-                  <th className="px-4 py-3.5 text-left font-bold text-slate-700 whitespace-nowrap min-w-[150px]" data-col="6. Support Required From">
+                  <th className="px-2.5 py-3 text-left font-bold text-slate-700 whitespace-nowrap min-w-[120px]" data-col="6. Support Required From">
                     Support Required From
                   </th>
-                  <th className="px-4 py-3.5 text-center font-bold text-slate-700 whitespace-nowrap" data-col="7. Priority">
+                  <th className="px-2 py-3 text-center font-bold text-slate-700 whitespace-nowrap" data-col="7. Priority">
                     Priority
                   </th>
-                  <th className="px-4 py-3.5 text-left font-bold text-slate-700 whitespace-nowrap" data-col="8. Completion Date">
+                  <th className="px-2.5 py-3 text-left font-bold text-slate-700 whitespace-nowrap" data-col="8. Completion Date">
                     Completion Date
                   </th>
-                  <th className="px-4 py-3.5 text-center font-bold text-slate-700 whitespace-nowrap" data-col="9. Status">
+                  <th className="px-2 py-3 text-center font-bold text-slate-700 whitespace-nowrap" data-col="9. Status">
                     Status
                   </th>
-                  <th className="px-4 py-3.5 text-left font-bold text-slate-700 whitespace-nowrap min-w-[240px]" data-col="10. Progress Update / Remarks">
+                  <th className="px-3 py-3 text-left font-bold text-slate-700 whitespace-nowrap min-w-[180px]" data-col="10. Progress Update / Remarks">
                     Progress Update / Remarks
                   </th>
-                  <th className="px-4 py-3.5 text-left font-bold text-slate-700 whitespace-nowrap" data-col="11. Next Follow-up Date">
+                  <th className="px-2.5 py-3 text-left font-bold text-slate-700 whitespace-nowrap" data-col="11. Next Follow-up Date">
                     Next Follow-up Date
                   </th>
-                  <th className="px-4 py-3.5 text-center font-bold text-slate-700 whitespace-nowrap" data-col="12. VC Decision Required">
+                  <th className="px-2 py-3 text-center font-bold text-slate-700 whitespace-nowrap" data-col="12. VC Decision Required">
                     VC Decision Required
                   </th>
-                  <th className="px-4 py-3.5 text-center font-bold text-slate-700 whitespace-nowrap" data-col="13. Actions">
+                  <th className="px-2 py-3 text-center font-bold text-slate-700 whitespace-nowrap" data-col="13. Actions">
                     Actions
                   </th>
                 </tr>
@@ -1042,41 +1042,41 @@ export default function DepartmentPage() {
                         className="hover:bg-slate-50/80 transition border-b border-slate-100 last:border-b-0"
                       >
                         {/* 1. Sl.No. */}
-                        <td className="px-4 py-3.5 text-center whitespace-nowrap text-slate-700 font-medium text-xs">
+                        <td className="px-2 py-2.5 text-center whitespace-nowrap text-slate-700 font-medium text-xs">
                           {serialNo}
                         </td>
 
                         {/* 2. Review Meeting Date */}
-                        <td className="px-4 py-3.5 whitespace-nowrap text-left text-slate-800 font-medium text-xs">
+                        <td className="px-2.5 py-2.5 whitespace-nowrap text-left text-slate-800 font-medium text-xs">
                           {formatDisplayDate(ws.review_meeting_date || "2026-10-12")}
                         </td>
 
                         {/* 3. Department */}
-                        <td className="px-4 py-3.5 whitespace-nowrap text-left text-slate-800 font-medium text-xs">
+                        <td className="px-2.5 py-2.5 whitespace-nowrap text-left text-slate-800 font-medium text-xs">
                           {deptName}
                         </td>
 
                         {/* 4. Action Item / Deliverable */}
-                        <td className="px-4 py-3.5 min-w-[260px] max-w-md text-left">
+                        <td className="px-3 py-2.5 min-w-[200px] max-w-md text-left">
                           <div className="font-semibold text-slate-900 text-xs leading-snug">
                             {deliverable}
                           </div>
                         </td>
 
                         {/* 5. Action Owner */}
-                        <td className="px-4 py-3.5 whitespace-nowrap text-left text-slate-800 font-medium text-xs">
+                        <td className="px-2.5 py-2.5 whitespace-nowrap text-left text-slate-800 font-medium text-xs">
                           {ownership}
                         </td>
 
                         {/* 6. Support Required From */}
-                        <td className="px-4 py-3.5 text-left min-w-[150px] text-slate-700 font-normal text-xs">
+                        <td className="px-2.5 py-2.5 text-left min-w-[120px] text-slate-700 font-normal text-xs">
                           {ws.supporting_departments || "--"}
                         </td>
 
                         {/* 7. Priority */}
-                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                        <td className="px-2 py-2.5 text-center whitespace-nowrap">
                           <span
-                            className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${
+                            className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
                               priority.toLowerCase() === "critical"
                                 ? "bg-red-50 text-red-600 border-red-200"
                                 : priority.toLowerCase() === "high"
@@ -1091,14 +1091,14 @@ export default function DepartmentPage() {
                         </td>
 
                         {/* 8. Completion Date */}
-                        <td className="px-4 py-3.5 whitespace-nowrap text-left text-slate-800 font-medium text-xs">
+                        <td className="px-2.5 py-2.5 whitespace-nowrap text-left text-slate-800 font-medium text-xs">
                           {formatDisplayDate(timeline)}
                         </td>
 
                         {/* 9. Status */}
-                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                        <td className="px-2 py-2.5 text-center whitespace-nowrap">
                           <span
-                            className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                            className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                               status === "IN PROGRESS"
                                 ? "bg-sky-100 text-sky-700"
                                 : status === "OPEN"
@@ -1125,19 +1125,19 @@ export default function DepartmentPage() {
                         </td>
 
                         {/* 10. Progress Update / Remarks */}
-                        <td className="px-4 py-3.5 text-left min-w-[240px] max-w-sm text-slate-700 font-normal text-xs leading-relaxed">
+                        <td className="px-3 py-2.5 text-left min-w-[180px] max-w-sm text-slate-700 font-normal text-xs leading-relaxed">
                           {remarks}
                         </td>
 
                         {/* 11. Next Follow-up Date */}
-                        <td className="px-4 py-3.5 whitespace-nowrap text-left text-slate-800 font-medium text-xs">
+                        <td className="px-2.5 py-2.5 whitespace-nowrap text-left text-slate-800 font-medium text-xs">
                           {ws.next_followup_date ? formatDisplayDate(ws.next_followup_date) : "--"}
                         </td>
 
                         {/* 12. VC Decision Required */}
-                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                        <td className="px-2 py-2.5 text-center whitespace-nowrap">
                           {isVcReq ? (
-                            <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                               Yes
                             </span>
                           ) : (
@@ -1148,7 +1148,7 @@ export default function DepartmentPage() {
                         </td>
 
                         {/* 13. Actions */}
-                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                        <td className="px-2 py-2.5 text-center whitespace-nowrap">
                           <div className="flex items-center justify-center gap-2">
                             <button
                               onClick={() => openEditWsModal(ws)}
