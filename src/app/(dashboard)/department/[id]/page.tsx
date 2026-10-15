@@ -28,10 +28,22 @@ import {
   ChevronDown,
   History,
   RotateCcw,
+  SlidersHorizontal,
   X,
 } from "lucide-react";
 import { WORKSTREAM_STATUSES, RAG_STATUSES, RECRUITMENT_PRIORITIES, RECRUITMENT_STATUSES } from "@/lib/constants";
 import { getCurrentReviewMeetingDate, getReviewWeekLabel } from "@/lib/action-helpers";
+
+function formatDisplayDate(dateStr?: string | null): string {
+  if (!dateStr) return "--";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
 
 export default function DepartmentPage() {
   const params = useParams();
@@ -694,76 +706,45 @@ export default function DepartmentPage() {
     : dept?.name ? `${dept.name} Head` : "Lead Owner";
 
   return (
-    <div className="space-y-8">
-      {/* Back button & Breadcrumb Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-2 border-b border-slate-200">
+    <div className="space-y-6 max-w-full">
+      {/* Top Navigation & Status Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-2 border-b border-slate-200 text-xs">
         <div className="flex items-center gap-3">
           <Link
             href="/executive"
-            className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-slate-100 transition"
+            className="inline-flex items-center gap-1.5 p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-slate-100 transition font-medium"
             title="Back to Executive Tower"
           >
             <ArrowLeft className="w-4 h-4" />
+            <span>Executive Control Tower</span>
           </Link>
-          <div>
-            <div className="flex items-center gap-3">
-              <div>
-                <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                  {dept.name.toUpperCase()}
-                </h1>
-                <div className="text-xs font-bold text-indigo-700 tracking-wider uppercase mt-0.5">
-                  DEPARTMENT UPDATE FORM
-                </div>
-              </div>
-              {!canEdit && (
-                <span className="px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase rounded-md bg-slate-100 text-slate-600 border border-slate-200">
-                  READ-ONLY VIEW
-                </span>
-              )}
-              {canEdit && (deptData.isAdmin || deptData.isViceChairman || deptData.isChairman || deptData.hasFullAccess) && (
-                <span className="px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase rounded-md bg-indigo-100 text-indigo-800 border border-indigo-300">
-                  COMPLETE ACCESS (VICE CHAIRMAN & ADMIN)
-                </span>
-              )}
-              <span
-                className={`px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase rounded-md border ${
-                  submissionStatus === "SUBMITTED"
-                    ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-                    : "bg-amber-100 text-amber-800 border-amber-300"
-                }`}
-              >
-                STATUS: {submissionStatus}
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 font-medium mt-1">
-              Domain Code: <code>{dept.code}</code> • Last updated:{" "}
-              {overview.last_updated ? new Date(overview.last_updated).toLocaleString("en-IN") : "Not yet"} by{" "}
-              <strong className="text-slate-700">{overview.updated_by || "System"}</strong>
-            </p>
-          </div>
+          <span className="text-slate-300">/</span>
+          <span className="font-bold text-slate-800">{dept.name}</span>
+          <span className="text-slate-300">•</span>
+          <span className="font-mono text-slate-400 text-[11px]">{dept.code}</span>
         </div>
 
-        {/* Action Button */}
-        {canEdit && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={openNewWsModal}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ Add Action Item</span>
-            </button>
-            {isHR && (
-              <button
-                onClick={openNewRecModal}
-                className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
-              >
-                <Plus className="w-4 h-4" />
-                <span>+ Add Recruitment Role</span>
-              </button>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {!canEdit && (
+            <span className="px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+              READ-ONLY VIEW
+            </span>
+          )}
+          {canEdit && (deptData.isAdmin || deptData.isViceChairman || deptData.isChairman || deptData.hasFullAccess) && (
+            <span className="px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">
+              LEADERSHIP ACCESS
+            </span>
+          )}
+          <span
+            className={`px-2.5 py-0.5 text-[10px] font-bold tracking-wider uppercase rounded-md border ${
+              submissionStatus === "SUBMITTED"
+                ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                : "bg-amber-100 text-amber-800 border-amber-300"
+            }`}
+          >
+            STATUS: {submissionStatus}
+          </span>
+        </div>
       </div>
 
       {/* Notifications */}
@@ -780,62 +761,611 @@ export default function DepartmentPage() {
         </div>
       )}
 
-      {/* SUMMARY KPIS */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            Readiness
-          </span>
-          <div className="mt-2 text-2xl font-extrabold text-slate-900">{readiness}%</div>
-        </div>
+      {/* ========================================================================= */}
+      {/* 1. HORIZONTAL ACTION REGISTER (MATCHES SAMPLE IMAGE EXACTLY) */}
+      {/* ========================================================================= */}
+      <div id="action-register" className="space-y-4">
+        {/* Header Block: Title, Subtitle, Count Badge */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+              {dept.name} — Action Register
+            </h1>
+            <p className="text-sm font-medium text-slate-500 mt-0.5">
+              Weekly Review Meeting • {deptData?.currentReviewMeetingDate ? new Date(deptData.currentReviewMeetingDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "12 October 2026"}
+            </p>
+          </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            RAG Status
-          </span>
-          <div className="mt-2">
-            <span
-              className={`px-2.5 py-1 text-xs font-bold rounded-md border tracking-wider uppercase ${
-                rag === "GREEN"
-                  ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-                  : rag === "AMBER"
-                  ? "bg-amber-100 text-amber-800 border-amber-300"
-                  : rag === "RED"
-                  ? "bg-rose-100 text-rose-800 border-rose-300"
-                  : "bg-slate-100 text-slate-700 border-slate-300"
-              }`}
-            >
-              {rag}
+          <div className="flex items-center gap-2">
+            {/* View Switcher: Open Actions vs Closed History */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-bold border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setActionViewTab("OPEN")}
+                className={`px-3 py-1.5 rounded-lg transition ${
+                  actionViewTab === "OPEN" ? "bg-white text-indigo-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Open Actions ({openCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActionViewTab("CLOSED")}
+                className={`px-3 py-1.5 rounded-lg transition ${
+                  actionViewTab === "CLOSED" ? "bg-white text-emerald-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Closed History ({completedCount})
+              </button>
+            </div>
+
+            <span className="px-3.5 py-1.5 bg-[#e0f2fe] text-[#0369a1] font-bold text-xs rounded-xl shadow-2xs">
+              {filteredWorkstreams.length} Actions
             </span>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            {isHR ? "Open Roles" : "Open Workstreams"}
-          </span>
-          <div className="mt-2 text-2xl font-extrabold text-indigo-700">{openCount}</div>
+        {/* Filter Bar: Review Meeting Date, Department, Status, Priority, Owner, Search, + Add Action Item */}
+        <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-end gap-3">
+          {/* Review Meeting Date */}
+          <div className="flex-1 min-w-[130px]">
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+              Review Meeting Date
+            </label>
+            <div className="relative">
+              <select
+                value={wsMeetingDateFilter}
+                onChange={(e) => {
+                  setWsMeetingDateFilter(e.target.value);
+                  setWsCurrentPage(1);
+                }}
+                className="w-full appearance-none pl-8 pr-7 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white cursor-pointer"
+              >
+                <option value="ALL">12 Oct 2026</option>
+                {distinctMeetingDates.map((d: string) => (
+                  <option key={d} value={d}>
+                    {formatDisplayDate(d)}
+                  </option>
+                ))}
+              </select>
+              <Calendar className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Department */}
+          <div className="flex-1 min-w-[140px]">
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+              Department
+            </label>
+            <div className="relative">
+              <select
+                value={dept.name}
+                onChange={(e) => {
+                  const selected = (deptData?.allDepartments || []).find((d: any) => d.name === e.target.value);
+                  if (selected && selected.id !== dept.id) {
+                    router.push(`/department/${selected.id}`);
+                  }
+                }}
+                className="w-full appearance-none px-3 pr-7 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white cursor-pointer"
+              >
+                {(deptData?.allDepartments || []).map((d: any) => (
+                  <option key={d.id} value={d.name}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Status */}
+          <div className="w-24">
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+              Status
+            </label>
+            <div className="relative">
+              <select
+                value={wsStatusFilter}
+                onChange={(e) => {
+                  setWsStatusFilter(e.target.value);
+                  setWsCurrentPage(1);
+                }}
+                className="w-full appearance-none px-3 pr-7 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white cursor-pointer"
+              >
+                <option value="ALL">All</option>
+                <option value="OPEN">Open</option>
+                <option value="IN PROGRESS">In Progress</option>
+                <option value="BLOCKED">Blocked</option>
+                <option value="ON HOLD">On Hold</option>
+                <option value="CLOSED">Closed</option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Priority */}
+          <div className="w-24">
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+              Priority
+            </label>
+            <div className="relative">
+              <select
+                value={wsPriorityFilter}
+                onChange={(e) => {
+                  setWsPriorityFilter(e.target.value);
+                  setWsCurrentPage(1);
+                }}
+                className="w-full appearance-none px-3 pr-7 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white cursor-pointer"
+              >
+                <option value="ALL">All</option>
+                <option value="Critical">Critical</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Owner */}
+          <div className="flex-1 min-w-[120px]">
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+              Owner
+            </label>
+            <div className="relative">
+              <select
+                value={wsOwnerFilter}
+                onChange={(e) => {
+                  setWsOwnerFilter(e.target.value);
+                  setWsCurrentPage(1);
+                }}
+                className="w-full appearance-none px-3 pr-7 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white cursor-pointer"
+              >
+                <option value="ALL">All</option>
+                {distinctOwners.map((o: string) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Search action items */}
+          <div className="flex-2 min-w-[180px]">
+            <label className="sr-only">Search</label>
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search action items..."
+                value={wsSearch}
+                onChange={(e) => {
+                  setWsSearch(e.target.value);
+                  setWsCurrentPage(1);
+                }}
+                className="w-full pl-8 pr-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white"
+              />
+            </div>
+          </div>
+
+          {/* + Add Action Item Button */}
+          {canEdit && (
+            <button
+              type="button"
+              onClick={openNewWsModal}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#1d63ed] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition whitespace-nowrap self-end"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Add Action Item</span>
+            </button>
+          )}
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            {isHR ? "Joined / Filled" : "Completed"}
-          </span>
-          <div className="mt-2 text-2xl font-extrabold text-emerald-700">{completedCount}</div>
-        </div>
+        {/* Action Register Table */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+          <div className="overflow-x-auto max-h-[750px] relative">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="sticky top-0 z-10 bg-[#f8fafc] text-slate-700 text-xs font-bold border-b border-slate-200 whitespace-nowrap shadow-2xs">
+                <tr>
+                  <th className="px-4 py-3.5 text-center font-bold text-slate-700 whitespace-nowrap" data-col="1. Sl.No.">
+                    Sl.No.
+                  </th>
+                  <th className="px-4 py-3.5 text-left font-bold text-slate-700 whitespace-nowrap" data-col="2. Review Meeting Date">
+                    Review Meeting Date
+                  </th>
+                  <th className="px-4 py-3.5 text-left font-bold text-slate-700 whitespace-nowrap" data-col="3. Department">
+                    Department
+                  </th>
+                  <th className="px-4 py-3.5 text-left font-bold text-slate-700 whitespace-nowrap min-w-[260px]" data-col="4. Action Item / Deliverable">
+                    Action Item / Deliverable
+                  </th>
+                  <th className="px-4 py-3.5 text-left font-bold text-slate-700 whitespace-nowrap" data-col="5. Action Owner">
+                    Action Owner
+                  </th>
+                  <th className="px-4 py-3.5 text-left font-bold text-slate-700 whitespace-nowrap min-w-[150px]" data-col="6. Support Required From">
+                    Support Required From
+                  </th>
+                  <th className="px-4 py-3.5 text-center font-bold text-slate-700 whitespace-nowrap" data-col="7. Priority">
+                    Priority
+                  </th>
+                  <th className="px-4 py-3.5 text-left font-bold text-slate-700 whitespace-nowrap" data-col="8. Completion Date">
+                    Completion Date
+                  </th>
+                  <th className="px-4 py-3.5 text-center font-bold text-slate-700 whitespace-nowrap" data-col="9. Status">
+                    Status
+                  </th>
+                  <th className="px-4 py-3.5 text-left font-bold text-slate-700 whitespace-nowrap min-w-[240px]" data-col="10. Progress Update / Remarks">
+                    Progress Update / Remarks
+                  </th>
+                  <th className="px-4 py-3.5 text-left font-bold text-slate-700 whitespace-nowrap" data-col="11. Next Follow-up Date">
+                    Next Follow-up Date
+                  </th>
+                  <th className="px-4 py-3.5 text-center font-bold text-slate-700 whitespace-nowrap" data-col="12. VC Decision Required">
+                    VC Decision Required
+                  </th>
+                  <th className="px-4 py-3.5 text-center font-bold text-slate-700 whitespace-nowrap" data-col="13. Actions">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {paginatedWorkstreams.length === 0 ? (
+                  <tr>
+                    <td colSpan={13} className="px-6 py-12 text-center text-slate-400">
+                      <div className="max-w-md mx-auto space-y-2">
+                        <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+                        <p className="font-bold text-slate-700 text-sm">No Action Items Found</p>
+                        <p className="text-xs text-slate-500">
+                          No actions match the active filters. Check other filters, switch to <strong>Closed History</strong>, or click <strong>+ Add Action Item</strong>.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedWorkstreams.map((ws: any, index: number) => {
+                    const serialNo = wsPageSize === "ALL" ? index + 1 : (wsCurrentPage - 1) * (wsPageSize as number) + index + 1;
+                    const deliverable = ws.action_point || ws.deliverable || "--";
+                    const ownership = ws.ownership || ws.owner || "--";
+                    const timeline = ws.timeline || ws.target_date || "--";
+                    const priority = ws.priority || "Medium";
+                    const status = (ws.status || "OPEN").toUpperCase();
+                    const remarks = ws.remarks || ws.risks_blockers || "--";
+                    const isVcReq = ws.vc_decision_required === "Yes";
+                    const deptName = ws.primary_department_name || dept.name;
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            {isHR ? "Critical Roles" : "Delayed / Blocked"}
-          </span>
-          <div className="mt-2 text-2xl font-extrabold text-rose-700">{delayedCount}</div>
+                    return (
+                      <tr
+                        key={ws.id}
+                        className="hover:bg-slate-50/80 transition border-b border-slate-100 last:border-b-0"
+                      >
+                        {/* 1. Sl.No. */}
+                        <td className="px-4 py-3.5 text-center whitespace-nowrap text-slate-700 font-medium text-xs">
+                          {serialNo}
+                        </td>
+
+                        {/* 2. Review Meeting Date */}
+                        <td className="px-4 py-3.5 whitespace-nowrap text-left text-slate-800 font-medium text-xs">
+                          {formatDisplayDate(ws.review_meeting_date || "2026-10-12")}
+                        </td>
+
+                        {/* 3. Department */}
+                        <td className="px-4 py-3.5 whitespace-nowrap text-left text-slate-800 font-medium text-xs">
+                          {deptName}
+                        </td>
+
+                        {/* 4. Action Item / Deliverable */}
+                        <td className="px-4 py-3.5 min-w-[260px] max-w-md text-left">
+                          <div className="font-semibold text-slate-900 text-xs leading-snug">
+                            {deliverable}
+                          </div>
+                        </td>
+
+                        {/* 5. Action Owner */}
+                        <td className="px-4 py-3.5 whitespace-nowrap text-left text-slate-800 font-medium text-xs">
+                          {ownership}
+                        </td>
+
+                        {/* 6. Support Required From */}
+                        <td className="px-4 py-3.5 text-left min-w-[150px] text-slate-700 font-normal text-xs">
+                          {ws.supporting_departments || "--"}
+                        </td>
+
+                        {/* 7. Priority */}
+                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                          <span
+                            className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${
+                              priority.toLowerCase() === "critical"
+                                ? "bg-red-50 text-red-600 border-red-200"
+                                : priority.toLowerCase() === "high"
+                                ? "bg-rose-50 text-rose-600 border-rose-200"
+                                : priority.toLowerCase() === "medium"
+                                ? "bg-amber-50 text-amber-700 border-amber-200"
+                                : "bg-slate-100 text-slate-700 border-slate-200"
+                            }`}
+                          >
+                            {priority}
+                          </span>
+                        </td>
+
+                        {/* 8. Completion Date */}
+                        <td className="px-4 py-3.5 whitespace-nowrap text-left text-slate-800 font-medium text-xs">
+                          {formatDisplayDate(timeline)}
+                        </td>
+
+                        {/* 9. Status */}
+                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                          <span
+                            className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                              status === "IN PROGRESS"
+                                ? "bg-sky-100 text-sky-700"
+                                : status === "OPEN"
+                                ? "bg-amber-100 text-amber-800"
+                                : status === "ON HOLD"
+                                ? "bg-purple-100 text-purple-700"
+                                : status === "BLOCKED"
+                                ? "bg-rose-100 text-rose-700"
+                                : "bg-emerald-100 text-emerald-800"
+                            }`}
+                          >
+                            {status === "IN PROGRESS"
+                              ? "In Progress"
+                              : status === "OPEN"
+                              ? "Open"
+                              : status === "ON HOLD"
+                              ? "On Hold"
+                              : status === "BLOCKED"
+                              ? "Blocked"
+                              : status === "CLOSED"
+                              ? "Closed"
+                              : status}
+                          </span>
+                        </td>
+
+                        {/* 10. Progress Update / Remarks */}
+                        <td className="px-4 py-3.5 text-left min-w-[240px] max-w-sm text-slate-700 font-normal text-xs leading-relaxed">
+                          {remarks}
+                        </td>
+
+                        {/* 11. Next Follow-up Date */}
+                        <td className="px-4 py-3.5 whitespace-nowrap text-left text-slate-800 font-medium text-xs">
+                          {ws.next_followup_date ? formatDisplayDate(ws.next_followup_date) : "--"}
+                        </td>
+
+                        {/* 12. VC Decision Required */}
+                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                          {isVcReq ? (
+                            <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              Yes
+                            </span>
+                          ) : (
+                            <span className="text-slate-500 font-medium text-xs">
+                              No
+                            </span>
+                          )}
+                        </td>
+
+                        {/* 13. Actions */}
+                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => openEditWsModal(ws)}
+                              className="p-1 text-sky-600 hover:text-sky-800 hover:bg-sky-50 rounded transition"
+                              title="Edit Action"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setClosingAction(ws);
+                                setClosureRemarks("");
+                              }}
+                              className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded transition"
+                              title="Close / Complete Action"
+                            >
+                              <SlidersHorizontal className="w-4 h-4" />
+                            </button>
+                            {canEdit && (
+                              <button
+                                onClick={() => handleDeleteWorkstream(ws.id)}
+                                className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition"
+                                title="Delete Action"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination Footer */}
+          <div className="px-6 py-4 bg-white border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 font-medium">
+            <div>
+              Showing {filteredWorkstreams.length === 0 ? 0 : 1} to {filteredWorkstreams.length} of {items.length} entries
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                disabled={wsCurrentPage <= 1}
+                onClick={() => setWsCurrentPage((p) => Math.max(1, p - 1))}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 font-medium disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <button className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-xs shadow-2xs">
+                1
+              </button>
+              <button
+                disabled={wsCurrentPage >= totalActionPages}
+                onClick={() => setWsCurrentPage((p) => Math.min(totalActionPages, p + 1))}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 font-medium disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* ========================================================================= */}
-      {/* DYNAMIC FORM SECTION: SECTOR OVERVIEW & CONFIGURABLE HEADINGS */}
+      {/* 2. HR & RECRUITMENT TRACKER (FOR HR DOMAIN ONLY) */}
       {/* ========================================================================= */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-6">
+      {isHR && (
+        <div id="recruitment-positions" className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-4">
+          <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/60 flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 tracking-tight">
+                HR & Recruitment — Position Roster
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Active strategic hiring requisitions across all 9 verticals
+              </p>
+            </div>
+            {canEdit && (
+              <button
+                onClick={openNewRecModal}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Add Recruitment Role</span>
+              </button>
+            )}
+          </div>
+
+          <div className="overflow-x-auto border-t border-slate-200">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#f8fafc] text-slate-700 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200 whitespace-nowrap">
+                <tr>
+                  <th className="px-4 py-3.5 text-center font-bold text-slate-700">Sl. No.</th>
+                  <th className="px-4 py-3.5 text-left font-bold text-slate-700">Position / Role</th>
+                  <th className="px-4 py-3.5 text-left font-bold text-slate-700">Department / Vertical</th>
+                  <th className="px-4 py-3.5 text-left font-bold text-slate-700">Priority</th>
+                  <th className="px-4 py-3.5 text-left font-bold text-slate-700">Hiring Owner</th>
+                  <th className="px-4 py-3.5 text-left font-bold text-slate-700">Target Date</th>
+                  <th className="px-4 py-3.5 text-left font-bold text-slate-700">Status</th>
+                  <th className="px-4 py-3.5 text-left font-bold text-slate-700">Remarks</th>
+                  <th className="px-4 py-3.5 text-center font-bold text-slate-700">VC Decision</th>
+                  {canEdit && <th className="px-4 py-3.5 text-right font-bold text-slate-700">Actions</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredRecruitment.length === 0 ? (
+                  <tr>
+                    <td colSpan={canEdit ? 10 : 9} className="px-6 py-8 text-center text-slate-400">
+                      No recruitment positions found. Click "+ Add Recruitment Role" to record new hiring requirements.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRecruitment.map((r: any, index: number) => {
+                    const posTitle = r.position_title || r.position_role || "--";
+                    const deptVertical = r.strategic_segment || r.department_vertical || "--";
+                    const priority = r.priority || "Medium";
+                    const hiringOwner = r.hiring_lead || r.hiring_owner || "--";
+                    const targetJoining = r.target_date || r.target_joining_date || "--";
+                    const recStatus = r.status || r.recruitment_status || "Candidate sourced";
+                    const remarks = r.remarks || r.key_issue || "--";
+                    const isVcReq = r.vc_decision_required === "Yes" || r.vc_attention === true;
+
+                    return (
+                      <tr key={r.id} className="hover:bg-slate-50/80 transition">
+                        <td className="px-4 py-3.5 font-bold text-center text-slate-500 font-mono">
+                          {index + 1}
+                        </td>
+                        <td className="px-4 py-3.5 font-bold text-slate-900 min-w-[200px]">
+                          {posTitle}
+                        </td>
+                        <td className="px-4 py-3.5 font-medium text-slate-700 whitespace-nowrap">
+                          {deptVertical}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span
+                            className={`px-2 py-0.5 text-[10px] font-bold rounded-md border uppercase ${
+                              priority === "Critical"
+                                ? "bg-rose-100 text-rose-800 border-rose-300"
+                                : priority === "High"
+                                ? "bg-amber-100 text-amber-800 border-amber-300"
+                                : "bg-slate-100 text-slate-700 border-slate-300"
+                            }`}
+                          >
+                            {priority}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 font-medium text-slate-700 whitespace-nowrap">
+                          {hiringOwner}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-slate-600 whitespace-nowrap">
+                          {targetJoining}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-lg border ${
+                              recStatus === "Joined"
+                                ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                                : recStatus === "Offers released"
+                                ? "bg-indigo-50 text-indigo-800 border-indigo-300"
+                                : recStatus === "Interview in progress"
+                                ? "bg-amber-50 text-amber-800 border-amber-300"
+                                : recStatus === "shortlisted"
+                                ? "bg-violet-50 text-violet-800 border-violet-300"
+                                : "bg-blue-50 text-blue-800 border-blue-300"
+                            }`}
+                          >
+                            {recStatus}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-slate-600 max-w-xs truncate">
+                          {remarks}
+                        </td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          {isVcReq ? (
+                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-rose-100 text-rose-800 border border-rose-300">
+                              VC DECISION
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">--</span>
+                          )}
+                        </td>
+                        {canEdit && (
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => openEditRecModal(r)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition shadow-2xs"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteRecruitment(r.id)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition shadow-2xs"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Delete</span>
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 3. SECTOR PERFORMANCE & DEPARTMENT FORM CONFIGURATION */}
+      {/* ========================================================================= */}
+      <div id="sector-indicators" className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
           <div>
             <div className="flex items-center gap-2">
@@ -854,138 +1384,77 @@ export default function DepartmentPage() {
           <div className="flex items-center gap-2">
             {!canEdit && (
               <span className="text-xs text-slate-400 italic font-medium">
-                Read-only for Executive
+                View-only mode • Contact Department Admin to request edit rights
               </span>
             )}
-            {canEdit && (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={savingForm}
-                  onClick={() => handleSaveDynamicForm("DRAFT")}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl shadow-xs transition"
-                >
-                  <Save className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Save Draft</span>
-                </button>
-                <button
-                  type="button"
-                  disabled={savingForm}
-                  onClick={() => handleSaveDynamicForm("SUBMITTED")}
-                  className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-xs transition"
-                >
-                  {savingForm ? (
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Save className="w-3.5 h-3.5" />
-                  )}
-                  <span>Save Updates</span>
-                </button>
-              </div>
-            )}
+          </div>
+        </div>
+
+        {/* SUMMARY KPIS */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-2xs">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              Readiness
+            </span>
+            <div className="mt-2 text-2xl font-extrabold text-slate-900">{readiness}%</div>
+          </div>
+
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-2xs">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              RAG Status
+            </span>
+            <div className="mt-2">
+              <span
+                className={`px-2.5 py-1 text-xs font-bold rounded-md border tracking-wider uppercase ${
+                  rag === "GREEN"
+                    ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                    : rag === "AMBER"
+                    ? "bg-amber-100 text-amber-800 border-amber-300"
+                    : rag === "RED"
+                    ? "bg-rose-100 text-rose-800 border-rose-300"
+                    : "bg-slate-100 text-slate-700 border-slate-300"
+                }`}
+              >
+                {rag}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-2xs">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              {isHR ? "Open Roles" : "Open Workstreams"}
+            </span>
+            <div className="mt-2 text-2xl font-extrabold text-indigo-700">{openCount}</div>
+          </div>
+
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-2xs">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              {isHR ? "Joined / Filled" : "Completed"}
+            </span>
+            <div className="mt-2 text-2xl font-extrabold text-emerald-700">{completedCount}</div>
+          </div>
+
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-2xs">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              {isHR ? "Critical Roles" : "Delayed / Blocked"}
+            </span>
+            <div className="mt-2 text-2xl font-extrabold text-rose-700">{delayedCount}</div>
           </div>
         </div>
 
         {/* Dynamic Fields Grid */}
         {dynamicFields.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
             {dynamicFields.map((f: any) => {
-              const val = formValues[f.id.toString()] || "";
-
+              const val = formValues[f.id.toString()] ?? "";
               return (
-                <div
-                  key={f.id}
-                  className={`space-y-1.5 ${
-                    f.field_type === "Long Text" ? "md:col-span-2 lg:col-span-3" : ""
-                  }`}
-                >
-                  <label className="flex items-center justify-between text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    <span className="flex items-center gap-1">
-                      {f.label}
-                      {f.required && <span className="text-rose-500">*</span>}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-mono font-normal">
-                      {f.field_type}
-                    </span>
+                <div key={f.id} className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
+                    {f.label}
+                    {f.required && <span className="text-rose-500 ml-1">*</span>}
                   </label>
 
-                  {/* Render based on field_type */}
-                  {f.field_type === "RAG Status" ? (
-                    canEdit ? (
-                      <select
-                        value={(val || "NOT STARTED").toUpperCase()}
-                        onChange={(e) =>
-                          setFormValues({ ...formValues, [f.id.toString()]: e.target.value })
-                        }
-                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 font-bold focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                      >
-                        <option value="GREEN">GREEN - On Track</option>
-                        <option value="AMBER">AMBER - Needs Attention</option>
-                        <option value="RED">RED - Critical / Escalated</option>
-                        <option value="NOT STARTED">NOT STARTED</option>
-                      </select>
-                    ) : (
-                      <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
-                        {val || "--"}
-                      </div>
-                    )
-                  ) : f.field_type === "Percentage" ? (
-                    canEdit ? (
-                      <div className="relative">
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={val}
-                          onChange={(e) =>
-                            setFormValues({ ...formValues, [f.id.toString()]: e.target.value })
-                          }
-                          placeholder="0 - 100"
-                          className="w-full pl-3 pr-8 py-2 text-xs rounded-xl border border-slate-300 font-bold focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                        />
-                        <span className="absolute right-3 top-2 text-xs font-bold text-slate-400">
-                          %
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
-                        {val ? `${val}%` : "--"}
-                      </div>
-                    )
-                  ) : f.field_type === "Currency" ? (
-                    canEdit ? (
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={val}
-                          onChange={(e) =>
-                            setFormValues({ ...formValues, [f.id.toString()]: e.target.value })
-                          }
-                          placeholder="e.g. ₹ 14.5 Cr or ₹ 45 LPA"
-                          className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                        />
-                      </div>
-                    ) : (
-                      <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs">
-                        {val || "--"}
-                      </div>
-                    )
-                  ) : f.field_type === "Date" ? (
-                    canEdit ? (
-                      <input
-                        type="date"
-                        value={val}
-                        onChange={(e) =>
-                          setFormValues({ ...formValues, [f.id.toString()]: e.target.value })
-                        }
-                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                      />
-                    ) : (
-                      <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs">
-                        {val || "--"}
-                      </div>
-                    )
-                  ) : f.field_type === "Dropdown" ? (
+                  {f.field_type === "Dropdown" ? (
                     canEdit ? (
                       <select
                         value={val}
@@ -994,7 +1463,7 @@ export default function DepartmentPage() {
                         }
                         className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                       >
-                        <option value="">-- Select --</option>
+                        <option value="">Select option...</option>
                         {f.options && f.options.length > 0 ? (
                           f.options.map((opt: any) => (
                             <option key={opt.id} value={opt.option_value}>
@@ -1050,7 +1519,6 @@ export default function DepartmentPage() {
                       </div>
                     )
                   ) : (
-                    /* Default: Short Text or Number */
                     canEdit ? (
                       <input
                         type={f.field_type === "Number" ? "number" : "text"}
@@ -1076,7 +1544,6 @@ export default function DepartmentPage() {
             })}
           </div>
         ) : (
-          /* Fallback if no dynamic fields configured */
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             <div>
               <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
@@ -1139,1281 +1606,7 @@ export default function DepartmentPage() {
           </div>
         )}
       </div>
-
-      {/* ========================================================================= */}
-      {/* B. MANAGEMENT REVIEW — ACTION ITEMS & FOLLOW-UP */}
-      {/* ========================================================================= */}
-      <div id="management-review" className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-4">
-        {/* Table Header with Tabs & Actions */}
-        <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/60 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h2 className="text-base font-black text-slate-900 tracking-tight uppercase flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse" />
-                <span>MANAGEMENT REVIEW — ACTION ITEMS & FOLLOW-UP</span>
-              </h2>
-              <span className="px-2.5 py-0.5 bg-indigo-100 text-indigo-800 text-[10px] font-extrabold rounded-full border border-indigo-200">
-                Direct Department Action Management
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-              Items remain permanently visible across meetings until formally marked <strong>CLOSED</strong> • Shared across primary & supporting verticals
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Tab Switcher: OPEN vs CLOSED */}
-            <div className="flex items-center bg-slate-200/80 p-1 rounded-xl text-xs font-bold">
-              <button
-                type="button"
-                onClick={() => setActionViewTab("OPEN")}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition ${
-                  actionViewTab === "OPEN"
-                    ? "bg-indigo-600 text-white shadow-xs"
-                    : "text-slate-600 hover:text-indigo-700"
-                }`}
-              >
-                <span>⚡ Open Action Items</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                  actionViewTab === "OPEN" ? "bg-white/20 text-white" : "bg-slate-300 text-slate-700"
-                }`}>
-                  {openCount}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActionViewTab("CLOSED")}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition ${
-                  actionViewTab === "CLOSED"
-                    ? "bg-emerald-600 text-white shadow-xs"
-                    : "text-slate-600 hover:text-emerald-700"
-                }`}
-              >
-                <span>📁 Closed Action History</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                  actionViewTab === "CLOSED" ? "bg-white/20 text-white" : "bg-slate-300 text-slate-700"
-                }`}>
-                  {completedCount}
-                </span>
-              </button>
-            </div>
-
-            {canEdit && (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={openNewWsModal}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition shadow-sm hover:shadow"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Add Action Item</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ACTION ITEMS FILTER CONTROLS */}
-        <div className="px-6 space-y-3">
-          {/* Quick Filter Tabs for Weekly Action Register */}
-          {actionViewTab === "OPEN" && (
-            <div className="flex flex-wrap items-center gap-2 p-2 bg-slate-100/80 rounded-xl border border-slate-200">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 mr-1 flex items-center gap-1">
-                <span>Weekly Register:</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setWsCycleFilter("ALL");
-                  setWsStatusFilter("ALL");
-                  setWsOverdueFilter(false);
-                  setWsVcFilter("ALL");
-                }}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
-                  wsCycleFilter === "ALL" && !wsOverdueFilter && wsStatusFilter === "ALL" && wsVcFilter === "ALL"
-                    ? "bg-indigo-600 text-white shadow-xs"
-                    : "bg-white text-slate-700 hover:bg-slate-200"
-                }`}
-              >
-                ⚡ All Open ({openCount})
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setWsCycleFilter("CARRIED");
-                  setWsOverdueFilter(false);
-                }}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
-                  wsCycleFilter === "CARRIED"
-                    ? "bg-amber-600 text-white shadow-xs"
-                    : "bg-white text-amber-900 border border-amber-200 hover:bg-amber-50"
-                }`}
-              >
-                🔄 Carried Forward ({carriedForwardCount})
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setWsCycleFilter("NEW");
-                  setWsOverdueFilter(false);
-                }}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
-                  wsCycleFilter === "NEW"
-                    ? "bg-emerald-600 text-white shadow-xs"
-                    : "bg-white text-emerald-900 border border-emerald-200 hover:bg-emerald-50"
-                }`}
-              >
-                ⚡ New This Week ({newThisWeekCount})
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setWsOverdueFilter(!wsOverdueFilter);
-                  if (!wsOverdueFilter) setWsCycleFilter("ALL");
-                }}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
-                  wsOverdueFilter
-                    ? "bg-rose-600 text-white shadow-xs animate-pulse"
-                    : "bg-white text-rose-700 border border-rose-200 hover:bg-rose-50"
-                }`}
-              >
-                🚨 Overdue in Red ({overdueCount})
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setWsCycleFilter(wsCycleFilter === "BLOCKED" ? "ALL" : "BLOCKED");
-                }}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
-                  wsCycleFilter === "BLOCKED"
-                    ? "bg-rose-800 text-white shadow-xs"
-                    : "bg-white text-rose-800 border border-rose-200 hover:bg-rose-50"
-                }`}
-              >
-                ⛔ Blocked ({blockedCount})
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setWsCycleFilter(wsCycleFilter === "VC" ? "ALL" : "VC");
-                }}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
-                  wsCycleFilter === "VC"
-                    ? "bg-rose-700 text-white shadow-xs"
-                    : "bg-white text-rose-900 border border-rose-200 hover:bg-rose-50"
-                }`}
-              >
-                🏛️ VC Decisions ({vcDecisionCount})
-              </button>
-            </div>
-          )}
-
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            {/* Status Filter Buttons */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
-                <Filter className="w-3.5 h-3.5" /> Status:
-              </span>
-              {(actionViewTab === "OPEN"
-                ? [
-                    { id: "ALL", label: `All (${openCount})` },
-                    { id: "OPEN", label: "Open" },
-                    { id: "IN PROGRESS", label: "In Progress" },
-                    { id: "BLOCKED", label: "Blocked" },
-                    { id: "DELAYED", label: "Delayed" },
-                    { id: "ON HOLD", label: "On Hold" },
-                  ]
-                : [
-                    { id: "ALL", label: `All Closed (${completedCount})` },
-                    { id: "CLOSED", label: "Closed" },
-                    { id: "COMPLETED", label: "Completed" },
-                  ]
-              ).map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setWsStatusFilter(item.id)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
-                    wsStatusFilter === item.id
-                      ? item.id === "CLOSED" || item.id === "COMPLETED"
-                        ? "bg-emerald-600 text-white shadow-xs"
-                        : item.id === "BLOCKED"
-                        ? "bg-rose-600 text-white shadow-xs"
-                        : item.id === "DELAYED"
-                        ? "bg-amber-600 text-white shadow-xs"
-                        : "bg-indigo-600 text-white shadow-xs"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Action Item Search & Multi-Criteria Filter Bar */}
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  placeholder="Search deliverable, owner, ID..."
-                  value={wsSearch}
-                  onChange={(e) => {
-                    setWsSearch(e.target.value);
-                    setWsCurrentPage(1);
-                  }}
-                  className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:bg-white"
-                />
-              </div>
-
-              {/* Review Meeting Date Filter */}
-              <select
-                value={wsMeetingDateFilter}
-                onChange={(e) => {
-                  setWsMeetingDateFilter(e.target.value);
-                  setWsCurrentPage(1);
-                }}
-                className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-600"
-              >
-                <option value="ALL">📅 All Meeting Dates</option>
-                {distinctMeetingDates.map((dt) => (
-                  <option key={dt} value={dt}>
-                    {dt}
-                  </option>
-                ))}
-              </select>
-
-              {/* Department Dropdown Filter (9 verticals) */}
-              <select
-                value={wsDeptFilter}
-                onChange={(e) => {
-                  setWsDeptFilter(e.target.value);
-                  setWsCurrentPage(1);
-                }}
-                className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-600"
-              >
-                <option value="ALL">🏛️ All Departments</option>
-                {(deptData?.allDepartments || []).map((d: any) => (
-                  <option key={d.id} value={String(d.id)}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-
-              {/* Priority Filter */}
-              <select
-                value={wsPriorityFilter}
-                onChange={(e) => {
-                  setWsPriorityFilter(e.target.value);
-                  setWsCurrentPage(1);
-                }}
-                className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-600"
-              >
-                <option value="ALL">🎯 All Priorities</option>
-                <option value="Critical">🔴 Critical</option>
-                <option value="High">🟠 High</option>
-                <option value="Medium">🔵 Medium</option>
-                <option value="Low">⚪ Low</option>
-              </select>
-
-              {/* Owner Filter */}
-              {distinctOwners.length > 0 && (
-                <select
-                  value={wsOwnerFilter}
-                  onChange={(e) => {
-                    setWsOwnerFilter(e.target.value);
-                    setWsCurrentPage(1);
-                  }}
-                  className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-600"
-                >
-                  <option value="ALL">👤 All Owners</option>
-                  {distinctOwners.map((ownerName) => (
-                    <option key={ownerName} value={ownerName}>
-                      {ownerName}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {/* Page Size Selector */}
-              <select
-                value={wsPageSize}
-                onChange={(e) => {
-                  const val = e.target.value === "ALL" ? "ALL" : parseInt(e.target.value, 10);
-                  setWsPageSize(val);
-                  setWsCurrentPage(1);
-                }}
-                className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-600"
-                title="Page size"
-              >
-                <option value={10}>10 / page</option>
-                <option value={25}>25 / page</option>
-                <option value={50}>50 / page</option>
-                <option value="ALL">All on 1 page</option>
-              </select>
-
-              {/* Clear Filters button */}
-              {(wsSearch || wsStatusFilter !== "ALL" || wsRagFilter !== "ALL" || wsCycleFilter !== "ALL" || wsMeetingDateFilter !== "ALL" || wsOwnerFilter !== "ALL" || wsPriorityFilter !== "ALL" || wsDeptFilter !== "ALL" || wsOverdueFilter) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setWsSearch("");
-                    setWsStatusFilter("ALL");
-                    setWsRagFilter("ALL");
-                    setWsCycleFilter("ALL");
-                    setWsMeetingDateFilter("ALL");
-                    setWsOwnerFilter("ALL");
-                    setWsPriorityFilter("ALL");
-                    setWsDeptFilter("ALL");
-                    setWsOverdueFilter(false);
-                    setWsCurrentPage(1);
-                  }}
-                  className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 transition"
-                  title="Reset all filters"
-                >
-                  Reset
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* ACTION ITEMS TABLE (STANDARD HORIZONTAL REGISTER - EXACT 13 COLUMNS) */}
-        {actionViewTab === "OPEN" ? (
-          <div className="border-t border-slate-200">
-            <div className="overflow-x-auto shadow-inner max-h-[750px] relative">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead className="sticky top-0 z-10 bg-[#0b1329] text-white uppercase text-[11px] font-bold tracking-wider border-b border-slate-800 whitespace-nowrap shadow-sm">
-                  <tr>
-                    <th className="px-3 py-3.5 text-center font-bold text-slate-100 min-w-[70px]">1. Sl.No.</th>
-                    <th className="px-4 py-3.5 text-left font-bold text-slate-100 min-w-[150px]">2. Review Meeting Date</th>
-                    <th className="px-4 py-3.5 text-left font-bold text-slate-100 min-w-[140px]">3. Department</th>
-                    <th className="px-5 py-3.5 text-left font-bold text-slate-100 min-w-[280px]">4. Action Item / Deliverable</th>
-                    <th className="px-4 py-3.5 text-left font-bold text-slate-100 min-w-[140px]">5. Action Owner</th>
-                    <th className="px-4 py-3.5 text-left font-bold text-slate-100 min-w-[160px]">6. Support Required From</th>
-                    <th className="px-3 py-3.5 text-center font-bold text-slate-100 min-w-[100px]">7. Priority</th>
-                    <th className="px-4 py-3.5 text-left font-bold text-slate-100 min-w-[140px]">8. Completion Date</th>
-                    <th className="px-3 py-3.5 text-center font-bold text-slate-100 min-w-[130px]">9. Status</th>
-                    <th className="px-5 py-3.5 text-left font-bold text-slate-100 min-w-[240px]">10. Progress Update / Remarks</th>
-                    <th className="px-4 py-3.5 text-left font-bold text-slate-100 min-w-[130px]">11. Next Follow-up Date</th>
-                    <th className="px-3 py-3.5 text-center font-bold text-slate-100 min-w-[140px]">12. VC Decision Required</th>
-                    <th className="px-4 py-3.5 text-center font-bold text-slate-100 min-w-[150px]">13. Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 bg-white">
-                  {paginatedWorkstreams.length === 0 ? (
-                    <tr>
-                      <td colSpan={13} className="px-6 py-12 text-center text-slate-400">
-                        <div className="max-w-md mx-auto space-y-2">
-                          <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
-                          <p className="font-bold text-slate-700 text-sm">No Open Action Items Found</p>
-                          <p className="text-xs text-slate-500">
-                            No action items match the active filters. Check other filters, switch to <strong>Closed Action History</strong>, or click <strong>+ Add Action Item</strong> to register a new commitment.
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedWorkstreams.map((ws: any, index: number) => {
-                      const serialNo = wsPageSize === "ALL" ? index + 1 : (wsCurrentPage - 1) * (wsPageSize as number) + index + 1;
-                      const actionId = ws.item_id || `ACT-${String(serialNo).padStart(2, "0")}`;
-                      const deliverable = ws.action_point || ws.deliverable || "--";
-                      const ownership = ws.ownership || ws.owner || "--";
-                      const timeline = ws.timeline || ws.target_date || "--";
-                      const priority = ws.priority || "Medium";
-                      const status = (ws.status || "OPEN").toUpperCase();
-                      const isOverdue = isActionOverdue(ws) || ws.effective_rag === "RED" || ws.rag_status === "RED";
-                      const isBlocked = status === "BLOCKED";
-                      const weeksOutstanding = ws.weeks_outstanding ?? 0;
-                      const isCarried = ws.is_carried_forward || weeksOutstanding > 0;
-                      const ragStatus = (isOverdue ? "RED" : (ws.effective_rag || ws.rag_status || (["DELAYED", "BLOCKED"].includes(status) ? "AMBER" : "GREEN"))).toUpperCase();
-                      const remarks = ws.remarks || ws.risks_blockers || "--";
-                      const isVcReq = ws.vc_decision_required === "Yes";
-                      const decisionAction = ws.decision_action || "";
-                      const isSupporting = ws.is_supporting || (ws.department_id && Number(ws.department_id) !== Number(dept.id));
-                      const deptName = ws.primary_department_name || dept.name;
-                      const meetingDateFormatted = ws.review_meeting_date
-                        ? new Date(ws.review_meeting_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
-                        : "12 Oct 2026";
-
-                      return (
-                        <tr
-                          key={ws.id}
-                          className={`transition ${
-                            isOverdue
-                              ? "bg-rose-50/90 hover:bg-rose-100/80 border-l-4 border-l-rose-600 shadow-2xs"
-                              : isBlocked
-                              ? "bg-rose-50/40 hover:bg-rose-50/70 border-l-4 border-l-rose-400"
-                              : "hover:bg-slate-50/90"
-                          }`}
-                        >
-                          {/* 1. Sl.No. */}
-                          <td className="px-3 py-4 text-center whitespace-nowrap font-mono">
-                            <div className="font-extrabold text-slate-800 text-sm">#{serialNo}</div>
-                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 mt-0.5 inline-block font-bold">
-                              {actionId}
-                            </span>
-                          </td>
-
-                          {/* 2. Review Meeting Date */}
-                          <td className="px-4 py-4 whitespace-nowrap text-left">
-                            <div className="text-xs font-bold text-slate-900">{meetingDateFormatted}</div>
-                            <div className="text-[11px] text-slate-500 font-medium">{ws.review_week || "Week 42"}</div>
-                            <div className="mt-1">
-                              {isCarried ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300">
-                                  🔄 Carried (+{weeksOutstanding}w)
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-100 text-emerald-900 border border-emerald-300">
-                                  ⚡ New This Week
-                                </span>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* 3. Department */}
-                          <td className="px-4 py-4 whitespace-nowrap text-left">
-                            <div className="text-xs font-bold text-slate-900">{deptName}</div>
-                            <div className="mt-1">
-                              {isSupporting ? (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                                  🔗 Supporting
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                                  🏛️ Primary
-                                </span>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* 4. Action Item / Deliverable */}
-                          <td className="px-5 py-4 min-w-[280px]">
-                            <div className={`text-sm font-bold leading-relaxed ${isOverdue ? "text-rose-950 font-black" : "text-slate-900"}`}>
-                              {deliverable}
-                            </div>
-                            {ws.category && ws.category !== "Operational Initiative" && (
-                              <span className="inline-block mt-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
-                                {ws.category}
-                              </span>
-                            )}
-                          </td>
-
-                          {/* 5. Action Owner */}
-                          <td className="px-4 py-4 whitespace-nowrap text-left">
-                            <div className="text-xs font-bold text-slate-900">{ownership}</div>
-                          </td>
-
-                          {/* 6. Support Required From */}
-                          <td className="px-4 py-4 text-left min-w-[160px]">
-                            <div className="text-xs font-medium text-slate-700">
-                              {ws.supporting_departments || <span className="text-slate-400 italic">None</span>}
-                            </div>
-                          </td>
-
-                          {/* 7. Priority */}
-                          <td className="px-3 py-4 text-center whitespace-nowrap">
-                            <span className={`px-2.5 py-1 rounded-md text-xs font-extrabold border ${
-                              priority === "Critical"
-                                ? "bg-rose-50 text-rose-700 border-rose-300"
-                                : priority === "High"
-                                ? "bg-amber-50 text-amber-700 border-amber-300"
-                                : priority === "Low"
-                                ? "bg-slate-100 text-slate-600 border-slate-200"
-                                : "bg-blue-50 text-blue-700 border-blue-200"
-                            }`}>
-                              {priority === "Critical" ? "🔴 " : priority === "High" ? "🟠 " : priority === "Low" ? "⚪ " : "🔵 "}
-                              {priority}
-                            </span>
-                          </td>
-
-                          {/* 8. Completion Date */}
-                          <td className="px-4 py-4 whitespace-nowrap text-left">
-                            <div className="flex flex-col items-start gap-1">
-                              <span className={`text-xs font-bold ${isOverdue ? "text-rose-700 font-extrabold" : "text-slate-800"}`}>
-                                {timeline}
-                              </span>
-                              {isOverdue && (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white shadow-xs animate-pulse">
-                                  🚨 OVERDUE
-                                </span>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* 9. Status */}
-                          <td className="px-3 py-4 text-center whitespace-nowrap">
-                            <div className="flex flex-col items-center gap-1">
-                              {canEdit ? (
-                                <select
-                                  value={status}
-                                  onChange={(e) => handleQuickStatusChange(ws, e.target.value)}
-                                  className={`px-2.5 py-1 text-xs font-bold rounded-lg border focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer ${
-                                    status === "COMPLETED" || status === "CLOSED"
-                                      ? "bg-emerald-50 text-emerald-700 border-emerald-300"
-                                      : status === "DELAYED"
-                                      ? "bg-amber-50 text-amber-700 border-amber-300"
-                                      : status === "BLOCKED"
-                                      ? "bg-rose-600 text-white font-black border-rose-700 shadow-xs"
-                                      : status === "ON HOLD"
-                                      ? "bg-slate-100 text-slate-700 border-slate-300"
-                                      : "bg-indigo-50 text-indigo-700 border-indigo-300"
-                                  }`}
-                                >
-                                  <option value="OPEN">OPEN</option>
-                                  <option value="IN PROGRESS">IN PROGRESS</option>
-                                  <option value="BLOCKED">BLOCKED</option>
-                                  <option value="DELAYED">DELAYED</option>
-                                  <option value="ON HOLD">ON HOLD</option>
-                                  <option value="CLOSED">CLOSED ✓</option>
-                                </select>
-                              ) : (
-                                <span className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border ${
-                                  status === "COMPLETED" || status === "CLOSED"
-                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                    : status === "DELAYED"
-                                    ? "bg-amber-50 text-amber-700 border-amber-200"
-                                    : status === "BLOCKED"
-                                    ? "bg-rose-600 text-white font-black border-rose-700 shadow-xs"
-                                    : status === "ON HOLD"
-                                    ? "bg-slate-100 text-slate-700 border-slate-300"
-                                    : "bg-indigo-50 text-indigo-700 border-indigo-200"
-                                }`}>
-                                  {status === "BLOCKED" ? "⛔ BLOCKED" : status}
-                                </span>
-                              )}
-                              <span className={`px-1.5 py-0.5 text-[9px] font-black rounded uppercase tracking-wider ${
-                                ragStatus === "GREEN"
-                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                                  : ragStatus === "AMBER"
-                                  ? "bg-amber-100 text-amber-800 border border-amber-300"
-                                  : "bg-rose-600 text-white shadow-xs font-black animate-pulse"
-                              }`}>
-                                {ragStatus}
-                              </span>
-                            </div>
-                          </td>
-
-                          {/* 10. Progress Update / Remarks */}
-                          <td className="px-5 py-4 text-left min-w-[240px]">
-                            <div className="text-xs text-slate-700 leading-relaxed font-normal whitespace-pre-wrap">
-                              {remarks}
-                            </div>
-                          </td>
-
-                          {/* 11. Next Follow-up Date */}
-                          <td className="px-4 py-4 whitespace-nowrap text-left">
-                            <span className="text-xs font-medium text-slate-800">
-                              {ws.next_followup_date || <span className="text-slate-400 italic">--</span>}
-                            </span>
-                          </td>
-
-                          {/* 12. Vice Chairman Decision Required */}
-                          <td className="px-3 py-4 text-center whitespace-nowrap">
-                            {isVcReq ? (
-                              <div className="flex flex-col items-center gap-1">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-black rounded-lg bg-rose-600 text-white shadow-xs">
-                                  YES
-                                </span>
-                                {decisionAction && (
-                                  <span className="text-[10px] text-rose-700 max-w-[150px] truncate" title={decisionAction}>
-                                    {decisionAction}
-                                  </span>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="px-2 py-0.5 text-xs font-semibold text-slate-400">
-                                No
-                              </span>
-                            )}
-                          </td>
-
-                          {/* 13. Actions */}
-                          <td className="px-4 py-4 text-center whitespace-nowrap">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <button
-                                onClick={() => openEditWsModal(ws)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition shadow-2xs"
-                                title="Edit Action Item"
-                              >
-                                <Edit2 className="w-3 h-3" />
-                                <span>Edit</span>
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setClosingAction(ws);
-                                  setClosureRemarks("");
-                                }}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs border border-emerald-300 transition shadow-2xs"
-                                title="Close Action Item"
-                              >
-                                <CheckCircle2 className="w-3 h-3" />
-                                <span>Close</span>
-                              </button>
-                              <button
-                                onClick={() => setShowHistoryModal(ws)}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
-                                title="View Action History"
-                              >
-                                <History className="w-3.5 h-3.5" />
-                              </button>
-                              {canEdit && (
-                                <button
-                                  onClick={() => handleDeleteWorkstream(ws.id)}
-                                  className="p-1.5 rounded-lg text-rose-400 hover:text-rose-700 hover:bg-rose-50 transition"
-                                  title="Delete Action Item"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination Controls */}
-            {filteredWorkstreams.length > 0 && (
-              <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
-                <div>
-                  Showing{" "}
-                  <strong className="text-slate-900 font-bold">
-                    {wsPageSize === "ALL" ? 1 : (wsCurrentPage - 1) * (wsPageSize as number) + 1}
-                  </strong>{" "}
-                  to{" "}
-                  <strong className="text-slate-900 font-bold">
-                    {wsPageSize === "ALL"
-                      ? filteredWorkstreams.length
-                      : Math.min(wsCurrentPage * (wsPageSize as number), filteredWorkstreams.length)}
-                  </strong>{" "}
-                  of <strong className="text-slate-900 font-bold">{filteredWorkstreams.length}</strong> actions
-                </div>
-
-                {wsPageSize !== "ALL" && totalActionPages > 1 && (
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      disabled={wsCurrentPage <= 1}
-                      onClick={() => setWsCurrentPage((p) => Math.max(1, p - 1))}
-                      className="px-3 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 font-semibold"
-                    >
-                      Previous
-                    </button>
-                    <span className="px-2 font-bold text-slate-700">
-                      Page {wsCurrentPage} of {totalActionPages}
-                    </span>
-                    <button
-                      type="button"
-                      disabled={wsCurrentPage >= totalActionPages}
-                      onClick={() => setWsCurrentPage((p) => Math.min(totalActionPages, p + 1))}
-                      className="px-3 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 font-semibold"
-                    >
-                      Next
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        ) : (
-          /* ACTION ITEMS TABLE (CLOSED VIEW / HISTORY) */
-          <div className="overflow-x-auto border-t border-slate-200">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#0b1329] text-white uppercase text-[10px] font-bold tracking-wider border-b border-slate-800 whitespace-nowrap">
-                <tr>
-                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">Action ID</th>
-                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">Scope</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100 min-w-[240px]">Action Item / Deliverable</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Owner / Support</th>
-                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">Priority</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Closed Date & User</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Closure Remarks / Evidence</th>
-                  {canEdit && <th className="px-4 py-3.5 text-right font-bold tracking-wider text-slate-100">Actions</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {filteredWorkstreams.length === 0 ? (
-                  <tr>
-                    <td colSpan={canEdit ? 8 : 7} className="px-6 py-12 text-center text-slate-400">
-                      <p className="font-semibold text-slate-600">No Closed Actions Recorded Yet</p>
-                      <p className="text-xs text-slate-400 mt-1">
-                        All open directives remain permanently active in the <strong>Open Action Items</strong> tab until formally closed.
-                      </p>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredWorkstreams.map((ws: any, index: number) => {
-                    const actionId = ws.item_id || `ACT-${String(index + 1).padStart(2, "0")}`;
-                    const deliverable = ws.action_point || ws.deliverable || "--";
-                    const ownership = ws.ownership || ws.owner || "--";
-                    const priority = ws.priority || "Medium";
-                    const isSupporting = ws.is_supporting || (ws.department_id && Number(ws.department_id) !== Number(dept.id));
-
-                    return (
-                      <tr key={ws.id} className="hover:bg-slate-50/90 transition bg-slate-50/40">
-                        {/* 1. Action ID */}
-                        <td className="px-3 py-3.5 text-center whitespace-nowrap font-mono">
-                          <span className="px-2 py-1 rounded-md bg-emerald-50 text-emerald-800 font-extrabold text-[11px] border border-emerald-200">
-                            {actionId}
-                          </span>
-                        </td>
-
-                        {/* 2. Scope */}
-                        <td className="px-3 py-3.5 text-center whitespace-nowrap">
-                          {isSupporting ? (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                              🔗 Supporting
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                              🏛️ Primary
-                            </span>
-                          )}
-                        </td>
-
-                        {/* 3. Deliverable */}
-                        <td className="px-4 py-3.5 min-w-[240px]">
-                          <div className="font-bold text-slate-800 line-through text-slate-500">
-                            {deliverable}
-                          </div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
-                            Original Timeline: {ws.timeline || ws.target_date || "--"}
-                          </div>
-                        </td>
-
-                        {/* 4. Owner */}
-                        <td className="px-4 py-3.5 text-slate-600 font-medium">
-                          {ownership}
-                        </td>
-
-                        {/* 5. Priority */}
-                        <td className="px-3 py-3.5 text-center whitespace-nowrap">
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                            {priority}
-                          </span>
-                        </td>
-
-                        {/* 6. Closed Date & User */}
-                        <td className="px-4 py-3.5 whitespace-nowrap text-slate-700">
-                          <div className="font-bold text-emerald-800">
-                            {ws.closure_date ? new Date(ws.closure_date).toLocaleDateString("en-IN") : "Closed"}
-                          </div>
-                          <div className="text-[10px] text-slate-500">
-                            By {ws.closed_by || "Executive Lead"}
-                          </div>
-                        </td>
-
-                        {/* 7. Closure Remarks */}
-                        <td className="px-4 py-3.5 text-slate-700 leading-relaxed max-w-md">
-                          <div className="p-2 bg-emerald-50/80 rounded-xl border border-emerald-100 text-[11px] text-emerald-900">
-                            {ws.closure_remarks || "Action formally verified, resolved and closed."}
-                          </div>
-                        </td>
-
-                        {/* 8. Actions (Reopen & History) */}
-                        {canEdit && (
-                          <td className="px-4 py-3 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => handleReopenAction(ws)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition shadow-2xs"
-                                title="Reopen this action back into Open Action Items"
-                              >
-                                <RotateCcw className="w-3 h-3" />
-                                <span>Reopen</span>
-                              </button>
-                              <button
-                                onClick={() => setShowHistoryModal(ws)}
-                                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
-                                title="View Action History / Audit Trail"
-                              >
-                                <History className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* ========================================================================= */}
-      {/* 2. STRATEGIC TALENT & RECRUITMENT TRACKER (HR & RECRUITMENT VERTICAL ONLY) */}
-      {/* ========================================================================= */}
-      {isHR && (
-        <div id="recruitment" className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-4">
-          {/* Table Header */}
-          <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <h2 className="text-base font-bold text-slate-900 tracking-tight uppercase flex items-center gap-2">
-                <span>STRATEGIC TALENT & RECRUITMENT TRACKER</span>
-                <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 text-[10px] font-bold rounded-md">
-                  Positions Pipeline
-                </span>
-              </h2>
-              <p className="text-xs text-slate-500">
-                Manage positions, sourcing pipelines, offers, interviews, and VC review items across all 9 verticals
-              </p>
-            </div>
-            {canEdit && (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowInlineRecForm(!showInlineRecForm)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg transition"
-                >
-                  <span>{showInlineRecForm ? "Hide Recruitment Form" : "Show Recruitment Form"}</span>
-                </button>
-                <button
-                  onClick={openNewRecModal}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg transition shadow-xs"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ New Position</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* INLINE RECRUITMENT TRACKER DATA ENTRY FORM */}
-          {canEdit && showInlineRecForm && (
-            <div className="mx-6 p-5 bg-gradient-to-r from-slate-50 via-indigo-50/20 to-slate-50 rounded-2xl border border-indigo-100 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2.5">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                    RECRUITMENT WEB FORM
-                  </h3>
-                  <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-md">
-                    Talent Engine
-                  </span>
-                </div>
-                <span className="text-[11px] text-slate-500 italic">
-                  Enter talent pipeline details below to add directly to HR & Recruitment
-                </span>
-              </div>
-
-              <form onSubmit={handleSaveRecruitment} className="space-y-3.5 text-xs">
-                {/* Row 1: Position / Role, Department / Strategic Vertical, Priority, Hiring Owner */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
-                  <div className="md:col-span-4">
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                      Position / Role <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={recForm.position_title}
-                      onChange={(e) => setRecForm({ ...recForm, position_title: e.target.value })}
-                      required
-                      placeholder="e.g. Director - Cleanroom Operations"
-                      className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="md:col-span-3">
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                      Department / Strategic Vertical <span className="text-rose-500">*</span>
-                    </label>
-                    <select
-                      value={recForm.strategic_segment}
-                      onChange={(e) => setRecForm({ ...recForm, strategic_segment: e.target.value })}
-                      className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                    >
-                      <option value="Semicon">Semicon</option>
-                      <option value="Aerospace & Defence">Aerospace & Defence</option>
-                      <option value="Space">Space</option>
-                      <option value="Cybersecurity">Cybersecurity</option>
-                      <option value="MedTech">MedTech</option>
-                      <option value="Advanced Manufacturing">Advanced Manufacturing</option>
-                      <option value="Communications">Communications</option>
-                      <option value="Strategy & Operations">Strategy & Operations</option>
-                      <option value="HR & Recruitment">HR & Recruitment</option>
-                      <option value="Central Leadership">Central Leadership</option>
-                    </select>
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                      Priority
-                    </label>
-                    <select
-                      value={recForm.priority}
-                      onChange={(e) => setRecForm({ ...recForm, priority: e.target.value })}
-                      className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                    >
-                      <option value="Critical">Critical</option>
-                      <option value="High">High</option>
-                      <option value="Medium">Medium</option>
-                      <option value="Low">Low</option>
-                    </select>
-                  </div>
-
-                  <div className="md:col-span-3">
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                      Hiring Owner
-                    </label>
-                    <input
-                      type="text"
-                      value={recForm.hiring_lead}
-                      onChange={(e) => setRecForm({ ...recForm, hiring_lead: e.target.value })}
-                      placeholder="e.g. Sumanth Rao / HR Lead"
-                      className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Row 2: Target Joining Date, Status, VC Decision Required */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                      Target Joining Date
-                    </label>
-                    <input
-                      type="date"
-                      value={recForm.target_date}
-                      onChange={(e) => setRecForm({ ...recForm, target_date: e.target.value })}
-                      className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1 flex items-center justify-between">
-                      <span>Status</span>
-                      <span className="text-[10px] text-indigo-600 font-semibold">(Choose One)</span>
-                    </label>
-                    <select
-                      value={recForm.status}
-                      onChange={(e) => setRecForm({ ...recForm, status: e.target.value })}
-                      className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                    >
-                      <option value="Candidate sourced">• Candidate sourced</option>
-                      <option value="shortlisted">• shortlisted</option>
-                      <option value="Interview in progress">• Interview in progress</option>
-                      <option value="Offers released">• Offers released</option>
-                      <option value="Rejected">• Rejected</option>
-                      <option value="Joined">• Joined</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1 flex items-center justify-between">
-                      <span>VC Decision Required</span>
-                      <span className="text-[10px] text-rose-600 font-bold">YES / NO</span>
-                    </label>
-                    <select
-                      value={recForm.vc_decision_required}
-                      onChange={(e) => setRecForm({ ...recForm, vc_decision_required: e.target.value })}
-                      className={`w-full px-3 py-2 bg-white rounded-xl border font-black focus:ring-2 focus:ring-indigo-600 focus:outline-none ${
-                        recForm.vc_decision_required === "Yes"
-                          ? "border-rose-400 text-rose-700 bg-rose-50/50"
-                          : "border-slate-300 text-slate-800"
-                      }`}
-                    >
-                      <option value="No">No</option>
-                      <option value="Yes">Yes</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Row 3: Remarks */}
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Remarks
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={recForm.remarks}
-                    onChange={(e) => setRecForm({ ...recForm, remarks: e.target.value })}
-                    placeholder="Progress, compensation discussions, bottlenecks, or leadership notes..."
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  />
-                </div>
-
-                {/* Buttons */}
-                <div className="flex items-center justify-end gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRecForm({
-                        position_title: "",
-                        strategic_segment: "Semicon",
-                        priority: "Critical",
-                        hiring_lead: "HR Talent Lead",
-                        target_date: new Date().toISOString().split("T")[0],
-                        status: "Candidate sourced",
-                        remarks: "",
-                        vc_decision_required: "No",
-                      });
-                    }}
-                    className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-semibold rounded-xl hover:bg-white/80 border border-transparent hover:border-slate-300 transition"
-                  >
-                    Clear Form
-                  </button>
-                  <button
-                    type="submit"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-sm transition"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>+ Add Position</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {/* HR RECRUITMENT FILTER CONTROLS */}
-          <div className="px-6 space-y-3">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
-                  <Filter className="w-3.5 h-3.5" /> Priority:
-                </span>
-                {[
-                  { id: "ALL", label: `All (${recruitmentItems.length})` },
-                  { id: "Critical", label: "Critical" },
-                  { id: "High", label: "High" },
-                  { id: "Medium", label: "Medium" },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => setRecPriorityFilter(item.id)}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
-                      recPriorityFilter === item.id
-                        ? item.id === "Critical"
-                          ? "bg-rose-600 text-white shadow-xs"
-                          : item.id === "High"
-                          ? "bg-amber-600 text-white shadow-xs"
-                          : "bg-indigo-600 text-white shadow-xs"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-
-                <span className="text-slate-300 mx-1">|</span>
-
-                {/* VC Attention Filter Button */}
-                <button
-                  onClick={() => setRecVcFilter(recVcFilter === "VC_ONLY" ? "ALL" : "VC_ONLY")}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
-                    recVcFilter === "VC_ONLY"
-                      ? "bg-rose-700 text-white shadow-xs"
-                      : "bg-rose-50 text-rose-700 hover:bg-rose-100"
-                  }`}
-                >
-                  VC Attention Only
-                </button>
-              </div>
-
-              {/* Recruitment Search */}
-              <div className="relative w-full md:w-64">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  placeholder="Search position, ID, lead..."
-                  value={recSearch}
-                  onChange={(e) => setRecSearch(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:bg-white"
-                />
-              </div>
-            </div>
-
-            {/* Status Filter Buttons */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-1">
-                Status:
-              </span>
-              {[
-                { id: "ALL", label: "All Statuses" },
-                { id: "Candidate sourced", label: "Candidate sourced" },
-                { id: "shortlisted", label: "shortlisted" },
-                { id: "Interview in progress", label: "Interview in progress" },
-                { id: "Offers released", label: "Offers released" },
-                { id: "Rejected", label: "Rejected" },
-                { id: "Joined", label: "Joined" },
-              ].map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => setRecStatusFilter(s.id)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
-                    recStatusFilter === s.id
-                      ? s.id === "Joined"
-                        ? "bg-emerald-600 text-white shadow-xs"
-                        : s.id === "Rejected"
-                        ? "bg-rose-600 text-white shadow-xs"
-                        : s.id === "Offers released"
-                        ? "bg-indigo-600 text-white shadow-xs"
-                        : s.id === "Interview in progress"
-                        ? "bg-amber-600 text-white shadow-xs"
-                        : s.id === "shortlisted"
-                        ? "bg-violet-600 text-white shadow-xs"
-                        : "bg-blue-600 text-white shadow-xs"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* HR & RECRUITMENT TABLE */}
-          <div className="overflow-x-auto border-t border-slate-200">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#0b1329] text-white uppercase text-[10px] font-bold tracking-wider border-b border-slate-800 whitespace-nowrap">
-                <tr>
-                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">Sl. No.</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Position / Role</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Department / Vertical</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Priority</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Hiring Owner</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Target Date</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Status</th>
-                  <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Remarks</th>
-                  <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">VC Decision</th>
-                  {canEdit && <th className="px-4 py-3.5 text-right font-bold tracking-wider text-slate-100">Actions</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {filteredRecruitment.length === 0 ? (
-                  <tr>
-                    <td colSpan={canEdit ? 10 : 9} className="px-6 py-8 text-center text-slate-400">
-                      No recruitment positions match the active filters. Click "+ New Position" or clear filters.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredRecruitment.map((r: any, index: number) => {
-                    const posTitle = r.position_title || r.position_role || "--";
-                    const deptVertical = r.strategic_segment || r.department_vertical || "--";
-                    const priority = r.priority || "Medium";
-                    const hiringOwner = r.hiring_lead || r.hiring_owner || "--";
-                    const targetJoining = r.target_date || r.target_joining_date || "--";
-                    const recStatus = r.status || r.recruitment_status || "Candidate sourced";
-                    const remarks = r.remarks || r.key_issue || "--";
-                    const isVcReq = r.vc_decision_required === "Yes" || r.vc_attention === true;
-
-                    return (
-                      <tr key={r.id} className="hover:bg-slate-50/80 transition">
-                        <td className="px-3 py-3.5 font-bold text-center text-slate-500 font-mono">
-                          {index + 1}
-                        </td>
-                        <td className="px-4 py-3.5 font-bold text-slate-900 min-w-[200px]">
-                          {posTitle}
-                        </td>
-                        <td className="px-4 py-3.5 font-medium text-slate-700 whitespace-nowrap">
-                          {deptVertical}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span
-                            className={`px-2 py-0.5 text-[10px] font-bold rounded-md border uppercase ${
-                              priority === "Critical"
-                                ? "bg-rose-100 text-rose-800 border-rose-300"
-                                : priority === "High"
-                                ? "bg-amber-100 text-amber-800 border-amber-300"
-                                : "bg-slate-100 text-slate-700 border-slate-300"
-                            }`}
-                          >
-                            {priority}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3.5 font-medium text-slate-700 whitespace-nowrap">
-                          {hiringOwner}
-                        </td>
-                        <td className="px-4 py-3 font-mono text-slate-600 whitespace-nowrap">
-                          {targetJoining}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-lg border ${
-                              recStatus === "Joined"
-                                ? "bg-emerald-50 text-emerald-800 border-emerald-300"
-                                : recStatus === "Offers released"
-                                ? "bg-indigo-50 text-indigo-800 border-indigo-300"
-                                : recStatus === "Interview in progress"
-                                ? "bg-amber-50 text-amber-800 border-amber-300"
-                                : recStatus === "shortlisted"
-                                ? "bg-violet-50 text-violet-800 border-violet-300"
-                                : recStatus === "Rejected"
-                                ? "bg-rose-50 text-rose-800 border-rose-300"
-                                : "bg-blue-50 text-blue-800 border-blue-300"
-                            }`}
-                          >
-                            <span className={`w-1.5 h-1.5 rounded-full ${
-                              recStatus === "Joined"
-                                ? "bg-emerald-500"
-                                : recStatus === "Offers released"
-                                ? "bg-indigo-500"
-                                : recStatus === "Interview in progress"
-                                ? "bg-amber-500"
-                                : recStatus === "shortlisted"
-                                ? "bg-violet-500"
-                                : recStatus === "Rejected"
-                                ? "bg-rose-500"
-                                : "bg-blue-500"
-                            }`} />
-                            {recStatus}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-slate-700 min-w-[200px] leading-relaxed">
-                          {remarks}
-                        </td>
-                        <td className="px-3 py-3 text-center whitespace-nowrap">
-                          {isVcReq ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-black rounded-lg bg-rose-600 text-white shadow-xs">
-                              YES
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 text-[11px] font-semibold text-slate-400">
-                              No
-                            </span>
-                          )}
-                        </td>
-                        {canEdit && (
-                          <td className="px-4 py-3 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => openEditRecModal(r)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition shadow-2xs"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                                <span>Edit</span>
-                              </button>
-                              <button
-                                onClick={() => handleDeleteRecruitment(r.id)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition shadow-2xs"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                <span>Delete</span>
-                              </button>
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
+{/* ========================================================================= */}
       {/* MODAL 1: ADD / EDIT ACTION POINT */}
       {/* ========================================================================= */}
       {showWsModal && (
