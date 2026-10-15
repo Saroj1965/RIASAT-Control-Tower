@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { query, logAudit } from "@/lib/db";
 import { getSessionUser, canEditDepartment, canViewDepartment, hasFullAccess } from "@/lib/auth";
 import { ROLES } from "@/lib/constants";
+import { calculateActionWeekStats, getCurrentReviewMeetingDate, getReviewWeekLabel } from "@/lib/action-helpers";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -78,7 +79,25 @@ export async function GET(req: Request, { params }: Params) {
       }
     } catch {}
 
-    const items = wsRes.rows;
+    const currentMeetingDate = getCurrentReviewMeetingDate();
+    const currentReviewWeek = getReviewWeekLabel(currentMeetingDate);
+
+    const items = wsRes.rows.map((row: any) => {
+      const stats = calculateActionWeekStats(row);
+      return {
+        ...row,
+        review_meeting_date: stats.review_meeting_date,
+        review_week: stats.review_week,
+        weeks_outstanding: stats.weeks_outstanding,
+        is_carried_forward: stats.is_carried_forward,
+        is_new_this_week: stats.is_new_this_week,
+        is_overdue: stats.is_overdue,
+        is_approaching: stats.is_approaching,
+        effective_rag: stats.effective_rag,
+        action_history: stats.history,
+      };
+    });
+
     const userCanEdit = canEditDepartment(user, deptId);
 
     return NextResponse.json({
@@ -89,6 +108,8 @@ export async function GET(req: Request, { params }: Params) {
       recruitment,
       allDepartments,
       nextItemId,
+      currentReviewMeetingDate: currentMeetingDate,
+      currentReviewWeek: currentReviewWeek,
       canEdit: userCanEdit,
       isExecutive: user.role === ROLES.EXECUTIVE,
       isAdmin: user.role === ROLES.ADMIN,

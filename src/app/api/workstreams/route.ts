@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { query, logAudit } from "@/lib/db";
 import { getSessionUser, canEditDepartment } from "@/lib/auth";
+import { getCurrentReviewMeetingDate, getReviewWeekLabel } from "@/lib/action-helpers";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -37,6 +38,8 @@ export async function POST(req: Request) {
       supporting_department_ids,
       next_followup_date,
       meeting_context,
+      review_meeting_date,
+      review_week,
     } = body;
 
     const deptId = parseInt(department_id, 10);
@@ -76,6 +79,24 @@ export async function POST(req: Request) {
       finalVcReq = "Yes";
     }
 
+    // Review cycle tracking
+    const finalReviewMeetingDate = (review_meeting_date || "").trim() || getCurrentReviewMeetingDate();
+    const finalReviewWeek = (review_week || "").trim() || getReviewWeekLabel(finalReviewMeetingDate);
+
+    // Initial audit/action history
+    const initialHistory = [
+      {
+        date: new Date().toISOString(),
+        user: user.name,
+        role: user.role,
+        status: finalStatus,
+        remarks: finalRemarks || "Action registered during weekly review",
+        next_followup_date: next_followup_date || "",
+        rag_status: finalRag,
+        change_summary: `Created during ${finalReviewWeek}`,
+      },
+    ];
+
     // Auto-generate Item_ID if not supplied
     let finalItemId = (item_id || "").trim();
     if (!finalItemId) {
@@ -100,8 +121,9 @@ export async function POST(req: Request) {
         target_date, status, capex, revenue_pipeline, owner, 
         risks_blockers, decision_action, action_point, ownership, timeline,
         rag_status, remarks, vc_decision_required,
-        supporting_departments, supporting_department_ids, next_followup_date, meeting_context, updated_by, priority
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+        supporting_departments, supporting_department_ids, next_followup_date, meeting_context, updated_by, priority,
+        review_meeting_date, review_week, initial_target_date, action_history
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
       RETURNING *`,
       [
         finalItemId,
@@ -125,9 +147,13 @@ export async function POST(req: Request) {
         supporting_departments || "",
         supporting_department_ids || "",
         next_followup_date || "",
-        meeting_context || "Weekly Management Review - 12 Oct 2026",
+        meeting_context || `Weekly Management Review - ${finalReviewMeetingDate}`,
         user.name,
         finalPriority,
+        finalReviewMeetingDate,
+        finalReviewWeek,
+        finalTimeline,
+        JSON.stringify(initialHistory),
       ]
     );
 

@@ -1,4 +1,5 @@
 import { query } from "@/lib/db";
+import { calculateActionWeekStats, getCurrentReviewMeetingDate, getReviewWeekLabel } from "@/lib/action-helpers";
 
 export interface ExecutiveSummary {
   overall_readiness: number;
@@ -15,6 +16,13 @@ export interface ExecutiveSummary {
   open_actions: number;
   urgent_actions: number;
   closed_actions: number;
+  new_actions_this_week: number;
+  carried_forward_actions: number;
+  overdue_actions: number;
+  blocked_actions: number;
+  closed_this_week: number;
+  current_review_week: string;
+  current_review_date: string;
 }
 
 export interface DepartmentCard {
@@ -50,6 +58,7 @@ export interface AttentionItem {
   target_date: string;
   status: string;
   rag_status?: string;
+  priority?: string;
   decision_action?: string;
   vc_decision_required?: string;
   supporting_departments?: string;
@@ -57,6 +66,15 @@ export interface AttentionItem {
   meeting_context?: string;
   capex?: string;
   revenue_pipeline?: string;
+  review_meeting_date?: string;
+  review_week?: string;
+  weeks_outstanding?: number;
+  is_carried_forward?: boolean;
+  is_new_this_week?: boolean;
+  is_overdue?: boolean;
+  is_blocked?: boolean;
+  effective_rag?: "GREEN" | "AMBER" | "RED";
+  action_history?: any[];
 }
 
 export interface ExecutiveDashboardData {
@@ -89,11 +107,13 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
   `);
 
   // 2. Fetch all workstreams for calculations
+  // 2. Fetch all workstreams for calculations
   const allWsRes = await query(`
-    SELECT id, department_id, deliverable, category, status, capex, revenue_pipeline, 
+    SELECT id, item_id, department_id, deliverable, category, status, capex, revenue_pipeline, 
            owner, risks_blockers, decision_action, target_date,
            action_point, ownership, timeline, rag_status, remarks, vc_decision_required,
-           supporting_departments, supporting_department_ids
+           supporting_departments, supporting_department_ids, next_followup_date, meeting_context,
+           review_meeting_date, review_week, priority, closure_date, closure_remarks, created_at, action_history
     FROM workstreams
     ORDER BY id ASC
   `);
@@ -115,6 +135,8 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
     in_progress: number;
     on_hold: number;
     overdue: number;
+    carried_forward: number;
+    new_this_week: number;
     capex: number;
     revenue: number;
     pending_vc: number;
@@ -122,6 +144,16 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
 
   let totalGlobalCapex = 0;
   let totalGlobalRevenue = 0;
+  let newActionsThisWeek = 0;
+  let carriedForwardActions = 0;
+  let overdueActions = 0;
+  let blockedActions = 0;
+  let closedThisWeek = 0;
+  let totalActions = 0;
+  let openActions = 0;
+  let urgentActions = 0;
+  let closedActions = 0;
+
   const globalStatusCounts: Record<string, number> = {
     Completed: 0,
     "On Track": 0,
@@ -136,29 +168,64 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
     if (!deptStatsMap[dId]) {
       deptStatsMap[dId] = {
         total: 0, open: 0, completed: 0, delayed: 0, blocked: 0,
-        on_track: 0, in_progress: 0, on_hold: 0, overdue: 0, capex: 0, revenue: 0, pending_vc: 0,
+        on_track: 0, in_progress: 0, on_hold: 0, overdue: 0, carried_forward: 0, new_this_week: 0,
+        capex: 0, revenue: 0, pending_vc: 0,
       };
     }
 
+    const weekStats = calculateActionWeekStats(ws);
     const st = (ws.status || "Open").trim();
     const stUpper = st.toUpperCase();
-    const isClosed = stUpper === "COMPLETED" || stUpper === "CLOSED";
+    const isClosed = weekStats.is_closed;
 
     deptStatsMap[dId].total++;
-    if (!isClosed) deptStatsMap[dId].open++;
-    if (stUpper === "COMPLETED") deptStatsMap[dId].completed++;
+    totalActions++;
+
+    if (isClosed) {
+      deptStatsMap[dId].completed++;
+      closedActions++;
+      if (ws.closure_date) {
+        const closeTime = new Date(ws.closure_date).getTime();
+        const diffDays = (Date.now() - closeTime) / (1000 * 60 * 60 * 24);
+        if (diffDays <= 7) closedThisWeek++;
+      }
+    } else {
+      deptStatsMap[dId].open++;
+      openActions++;
+
+      if (weekStats.is_new_this_week) {
+        deptStatsMap[dId].new_this_week++;
+        newActionsThisWeek++;
+      }
+      if (weekStats.is_carried_forward) {
+        deptStatsMap[dId].carried_forward++;
+        carriedForwardActions++;
+      }
+      if (weekStats.is_overdue) {
+        deptStatsMap[dId].overdue = (deptStatsMap[dId].overdue || 0) + 1;
+        overdueActions++;
+      }
+      if (weekStats.is_blocked) {
+        deptStatsMap[dId].blocked++;
+        blockedActions++;
+      }
+
+      const timeline = (ws.timeline || ws.target_date || "").toLowerCase();
+      if (
+        timeline.includes("urgent") ||
+        timeline.includes("immediate") ||
+        stUpper === "DELAYED" ||
+        stUpper === "BLOCKED" ||
+        weekStats.is_overdue
+      ) {
+        urgentActions++;
+      }
+    }
+
     if (stUpper === "DELAYED") deptStatsMap[dId].delayed++;
-    if (stUpper === "BLOCKED") deptStatsMap[dId].blocked++;
     if (stUpper === "ON TRACK") deptStatsMap[dId].on_track++;
     if (stUpper === "IN PROGRESS" || stUpper === "OPEN") deptStatsMap[dId].in_progress++;
     if (stUpper === "ON HOLD") deptStatsMap[dId].on_hold++;
-
-    const isOverdue = !isClosed && (
-      stUpper === "DELAYED" || 
-      (ws.timeline && ws.timeline.match(/^\d{4}-\d{2}-\d{2}$/) && new Date(ws.timeline).getTime() < Date.now()) ||
-      (ws.target_date && ws.target_date.match(/^\d{4}-\d{2}-\d{2}$/) && new Date(ws.target_date).getTime() < Date.now())
-    );
-    if (isOverdue) deptStatsMap[dId].overdue = (deptStatsMap[dId].overdue || 0) + 1;
 
     if (globalStatusCounts[st] !== undefined) {
       globalStatusCounts[st]++;
@@ -301,6 +368,12 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
            w.supporting_department_ids,
            w.next_followup_date,
            w.meeting_context,
+           w.review_meeting_date,
+           w.review_week,
+           w.priority,
+           w.created_at,
+           w.closure_date,
+           w.action_history,
            d.name as department_name, d.id as department_id,
            w.capex, w.revenue_pipeline
     FROM workstreams w
@@ -312,8 +385,41 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
            WHEN UPPER(w.rag_status) = 'AMBER' OR UPPER(w.status) = 'DELAYED' THEN 2
            ELSE 3 END,
       w.id ASC
-    LIMIT 100
+    LIMIT 150
   `);
+
+  const enrichedAttentionWs: AttentionItem[] = attentionWsRes.rows.map((row: any) => {
+    const stats = calculateActionWeekStats(row);
+    return {
+      id: row.id,
+      item_id: row.item_id,
+      department_id: row.department_id,
+      department_name: row.department_name,
+      item: row.item,
+      issue: row.issue,
+      owner: row.owner,
+      target_date: row.target_date,
+      status: row.status,
+      rag_status: stats.effective_rag,
+      priority: row.priority || "Medium",
+      decision_action: row.decision_action,
+      vc_decision_required: row.vc_decision_required,
+      supporting_departments: row.supporting_departments,
+      next_followup_date: row.next_followup_date,
+      meeting_context: row.meeting_context,
+      capex: row.capex,
+      revenue_pipeline: row.revenue_pipeline,
+      review_meeting_date: stats.review_meeting_date,
+      review_week: stats.review_week,
+      weeks_outstanding: stats.weeks_outstanding,
+      is_carried_forward: stats.is_carried_forward,
+      is_new_this_week: stats.is_new_this_week,
+      is_overdue: stats.is_overdue,
+      is_blocked: stats.is_blocked,
+      effective_rag: stats.effective_rag,
+      action_history: stats.history,
+    };
+  });
 
   const attentionHrRes = await query(`
     SELECT r.id, r.position_title as item, r.status, r.hiring_lead as owner, r.target_date,
@@ -322,7 +428,8 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
            'HR & Recruitment' as department_name, 7 as department_id,
            CASE WHEN r.priority = 'Critical' THEN 'RED' ELSE 'AMBER' END as rag_status,
            CASE WHEN r.vc_attention = TRUE THEN 'Yes' ELSE 'No' END as vc_decision_required,
-           r.budget as capex, r.target_ctc as revenue_pipeline
+           r.budget as capex, r.target_ctc as revenue_pipeline,
+           r.priority
     FROM recruitment r
     WHERE (r.vc_attention = TRUE OR r.priority = 'Critical')
       AND r.status NOT IN ('Joined', 'Closed')
@@ -332,32 +439,37 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
     LIMIT 10
   `);
 
-  const managementAttention: AttentionItem[] = [...attentionWsRes.rows, ...attentionHrRes.rows];
+  const enrichedAttentionHr: AttentionItem[] = attentionHrRes.rows.map((row: any) => ({
+    id: row.id,
+    item_id: `REC-${row.id}`,
+    department_id: row.department_id,
+    department_name: row.department_name,
+    item: row.item,
+    issue: row.issue,
+    owner: row.owner,
+    target_date: row.target_date,
+    status: row.status,
+    rag_status: row.rag_status,
+    priority: row.priority || "Critical",
+    decision_action: row.decision_action,
+    vc_decision_required: row.vc_decision_required,
+    supporting_departments: "",
+    next_followup_date: "",
+    meeting_context: "Talent Acquisition Pipeline",
+    capex: row.capex,
+    revenue_pipeline: row.revenue_pipeline,
+    review_meeting_date: "2026-10-12",
+    review_week: "Week 42 (12 Oct 2026)",
+    weeks_outstanding: 1,
+    is_carried_forward: true,
+    is_new_this_week: false,
+    is_overdue: row.priority === "Critical",
+    is_blocked: false,
+    effective_rag: row.priority === "Critical" ? "RED" : "AMBER",
+    action_history: [],
+  }));
 
-  let totalActions = 0;
-  let openActions = 0;
-  let urgentActions = 0;
-  let closedActions = 0;
-
-  for (const ws of allWsRes.rows) {
-    totalActions++;
-    const stUpper = (ws.status || "OPEN").trim().toUpperCase();
-    const isClosed = stUpper === "COMPLETED" || stUpper === "CLOSED";
-    if (isClosed) {
-      closedActions++;
-    } else {
-      openActions++;
-      const timeline = (ws.timeline || ws.target_date || "").toLowerCase();
-      if (
-        timeline.includes("urgent") ||
-        timeline.includes("immediate") ||
-        stUpper === "DELAYED" ||
-        stUpper === "BLOCKED"
-      ) {
-        urgentActions++;
-      }
-    }
-  }
+  const managementAttention: AttentionItem[] = [...enrichedAttentionWs, ...enrichedAttentionHr];
 
   const actionsDistribution = departmentCards.map((d) => {
     let primary = 0;
@@ -409,6 +521,13 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
       open_actions: openActions,
       urgent_actions: urgentActions,
       closed_actions: closedActions,
+      new_actions_this_week: newActionsThisWeek,
+      carried_forward_actions: carriedForwardActions,
+      overdue_actions: overdueActions,
+      blocked_actions: blockedActions,
+      closed_this_week: closedThisWeek,
+      current_review_week: getReviewWeekLabel(getCurrentReviewMeetingDate()),
+      current_review_date: getCurrentReviewMeetingDate(),
     },
     departments: departmentCards,
     graphs: {

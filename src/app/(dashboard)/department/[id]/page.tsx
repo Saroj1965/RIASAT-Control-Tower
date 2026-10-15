@@ -30,6 +30,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { WORKSTREAM_STATUSES, RAG_STATUSES, RECRUITMENT_PRIORITIES, RECRUITMENT_STATUSES } from "@/lib/constants";
+import { getCurrentReviewMeetingDate, getReviewWeekLabel } from "@/lib/action-helpers";
 
 export default function DepartmentPage() {
   const params = useParams();
@@ -57,6 +58,7 @@ export default function DepartmentPage() {
   const [wsRagFilter, setWsRagFilter] = useState<string>("ALL");
   const [wsVcFilter, setWsVcFilter] = useState<string>("ALL");
   const [wsSearch, setWsSearch] = useState<string>("");
+  const [wsCycleFilter, setWsCycleFilter] = useState<"ALL" | "CARRIED" | "NEW" | "BLOCKED" | "VC">("ALL");
 
   // Recruitment Filter states (HR)
   const [recStatusFilter, setRecStatusFilter] = useState<string>("ALL");
@@ -92,6 +94,8 @@ export default function DepartmentPage() {
     supporting_department_ids: "",
     next_followup_date: "",
     closure_remarks: "",
+    review_meeting_date: "2026-10-12",
+    review_week: "Week 42 (12 Oct 2026)",
   });
 
   // Modal & inline state for Recruitment Tracker (HR)
@@ -214,6 +218,8 @@ export default function DepartmentPage() {
   // Open modal or form for new Action Point
   const openNewWsModal = () => {
     setEditingWs(null);
+    const initialDate = deptData?.currentReviewMeetingDate || getCurrentReviewMeetingDate();
+    const initialWeek = deptData?.currentReviewWeek || getReviewWeekLabel(initialDate);
     setWsForm({
       item_id: deptData?.nextItemId || "",
       department_id: deptId,
@@ -231,6 +237,8 @@ export default function DepartmentPage() {
       supporting_department_ids: "",
       next_followup_date: "",
       closure_remarks: "",
+      review_meeting_date: initialDate,
+      review_week: initialWeek,
     });
     setShowInlineWsForm(true);
     setTimeout(() => {
@@ -242,6 +250,8 @@ export default function DepartmentPage() {
   // Open inline form for editing Action Point
   const openEditWsModal = (ws: any) => {
     setEditingWs(ws);
+    const rDate = ws.review_meeting_date ? ws.review_meeting_date.substring(0, 10) : (deptData?.currentReviewMeetingDate || "2026-10-12");
+    const rWeek = ws.review_week || getReviewWeekLabel(rDate);
     setWsForm({
       item_id: ws.item_id || "",
       department_id: ws.department_id || deptId,
@@ -259,6 +269,8 @@ export default function DepartmentPage() {
       supporting_department_ids: ws.supporting_department_ids || "",
       next_followup_date: ws.next_followup_date || "",
       closure_remarks: ws.closure_remarks || "",
+      review_meeting_date: rDate,
+      review_week: rWeek,
     });
     setShowInlineWsForm(true);
     setTimeout(() => {
@@ -270,6 +282,8 @@ export default function DepartmentPage() {
   // Cancel Edit Action
   const cancelEditWs = () => {
     setEditingWs(null);
+    const initialDate = deptData?.currentReviewMeetingDate || getCurrentReviewMeetingDate();
+    const initialWeek = deptData?.currentReviewWeek || getReviewWeekLabel(initialDate);
     setWsForm({
       item_id: deptData?.nextItemId || "",
       department_id: deptId,
@@ -287,6 +301,8 @@ export default function DepartmentPage() {
       supporting_department_ids: "",
       next_followup_date: "",
       closure_remarks: "",
+      review_meeting_date: initialDate,
+      review_week: initialWeek,
     });
   };
 
@@ -420,6 +436,8 @@ export default function DepartmentPage() {
         supporting_department_ids: "",
         next_followup_date: "",
         closure_remarks: "",
+        review_meeting_date: deptData?.currentReviewMeetingDate || getCurrentReviewMeetingDate(),
+        review_week: deptData?.currentReviewWeek || getReviewWeekLabel(deptData?.currentReviewMeetingDate || getCurrentReviewMeetingDate()),
       });
 
       setSuccessMsg(
@@ -577,6 +595,8 @@ export default function DepartmentPage() {
 
   const isActionOverdue = (ws: any) => {
     if (["CLOSED", "Closed", "Completed"].includes(ws.status)) return false;
+    if (ws.is_overdue !== undefined) return ws.is_overdue;
+    if (ws.effective_rag === "RED" || ws.rag_status === "RED") return true;
     if (ws.status === "Delayed" || ws.status === "DELAYED") return true;
     if (ws.timeline && ws.timeline.match(/^\d{4}-\d{2}-\d{2}$/)) {
       return new Date(ws.timeline).getTime() < Date.now();
@@ -590,15 +610,30 @@ export default function DepartmentPage() {
   const openActions = items.filter((ws: any) => !["CLOSED", "Closed"].includes(ws.status));
   const closedActions = items.filter((ws: any) => ["CLOSED", "Closed"].includes(ws.status));
 
+  // Weekly Action Register & Carry-Forward counts
+  const carriedForwardCount = openActions.filter(
+    (ws: any) => ws.is_carried_forward || (ws.weeks_outstanding && ws.weeks_outstanding > 0)
+  ).length;
+  const newThisWeekCount = openActions.filter(
+    (ws: any) => ws.is_new_this_week || (!ws.weeks_outstanding && !ws.is_carried_forward)
+  ).length;
+  const overdueCount = openActions.filter((ws: any) => isActionOverdue(ws) || ws.effective_rag === "RED").length;
+  const blockedCount = openActions.filter((ws: any) => ws.status === "BLOCKED" || ws.status === "Blocked").length;
+  const vcDecisionCount = openActions.filter((ws: any) => ws.vc_decision_required === "Yes").length;
+
   // Filter Action Points based on active tab, interactive buttons & search
   const displayedActions = actionViewTab === "OPEN" ? openActions : closedActions;
 
   const filteredWorkstreams = displayedActions.filter((ws: any) => {
     if (wsStatusFilter !== "ALL" && ws.status !== wsStatusFilter) return false;
-    const itemRag = (ws.rag_status || (["Delayed", "Blocked"].includes(ws.status) ? "AMBER" : "GREEN")).toUpperCase();
+    const itemRag = (ws.effective_rag || ws.rag_status || (["Delayed", "Blocked"].includes(ws.status) ? "AMBER" : "GREEN")).toUpperCase();
     if (wsRagFilter !== "ALL" && itemRag !== wsRagFilter.toUpperCase()) return false;
     if (wsVcFilter === "YES" && ws.vc_decision_required !== "Yes") return false;
-    if (wsOverdueFilter && !isActionOverdue(ws)) return false;
+    if (wsOverdueFilter && !(isActionOverdue(ws) || itemRag === "RED")) return false;
+    if (wsCycleFilter === "CARRIED" && !(ws.is_carried_forward || (ws.weeks_outstanding && ws.weeks_outstanding > 0))) return false;
+    if (wsCycleFilter === "NEW" && !(ws.is_new_this_week || (!ws.weeks_outstanding && !ws.is_carried_forward))) return false;
+    if (wsCycleFilter === "BLOCKED" && ws.status !== "BLOCKED" && ws.status !== "Blocked") return false;
+    if (wsCycleFilter === "VC" && ws.vc_decision_required !== "Yes") return false;
     if (wsSearch.trim()) {
       const q = wsSearch.toLowerCase().trim();
       const matchId = (ws.item_id || "").toLowerCase().includes(q);
@@ -607,7 +642,8 @@ export default function DepartmentPage() {
       const matchRemarks = (ws.remarks || ws.decision_action || ws.risks_blockers || ws.closure_remarks || "").toLowerCase().includes(q);
       const matchTimeline = (ws.timeline || ws.target_date || "").toLowerCase().includes(q);
       const matchSupporting = (ws.supporting_departments || "").toLowerCase().includes(q);
-      if (!matchId && !matchAction && !matchOwner && !matchRemarks && !matchTimeline && !matchSupporting) return false;
+      const matchWeek = (ws.review_week || "").toLowerCase().includes(q);
+      if (!matchId && !matchAction && !matchOwner && !matchRemarks && !matchTimeline && !matchSupporting && !matchWeek) return false;
     }
     return true;
   });
@@ -632,7 +668,7 @@ export default function DepartmentPage() {
   // Calculate quick metrics
   const openCount = openActions.length;
   const completedCount = closedActions.length;
-  const delayedCount = openActions.filter((ws: any) => isActionOverdue(ws)).length;
+  const delayedCount = overdueCount;
 
   // Current dynamic fields list
   const dynamicFields = formConfig?.fields || [];
@@ -1236,6 +1272,46 @@ export default function DepartmentPage() {
             </div>
 
             <form onSubmit={handleSaveWorkstream} className="space-y-4 text-xs">
+              {/* Row 0: Weekly Action Register Review Cycle */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3.5 p-3.5 bg-indigo-50/70 rounded-xl border border-indigo-200/80">
+                <div className="md:col-span-4">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-indigo-950 mb-1 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-indigo-700" />
+                    <span>Review Meeting Date</span>
+                    <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={wsForm.review_meeting_date}
+                    onChange={(e) => {
+                      const newDate = e.target.value;
+                      setWsForm({
+                        ...wsForm,
+                        review_meeting_date: newDate,
+                        review_week: getReviewWeekLabel(newDate),
+                      });
+                    }}
+                    required
+                    className="w-full px-3 py-1.5 bg-white rounded-xl border border-indigo-300 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+                <div className="md:col-span-5">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-indigo-950 mb-1">
+                    Week / Review Cycle
+                  </label>
+                  <input
+                    type="text"
+                    value={wsForm.review_week}
+                    onChange={(e) => setWsForm({ ...wsForm, review_week: e.target.value })}
+                    placeholder="e.g. Week 42 (12 Oct 2026)"
+                    className="w-full px-3 py-1.5 bg-white rounded-xl border border-indigo-300 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  />
+                </div>
+                <div className="md:col-span-3 flex items-end pb-1 text-[11px] text-indigo-800 font-medium">
+                  <span>🔄 Outstanding items carry forward automatically</span>
+                </div>
+              </div>
+
               {/* Row 1: Action ID, Primary Department, Priority, Initiative/Category */}
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3.5">
                 <div className="md:col-span-2">
@@ -1552,6 +1628,8 @@ export default function DepartmentPage() {
                           supporting_department_ids: "",
                           next_followup_date: "",
                           closure_remarks: "",
+                          review_meeting_date: deptData?.currentReviewMeetingDate || getCurrentReviewMeetingDate(),
+                          review_week: deptData?.currentReviewWeek || getReviewWeekLabel(deptData?.currentReviewMeetingDate || getCurrentReviewMeetingDate()),
                         });
                       }}
                       className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-semibold rounded-xl hover:bg-white border border-transparent hover:border-slate-300 transition"
@@ -1574,6 +1652,104 @@ export default function DepartmentPage() {
 
         {/* ACTION ITEMS FILTER CONTROLS */}
         <div className="px-6 space-y-3">
+          {/* Quick Filter Tabs for Weekly Action Register */}
+          {actionViewTab === "OPEN" && (
+            <div className="flex flex-wrap items-center gap-2 p-2 bg-slate-100/80 rounded-xl border border-slate-200">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 mr-1 flex items-center gap-1">
+                <span>Weekly Register:</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setWsCycleFilter("ALL");
+                  setWsStatusFilter("ALL");
+                  setWsOverdueFilter(false);
+                  setWsVcFilter("ALL");
+                }}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                  wsCycleFilter === "ALL" && !wsOverdueFilter && wsStatusFilter === "ALL" && wsVcFilter === "ALL"
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "bg-white text-slate-700 hover:bg-slate-200"
+                }`}
+              >
+                ⚡ All Open ({openCount})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setWsCycleFilter("CARRIED");
+                  setWsOverdueFilter(false);
+                }}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                  wsCycleFilter === "CARRIED"
+                    ? "bg-amber-600 text-white shadow-xs"
+                    : "bg-white text-amber-900 border border-amber-200 hover:bg-amber-50"
+                }`}
+              >
+                🔄 Carried Forward ({carriedForwardCount})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setWsCycleFilter("NEW");
+                  setWsOverdueFilter(false);
+                }}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                  wsCycleFilter === "NEW"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "bg-white text-emerald-900 border border-emerald-200 hover:bg-emerald-50"
+                }`}
+              >
+                ⚡ New This Week ({newThisWeekCount})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setWsOverdueFilter(!wsOverdueFilter);
+                  if (!wsOverdueFilter) setWsCycleFilter("ALL");
+                }}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                  wsOverdueFilter
+                    ? "bg-rose-600 text-white shadow-xs animate-pulse"
+                    : "bg-white text-rose-700 border border-rose-200 hover:bg-rose-50"
+                }`}
+              >
+                🚨 Overdue in Red ({overdueCount})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setWsCycleFilter(wsCycleFilter === "BLOCKED" ? "ALL" : "BLOCKED");
+                }}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                  wsCycleFilter === "BLOCKED"
+                    ? "bg-rose-800 text-white shadow-xs"
+                    : "bg-white text-rose-800 border border-rose-200 hover:bg-rose-50"
+                }`}
+              >
+                ⛔ Blocked ({blockedCount})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setWsCycleFilter(wsCycleFilter === "VC" ? "ALL" : "VC");
+                }}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                  wsCycleFilter === "VC"
+                    ? "bg-rose-700 text-white shadow-xs"
+                    : "bg-white text-rose-900 border border-rose-200 hover:bg-rose-50"
+                }`}
+              >
+                🏛️ VC Decisions ({vcDecisionCount})
+              </button>
+            </div>
+          )}
+
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
             {/* Status Filter Buttons */}
             <div className="flex flex-wrap items-center gap-1.5">
@@ -1582,7 +1758,7 @@ export default function DepartmentPage() {
               </span>
               {(actionViewTab === "OPEN"
                 ? [
-                    { id: "ALL", label: `All Open (${openCount})` },
+                    { id: "ALL", label: `All (${openCount})` },
                     { id: "OPEN", label: "Open" },
                     { id: "IN PROGRESS", label: "In Progress" },
                     { id: "BLOCKED", label: "Blocked" },
@@ -1613,35 +1789,6 @@ export default function DepartmentPage() {
                   {item.label}
                 </button>
               ))}
-
-              {actionViewTab === "OPEN" && (
-                <>
-                  <span className="text-slate-300 mx-1">|</span>
-                  {/* VC Decision Filter Button */}
-                  <button
-                    onClick={() => setWsVcFilter(wsVcFilter === "YES" ? "ALL" : "YES")}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
-                      wsVcFilter === "YES"
-                        ? "bg-rose-700 text-white shadow-xs"
-                        : "bg-rose-50 text-rose-700 hover:bg-rose-100"
-                    }`}
-                  >
-                    VC Decision Only
-                  </button>
-
-                  {/* Overdue Filter Button */}
-                  <button
-                    onClick={() => setWsOverdueFilter(!wsOverdueFilter)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
-                      wsOverdueFilter
-                        ? "bg-amber-600 text-white shadow-xs"
-                        : "bg-amber-50 text-amber-700 hover:bg-amber-100"
-                    }`}
-                  >
-                    🚨 Overdue Only
-                  </button>
-                </>
-              )}
             </div>
 
             {/* Action Item Search */}
@@ -1698,6 +1845,7 @@ export default function DepartmentPage() {
               <thead className="bg-[#0b1329] text-white uppercase text-[10px] font-bold tracking-wider border-b border-slate-800 whitespace-nowrap">
                 <tr>
                   <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">Action ID</th>
+                  <th className="px-3 py-3.5 text-left font-bold tracking-wider text-slate-100 min-w-[140px]">Review Cycle</th>
                   <th className="px-3 py-3.5 text-center font-bold tracking-wider text-slate-100">Scope</th>
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100 min-w-[240px]">Action Item / Deliverable</th>
                   <th className="px-4 py-3.5 text-left font-bold tracking-wider text-slate-100">Owner / Support</th>
@@ -1713,7 +1861,7 @@ export default function DepartmentPage() {
               <tbody className="divide-y divide-slate-200">
                 {filteredWorkstreams.length === 0 ? (
                   <tr>
-                    <td colSpan={canEdit ? 11 : 10} className="px-6 py-12 text-center text-slate-400">
+                    <td colSpan={canEdit ? 12 : 11} className="px-6 py-12 text-center text-slate-400">
                       <div className="max-w-md mx-auto space-y-2">
                         <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
                         <p className="font-bold text-slate-700 text-sm">No Open Action Items Found</p>
@@ -1731,16 +1879,28 @@ export default function DepartmentPage() {
                     const timeline = ws.timeline || ws.target_date || "--";
                     const priority = ws.priority || "Medium";
                     const status = (ws.status || "OPEN").toUpperCase();
-                    const ragStatus = (ws.rag_status || (["DELAYED", "BLOCKED"].includes(status) ? "AMBER" : "GREEN")).toUpperCase();
+                    const isOverdue = isActionOverdue(ws) || ws.effective_rag === "RED" || ws.rag_status === "RED";
+                    const isBlocked = status === "BLOCKED";
+                    const weeksOutstanding = ws.weeks_outstanding ?? 0;
+                    const isCarried = ws.is_carried_forward || weeksOutstanding > 0;
+                    const ragStatus = (isOverdue ? "RED" : (ws.effective_rag || ws.rag_status || (["DELAYED", "BLOCKED"].includes(status) ? "AMBER" : "GREEN"))).toUpperCase();
                     const remarks = ws.remarks || ws.risks_blockers || "--";
                     const isVcReq = ws.vc_decision_required === "Yes";
                     const decisionAction = ws.decision_action || "";
                     const isSupporting = ws.is_supporting || (ws.department_id && Number(ws.department_id) !== Number(dept.id));
-                    const isOverdue = isActionOverdue(ws);
                     const isUrgent = timeline.toLowerCase().includes("urgent") || timeline.toLowerCase().includes("immediate");
 
                     return (
-                      <tr key={ws.id} className="hover:bg-slate-50/90 transition">
+                      <tr
+                        key={ws.id}
+                        className={`transition ${
+                          isOverdue
+                            ? "bg-rose-50/90 hover:bg-rose-100/80 border-l-4 border-l-rose-600 shadow-2xs"
+                            : isBlocked
+                            ? "bg-rose-50/40 hover:bg-rose-50/70 border-l-4 border-l-rose-400"
+                            : "hover:bg-slate-50/90"
+                        }`}
+                      >
                         {/* 1. Action ID */}
                         <td className="px-3 py-3.5 text-center whitespace-nowrap font-mono">
                           <span className="px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 font-extrabold text-[11px] border border-indigo-200">
@@ -1748,7 +1908,25 @@ export default function DepartmentPage() {
                           </span>
                         </td>
 
-                        {/* 2. Scope: Primary vs Supporting */}
+                        {/* 2. Review Cycle & Carry-Forward */}
+                        <td className="px-3 py-3.5 text-left whitespace-nowrap">
+                          <div className="text-[11px] font-bold text-slate-800">
+                            {ws.review_week || "Week 42 (12 Oct 2026)"}
+                          </div>
+                          <div className="mt-1 flex items-center gap-1">
+                            {isCarried ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300">
+                                🔄 Carried (+{weeksOutstanding}w)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                                ⚡ New This Week
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* 3. Scope: Primary vs Supporting */}
                         <td className="px-3 py-3.5 text-center whitespace-nowrap">
                           {isSupporting ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200" title={`Primary: ${ws.primary_department_name || "Another Vertical"}`}>
@@ -1761,9 +1939,9 @@ export default function DepartmentPage() {
                           )}
                         </td>
 
-                        {/* 3. Deliverable / Action Point */}
+                        {/* 4. Deliverable / Action Point */}
                         <td className="px-4 py-3.5 min-w-[240px]">
-                          <div className="font-bold text-slate-900 leading-snug">
+                          <div className={`font-bold leading-snug ${isOverdue ? "text-rose-950 font-black" : "text-slate-900"}`}>
                             {deliverable}
                           </div>
                           <div className="flex flex-wrap items-center gap-1.5 mt-1">
@@ -1780,7 +1958,7 @@ export default function DepartmentPage() {
                           </div>
                         </td>
 
-                        {/* 4. Owner / Support */}
+                        {/* 5. Owner / Support */}
                         <td className="px-4 py-3.5 text-slate-700 font-medium">
                           <div>{ownership}</div>
                           {ws.supporting_departments && (
@@ -1790,13 +1968,15 @@ export default function DepartmentPage() {
                           )}
                         </td>
 
-                        {/* 5. Timeline with Overdue / Urgent tags */}
+                        {/* 6. Timeline with Overdue / Urgent tags */}
                         <td className="px-4 py-3 font-medium whitespace-nowrap">
                           <div className="flex flex-col items-start gap-1">
-                            <span className="text-slate-800 font-semibold">{timeline}</span>
+                            <span className={`font-bold ${isOverdue ? "text-rose-700 font-extrabold" : "text-slate-800"}`}>
+                              {timeline}
+                            </span>
                             {isOverdue && (
-                              <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-rose-100 text-rose-800 border border-rose-300">
-                                🚨 OVERDUE
+                              <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white shadow-xs animate-pulse">
+                                🚨 OVERDUE {weeksOutstanding > 0 ? `• ${weeksOutstanding}w open` : ""}
                               </span>
                             )}
                             {isUrgent && !isOverdue && (
@@ -1807,7 +1987,7 @@ export default function DepartmentPage() {
                           </div>
                         </td>
 
-                        {/* 6. Priority */}
+                        {/* 7. Priority */}
                         <td className="px-3 py-3.5 text-center whitespace-nowrap">
                           <span
                             className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold border ${
@@ -1825,7 +2005,7 @@ export default function DepartmentPage() {
                           </span>
                         </td>
 
-                        {/* 7. Status (Interactive Dropdown for quick update) */}
+                        {/* 8. Status (Interactive Dropdown for quick update) */}
                         <td className="px-4 py-3 whitespace-nowrap">
                           {canEdit ? (
                             <select
@@ -1837,7 +2017,7 @@ export default function DepartmentPage() {
                                   : status === "DELAYED"
                                   ? "bg-amber-50 text-amber-700 border-amber-300"
                                   : status === "BLOCKED"
-                                  ? "bg-rose-50 text-rose-700 border-rose-300"
+                                  ? "bg-rose-600 text-white font-black border-rose-700 shadow-xs"
                                   : status === "ON HOLD"
                                   ? "bg-slate-100 text-slate-700 border-slate-300"
                                   : "bg-indigo-50 text-indigo-700 border-indigo-300"
@@ -1858,26 +2038,26 @@ export default function DepartmentPage() {
                                   : status === "DELAYED"
                                   ? "bg-amber-50 text-amber-700 border-amber-200"
                                   : status === "BLOCKED"
-                                  ? "bg-rose-50 text-rose-700 border-rose-200"
+                                  ? "bg-rose-600 text-white font-black border-rose-700 shadow-xs"
                                   : status === "ON HOLD"
                                   ? "bg-slate-100 text-slate-700 border-slate-300"
                                   : "bg-indigo-50 text-indigo-700 border-indigo-200"
                               }`}
                             >
-                              {status}
+                              {status === "BLOCKED" ? "⛔ BLOCKED" : status}
                             </span>
                           )}
                         </td>
 
-                        {/* 8. RAG Status */}
+                        {/* 9. RAG Status */}
                         <td className="px-3 py-3.5 text-center whitespace-nowrap">
                           <span
-                            className={`px-1.5 py-0.5 text-[9px] font-black rounded uppercase tracking-wider ${
+                            className={`px-2 py-0.5 text-[10px] font-black rounded uppercase tracking-wider ${
                               ragStatus === "GREEN"
-                                ? "bg-emerald-100 text-emerald-800"
+                                ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                                 : ragStatus === "AMBER"
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-rose-100 text-rose-800"
+                                ? "bg-amber-100 text-amber-800 border border-amber-300"
+                                : "bg-rose-600 text-white shadow-xs font-black animate-pulse"
                             }`}
                           >
                             {ragStatus}
@@ -2878,11 +3058,20 @@ export default function DepartmentPage() {
                 <div className="text-[11px] text-slate-500 mt-2 grid grid-cols-2 gap-2">
                   <div>Owner: <strong className="text-slate-700">{showHistoryModal.ownership || showHistoryModal.owner}</strong></div>
                   <div>Status: <strong className="text-slate-700">{showHistoryModal.status}</strong></div>
+                  <div>Review Cycle: <strong className="text-slate-700">{showHistoryModal.review_week || "Week 42 (12 Oct 2026)"}</strong></div>
+                  <div>
+                    Tracking:{" "}
+                    <strong className={showHistoryModal.weeks_outstanding > 0 ? "text-amber-700" : "text-emerald-700"}>
+                      {showHistoryModal.weeks_outstanding > 0
+                        ? `Carried Forward (${showHistoryModal.weeks_outstanding} wks)`
+                        : "New This Week"}
+                    </strong>
+                  </div>
                 </div>
               </div>
 
               <div>
-                <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-2">Audit Trail Log</h4>
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-2">Audit Trail Log & State Transitions</h4>
                 <div className="space-y-2">
                   {Array.isArray(showHistoryModal.action_history) && showHistoryModal.action_history.length > 0 ? (
                     showHistoryModal.action_history.map((log: any, i: number) => (
@@ -2891,8 +3080,13 @@ export default function DepartmentPage() {
                           <span className="font-semibold text-slate-700">{log.action || "Update"}</span>
                           <span>{log.timestamp ? new Date(log.timestamp).toLocaleString("en-IN") : ""}</span>
                         </div>
-                        <p className="text-slate-600">{log.notes || log.remarks || JSON.stringify(log)}</p>
-                        {log.user && <span className="text-[10px] text-indigo-600 font-semibold block mt-1">User: {log.user}</span>}
+                        <p className="text-slate-600 font-medium">{log.notes || log.remarks || JSON.stringify(log)}</p>
+                        {log.user && (
+                          <div className="text-[10px] text-indigo-600 font-semibold mt-1 flex items-center justify-between">
+                            <span>User: {log.user} ({log.role || "Lead"})</span>
+                            {log.status && <span className="text-slate-500">Status: {log.status}</span>}
+                          </div>
+                        )}
                       </div>
                     ))
                   ) : (

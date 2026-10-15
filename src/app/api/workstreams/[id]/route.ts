@@ -137,8 +137,10 @@ export async function PUT(req: Request, { params }: Params) {
         action_history = $24,
         priority = COALESCE($25, priority),
         updated_at = CURRENT_TIMESTAMP,
-        updated_by = $26
-      WHERE id = $27
+        updated_by = $26,
+        review_meeting_date = COALESCE($27, review_meeting_date),
+        review_week = COALESCE($28, review_week)
+      WHERE id = $29
       RETURNING *`,
       [
         item_id !== undefined ? (item_id || null) : null,
@@ -167,6 +169,8 @@ export async function PUT(req: Request, { params }: Params) {
         JSON.stringify(history),
         priority !== undefined ? priority : null,
         user.name,
+        body.review_meeting_date !== undefined ? (body.review_meeting_date || null) : null,
+        body.review_week !== undefined ? (body.review_week || null) : null,
         wsId,
       ]
     );
