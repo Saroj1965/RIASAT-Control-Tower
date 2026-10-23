@@ -1,5 +1,12 @@
 import { getSupabaseClient } from "@/lib/db";
-import { calculateActionWeekStats, getCurrentReviewMeetingDate, getReviewWeekLabel } from "@/lib/action-helpers";
+import {
+  calculateActionWeekStats,
+  getCurrentReviewMeetingDate,
+  getReviewWeekLabel,
+  isPendingActionStatus,
+  sortActionsWithNewAndAlertsOnTop,
+  FormattedActionUpdate,
+} from "@/lib/action-helpers";
 
 export interface ExecutiveSummary {
   overall_readiness: number;
@@ -73,8 +80,10 @@ export interface AttentionItem {
   is_new_this_week?: boolean;
   is_overdue?: boolean;
   is_blocked?: boolean;
+  is_red_alert?: boolean;
   effective_rag?: "GREEN" | "AMBER" | "RED";
   action_history?: any[];
+  updates_list?: FormattedActionUpdate[];
 }
 
 export interface ExecutiveDashboardData {
@@ -367,27 +376,10 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
     totalPendingDecisions += c.pending_vc;
   });
 
-  // Filter and sort workstreams for management attention
-  const openWsRows = allWsRows
-    .filter((w: any) => !["COMPLETED", "CLOSED"].includes(String(w.status || "").toUpperCase()))
-    .sort((a: any, b: any) => {
-      const aVc = a.vc_decision_required === "Yes" ? 1 : 2;
-      const bVc = b.vc_decision_required === "Yes" ? 1 : 2;
-      if (aVc !== bVc) return aVc - bVc;
-
-      const ragOrder = (w: any) => {
-        const r = String(w.rag_status || "").toUpperCase();
-        const s = String(w.status || "").toUpperCase();
-        if (r === "RED" || s === "BLOCKED") return 1;
-        if (r === "AMBER" || s === "DELAYED") return 2;
-        return 3;
-      };
-      const aRag = ragOrder(a);
-      const bRag = ragOrder(b);
-      if (aRag !== bRag) return aRag - bRag;
-      return Number(a.id) - Number(b.id);
-    })
-    .slice(0, 150);
+  // Filter ONLY pending workstreams for management attention and sort with newly added & Red Alerts on top
+  const openWsRows = sortActionsWithNewAndAlertsOnTop(
+    allWsRows.filter((w: any) => isPendingActionStatus(w.status))
+  ).slice(0, 150);
 
   const enrichedAttentionWs: AttentionItem[] = openWsRows.map((w: any) => {
     const stats = calculateActionWeekStats(w);
@@ -418,8 +410,10 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
       is_new_this_week: stats.is_new_this_week,
       is_overdue: stats.is_overdue,
       is_blocked: stats.is_blocked,
+      is_red_alert: stats.is_red_alert,
       effective_rag: stats.effective_rag,
       action_history: stats.history,
+      updates_list: stats.updates_list,
     };
   });
 
@@ -459,11 +453,29 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
     is_new_this_week: false,
     is_overdue: r.priority === "Critical",
     is_blocked: false,
+    is_red_alert: r.priority === "Critical" || Boolean(r.vc_attention),
     effective_rag: r.priority === "Critical" ? "RED" : "AMBER",
     action_history: [],
+    updates_list: [
+      {
+        id: `hr-upd-${r.id}`,
+        rawDate: "2026-10-12",
+        formattedDate: "12 Oct 2026",
+        text: r.next_action || "Critical leadership hiring attention",
+        user: r.hiring_lead || "HR Lead",
+        status: r.status,
+        rag: r.priority === "Critical" ? "RED" : "AMBER",
+        isRedAlert: r.priority === "Critical" || Boolean(r.vc_attention),
+        isImportant: true,
+        isLatest: true,
+      },
+    ],
   }));
 
-  const managementAttention: AttentionItem[] = [...enrichedAttentionWs, ...enrichedAttentionHr];
+  const managementAttention: AttentionItem[] = sortActionsWithNewAndAlertsOnTop([
+    ...enrichedAttentionWs,
+    ...enrichedAttentionHr,
+  ]);
 
   const actionsDistribution = departmentCards.map((d) => {
     let primary = 0;

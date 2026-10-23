@@ -1,347 +1,434 @@
 "use client";
 
-import React, { useState } from "react";
-import { BarChart3, TrendingUp, DollarSign, Activity, PieChart, Layers } from "lucide-react";
+import React from "react";
+import {
+  BarChart3,
+  PieChart as PieIcon,
+  IndianRupee,
+  Layers,
+} from "lucide-react";
 
-interface GraphsProps {
-  graphs: {
-    readiness: { name: string; code: string; readiness: number; rag: string }[];
-    financials: { name: string; code: string; capex: number; revenue: number }[];
-    actionsDistribution?: { name: string; code: string; primary: number; supporting: number; total: number }[];
-    ragDistribution: { label: string; count: number; color: string; percent: number }[];
-    statusBreakdown: { [key: string]: number };
-  };
+interface ReadinessData {
+  name: string;
+  code: string;
+  readiness: number;
+  rag: string;
 }
 
-export default function DashboardGraphs({ graphs }: GraphsProps) {
-  const [activeTab, setActiveTab] = useState<"actions" | "readiness" | "financials">("actions");
+interface FinancialsData {
+  name: string;
+  code: string;
+  capex: number;
+  revenue: number;
+}
 
-  if (!graphs) return null;
+interface ActionsDistributionData {
+  name: string;
+  code: string;
+  primary: number;
+  supporting: number;
+  total: number;
+}
 
-  const financials = Array.isArray(graphs.financials) ? graphs.financials : [];
-  const readiness = Array.isArray(graphs.readiness) ? graphs.readiness : [];
-  const actionsDist = Array.isArray(graphs.actionsDistribution) ? graphs.actionsDistribution : [];
+interface RagDistData {
+  label: string;
+  count: number;
+  color: string;
+  percent: number;
+}
 
+interface DashboardGraphsProps {
+  readiness: ReadinessData[];
+  financials: FinancialsData[];
+  actionsDistribution?: ActionsDistributionData[];
+  ragDistribution: RagDistData[];
+  statusBreakdown: { [key: string]: number };
+  mode?: "all" | "directives" | "readiness" | "financials";
+}
+
+const getRagBarColor = (rag: string) => {
+  switch (rag?.toUpperCase()) {
+    case "GREEN":
+      return "#003B71";
+    case "AMBER":
+      return "#F37021";
+    case "RED":
+      return "#D81B60";
+    default:
+      return "#64748b";
+  }
+};
+
+export default function DashboardGraphs({
+  readiness,
+  financials,
+  actionsDistribution = [],
+  ragDistribution,
+  statusBreakdown,
+  mode = "all",
+}: DashboardGraphsProps) {
+  const activeFinancials = financials.filter((f) => f.capex > 0 || f.revenue > 0);
+  const financialRows = activeFinancials.length > 0 ? activeFinancials : financials;
   const maxFinancial = Math.max(
-    ...financials.map((f) => Math.max(f.capex || 0, f.revenue || 0)),
-    30
+    ...financialRows.map((f) => Math.max(f.capex || 0, f.revenue || 0)),
+    10
   );
+  const maxActionCount = Math.max(...actionsDistribution.map((a) => a.total || 0), 5);
+  const totalActionsCount = Object.values(statusBreakdown || {}).reduce((acc, v) => acc + v, 0);
 
-  const maxActions = Math.max(
-    ...actionsDist.map((a) => a.total || 0),
-    6
-  );
+  const showDirectives = mode === "all" || mode === "directives";
+  const showReadiness = mode === "all" || mode === "readiness";
+  const showFinancials = mode === "all" || mode === "financials";
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden mb-8">
-      {/* Header with Switcher Tabs */}
-      <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/60 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Activity className="w-5 h-5 text-indigo-600" />
-            <h2 className="text-base font-bold text-slate-900 tracking-tight">
-              Executive Analytics & Performance Insights
-            </h2>
-          </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Management review directive allocations, sector readiness benchmarks, and operational health
-          </p>
-        </div>
-
-        {/* View Switcher Buttons */}
-        <div className="flex items-center p-1 bg-slate-200/70 rounded-xl text-xs font-semibold gap-1">
-          <button
-            onClick={() => setActiveTab("actions")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition ${
-              activeTab === "actions"
-                ? "bg-white text-indigo-700 shadow-xs font-bold"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Action Directives</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("readiness")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition ${
-              activeTab === "readiness"
-                ? "bg-white text-indigo-700 shadow-xs font-bold"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <BarChart3 className="w-3.5 h-3.5" />
-            <span>Readiness Benchmark</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("financials")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition ${
-              activeTab === "financials"
-                ? "bg-white text-indigo-700 shadow-xs font-bold"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <DollarSign className="w-3.5 h-3.5" />
-            <span>Capex vs Revenue</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="p-6">
-        {/* GRAPH 0: ACTION DIRECTIVES BY VERTICAL */}
-        {activeTab === "actions" && (
-          <div>
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
-              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Management Review Directives per Vertical (Primary vs Supporting)
-              </span>
-              <div className="flex items-center gap-4 text-xs font-medium">
-                <span className="flex items-center gap-1.5 text-indigo-700 font-bold">
-                  <span className="w-2.5 h-2.5 rounded bg-indigo-600" /> Primary Owner
-                </span>
-                <span className="flex items-center gap-1.5 text-amber-700 font-bold">
-                  <span className="w-2.5 h-2.5 rounded bg-amber-500" /> Supporting Department
-                </span>
-                <span className="border-l border-slate-300 pl-3 text-slate-500">
-                  Total Directives: <strong>15 Active</strong>
-                </span>
+    <div className="space-y-6">
+      {/* SECTION 1: Action Directives & RAG Health Analytics */}
+      {showDirectives && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Action Directives Distribution Across Verticals */}
+          <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-[#003B71]/10 border border-[#003B71]/20 flex items-center justify-center text-[#003B71] shrink-0">
+                    <Layers className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                      Action Directives by Strategic Vertical
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Primary ownership vs supporting department collaboration across 9 sectors
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 text-xs font-bold shrink-0">
+                  <span className="flex items-center gap-1.5 text-[#003B71]">
+                    <span className="w-3 h-3 rounded-xs bg-[#003B71] inline-block" />
+                    Primary Lead
+                  </span>
+                  <span className="flex items-center gap-1.5 text-[#F37021]">
+                    <span className="w-3 h-3 rounded-xs bg-[#F37021] inline-block" />
+                    Supporting
+                  </span>
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-3 pt-1">
-              {actionsDist.map((item) => {
-                const total = item.total || 0;
-                const primaryPct = maxActions > 0 ? (item.primary / maxActions) * 100 : 0;
-                const supportingPct = maxActions > 0 ? (item.supporting / maxActions) * 100 : 0;
-
-                return (
-                  <div key={item.code} className="space-y-1">
-                    <div className="flex justify-between items-center text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-slate-800">{item.name}</span>
-                        {item.total > 0 && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                            {item.primary} Lead{item.primary !== 1 ? "s" : ""}
-                            {item.supporting > 0 ? ` + ${item.supporting} Support` : ""}
+              <div className="space-y-3.5">
+                {actionsDistribution.map((item) => {
+                  const primaryPct = Math.round((item.primary / maxActionCount) * 100);
+                  const supportPct = Math.round((item.supporting / maxActionCount) * 100);
+                  return (
+                    <div key={item.code} className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-mono text-[10px] font-black px-2 py-0.5 rounded bg-slate-900 text-white shrink-0">
+                            {item.code}
                           </span>
+                          <span className="font-bold text-slate-900 truncate">{item.name}</span>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0 text-[11px] font-bold">
+                          <span className="text-[#003B71]">Lead: {item.primary}</span>
+                          <span className="text-[#F37021]">Support: {item.supporting}</span>
+                          <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-900 font-black">
+                            Total: {item.total}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="w-full h-3 rounded-full bg-slate-100 overflow-hidden flex">
+                        {item.primary > 0 && (
+                          <div
+                            className="h-full bg-[#003B71] transition-all duration-500"
+                            style={{ width: `${primaryPct}%` }}
+                            title={`Primary Lead: ${item.primary}`}
+                          />
+                        )}
+                        {item.supporting > 0 && (
+                          <div
+                            className="h-full bg-[#F37021] transition-all duration-500"
+                            style={{ width: `${supportPct}%` }}
+                            title={`Supporting: ${item.supporting}`}
+                          />
                         )}
                       </div>
-                      <span className="font-bold text-slate-900">
-                        {total} {total === 1 ? "item" : "items"}
-                      </span>
                     </div>
-
-                    <div className="w-full h-4 bg-slate-100 rounded-full overflow-hidden flex border border-slate-200/60">
-                      {item.primary > 0 && (
-                        <div
-                          className="bg-indigo-600 h-full transition-all duration-500 flex items-center justify-center text-[9px] text-white font-bold"
-                          style={{ width: `${primaryPct}%` }}
-                          title={`Primary Owner: ${item.primary}`}
-                        >
-                          {item.primary > 1 ? item.primary : ""}
-                        </div>
-                      )}
-                      {item.supporting > 0 && (
-                        <div
-                          className="bg-amber-500 h-full transition-all duration-500 flex items-center justify-center text-[9px] text-amber-950 font-bold"
-                          style={{ width: `${supportingPct}%` }}
-                          title={`Supporting: ${item.supporting}`}
-                        >
-                          {item.supporting > 1 ? item.supporting : ""}
-                        </div>
-                      )}
-                      {total === 0 && (
-                        <div className="h-full w-full bg-slate-50 flex items-center pl-2 text-[10px] text-slate-400 italic">
-                          No active directives assigned
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
-        )}
-        {/* GRAPH 1: VERTICAL READINESS COMPARISON */}
-        {activeTab === "readiness" && (
-          <div>
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Readiness Score (% by Vertical)
-              </span>
-              <div className="flex items-center gap-4 text-xs font-medium text-slate-500">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Green (≥75%)
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Amber (50-74%)
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> Red (&lt;50%)
-                </span>
-                <span className="border-l border-slate-300 pl-3 text-slate-400">
-                  Target: <strong>75%</strong>
-                </span>
+
+          {/* RAG Status & Execution Breakdown */}
+          <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-3 mb-5 pb-4 border-b border-slate-100">
+                <div className="w-10 h-10 rounded-xl bg-[#D81B60]/10 border border-[#D81B60]/20 flex items-center justify-center text-[#D81B60] shrink-0">
+                  <PieIcon className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                    Vertical Health &amp; Status
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    RAG distribution &amp; directive execution state
+                  </p>
+                </div>
+              </div>
+
+              {/* Stacked Progress Bar */}
+              <div className="h-4 w-full rounded-full bg-slate-100 overflow-hidden flex mb-5 p-0.5 gap-0.5">
+                {ragDistribution.map(
+                  (item) =>
+                    item.count > 0 && (
+                      <div
+                        key={item.label}
+                        style={{
+                          width: `${item.percent}%`,
+                          backgroundColor:
+                            item.label === "GREEN"
+                              ? "#003B71"
+                              : item.label === "AMBER"
+                              ? "#F37021"
+                              : item.label === "RED"
+                              ? "#D81B60"
+                              : "#94a3b8",
+                        }}
+                        className="h-full first:rounded-l-full last:rounded-r-full transition-all duration-500"
+                        title={`${item.label}: ${item.count} (${item.percent}%)`}
+                      />
+                    )
+                )}
+              </div>
+
+              {/* RAG Legend Cards */}
+              <div className="grid grid-cols-2 gap-2.5 mb-6">
+                {ragDistribution.map((item) => {
+                  const badgeColor =
+                    item.label === "GREEN"
+                      ? "#003B71"
+                      : item.label === "AMBER"
+                      ? "#F37021"
+                      : item.label === "RED"
+                      ? "#D81B60"
+                      : "#64748b";
+                  return (
+                    <div
+                      key={item.label}
+                      className="p-3 rounded-xl border border-slate-200/80 bg-slate-50/60 flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: badgeColor }}
+                        />
+                        <span className="text-[11px] font-bold text-slate-700 truncate">
+                          {item.label === "NOT STARTED" ? "PENDING" : item.label}
+                        </span>
+                      </div>
+                      <span className="text-sm font-black text-slate-900 ml-2">{item.count}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Bars container */}
-            <div className="space-y-3.5 pt-2">
-              {readiness.map((d) => {
-                const barColor =
-                  d.rag === "GREEN"
-                    ? "bg-emerald-500"
-                    : d.rag === "AMBER"
-                    ? "bg-amber-500"
-                    : d.rag === "RED"
-                    ? "bg-rose-500"
-                    : "bg-slate-400";
-
-                return (
-                  <div key={d.code} className="space-y-1">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-semibold text-slate-800">{d.name}</span>
-                      <span className="font-extrabold text-slate-900">{d.readiness}%</span>
-                    </div>
-                    <div className="relative w-full h-4 bg-slate-100 rounded-full overflow-hidden border border-slate-200/60">
-                      {/* Target marker line at 75% */}
-                      <div
-                        className="absolute top-0 bottom-0 w-0.5 bg-slate-400/80 z-10"
-                        style={{ left: "75%" }}
-                        title="Target 75%"
-                      />
-                      <div
-                        className={`h-full rounded-full transition-all duration-700 ${barColor}`}
-                        style={{ width: `${Math.min(100, Math.max(0, d.readiness))}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* GRAPH 2: CAPEX VS REVENUE PIPELINE COMPARISON */}
-        {activeTab === "financials" && (
-          <div>
-            <div className="flex justify-between items-center mb-6">
-              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Capital Outlay (Capex) vs Expected Revenue Pipeline (₹ Cr)
-              </span>
-              <div className="flex items-center gap-4 text-xs font-medium">
-                <span className="flex items-center gap-1.5 text-indigo-700 font-bold">
-                  <span className="w-3 h-3 rounded bg-indigo-600" /> Capex Outlay
+            {/* Action Status Breakdown */}
+            <div className="pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                  Directive Execution Breakdown
                 </span>
-                <span className="flex items-center gap-1.5 text-emerald-700 font-bold">
-                  <span className="w-3 h-3 rounded bg-emerald-500" /> Revenue Pipeline
+                <span className="text-[11px] font-black text-[#003B71]">
+                  {totalActionsCount} Total
                 </span>
               </div>
-            </div>
-
-            {/* Comparative Columns Chart */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-3 items-end h-56 pt-6 border-b border-slate-200 pb-2">
-              {financials.map((f) => {
-                const capexHeight = Math.max(12, Math.round((f.capex / maxFinancial) * 160));
-                const revHeight = Math.max(12, Math.round((f.revenue / maxFinancial) * 160));
-
-                return (
-                  <div key={f.code} className="flex flex-col items-center justify-end h-full group">
-                    <div className="text-[10px] text-slate-500 font-semibold mb-1 opacity-0 group-hover:opacity-100 transition whitespace-nowrap">
-                      ₹{f.revenue} Cr
-                    </div>
-                    <div className="flex items-end gap-1 w-full justify-center">
-                      {/* Capex Bar */}
-                      <div
-                        className="w-3.5 bg-indigo-600 rounded-t-sm transition-all duration-500 hover:bg-indigo-700"
-                        style={{ height: `${capexHeight}px` }}
-                        title={`Capex: ₹${f.capex} Cr`}
-                      />
-                      {/* Revenue Bar */}
-                      <div
-                        className="w-3.5 bg-emerald-500 rounded-t-sm transition-all duration-500 hover:bg-emerald-600"
-                        style={{ height: `${revHeight}px` }}
-                        title={`Revenue: ₹${f.revenue} Cr`}
-                      />
-                    </div>
-                    <div className="mt-2 text-center">
-                      <div className="text-[11px] font-bold text-slate-800 truncate max-w-[85px]">
-                        {f.name.split(" ")[0]}
-                      </div>
-                      <div className="text-[9px] text-slate-400 font-medium">
-                        ₹{f.capex} / ₹{f.revenue}
-                      </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  {
+                    label: "On Track",
+                    count: statusBreakdown["On Track"] || 0,
+                    cls: "bg-[#003B71]/10 text-[#003B71] border-[#003B71]/20",
+                  },
+                  {
+                    label: "In Progress",
+                    count: statusBreakdown["In Progress"] || 0,
+                    cls: "bg-slate-900 text-white border-slate-900",
+                  },
+                  {
+                    label: "Delayed",
+                    count: statusBreakdown["Delayed"] || 0,
+                    cls: "bg-[#F37021]/10 text-[#F37021] border-[#F37021]/25",
+                  },
+                  {
+                    label: "Blocked",
+                    count: statusBreakdown["Blocked"] || 0,
+                    cls: "bg-[#D81B60]/10 text-[#D81B60] border-[#D81B60]/25",
+                  },
+                  {
+                    label: "On Hold",
+                    count: statusBreakdown["On Hold"] || 0,
+                    cls: "bg-slate-100 text-slate-700 border-slate-200",
+                  },
+                  {
+                    label: "Completed",
+                    count: statusBreakdown["Completed"] || 0,
+                    cls: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                  },
+                ].map((s) => (
+                  <div key={s.label} className={`px-2.5 py-2 rounded-xl border text-center ${s.cls}`}>
+                    <div className="text-sm font-black leading-tight">{s.count}</div>
+                    <div className="text-[10px] font-bold uppercase tracking-tight mt-0.5 truncate">
+                      {s.label}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* BOTTOM METRIC PILLS & DISTRIBUTION GAUGES */}
-        <div className="mt-6 pt-5 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* RAG Distribution Bar */}
-          <div>
-            <div className="flex justify-between items-center text-xs mb-2">
-              <span className="font-bold text-slate-700 flex items-center gap-1.5">
-                <PieChart className="w-3.5 h-3.5 text-indigo-500" />
-                RAG Composition
-              </span>
-              <span className="text-[11px] text-slate-500">9 Strategic Verticals</span>
-            </div>
-            <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex">
-              {graphs.ragDistribution.map((r) =>
-                r.count > 0 ? (
-                  <div
-                    key={r.label}
-                    style={{ width: `${r.percent}%`, backgroundColor: r.color }}
-                    title={`${r.label}: ${r.count} (${r.percent}%)`}
-                    className="h-full transition-all duration-500"
-                  />
-                ) : null
-              )}
-            </div>
-            <div className="flex justify-between mt-2 text-[11px] text-slate-600 font-medium">
-              {graphs.ragDistribution.map((r) => (
-                <span key={r.label} className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: r.color }} />
-                  {r.label}: <strong>{r.count}</strong>
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Workstream Execution Health */}
-          <div>
-            <div className="flex justify-between items-center text-xs mb-2">
-              <span className="font-bold text-slate-700 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-indigo-500" />
-                Operational Status Mix
-              </span>
-              <span className="text-[11px] text-slate-500">Across All Departments</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {Object.entries(graphs.statusBreakdown).map(([status, count]) => {
-                let badgeClass = "bg-slate-100 text-slate-700 border-slate-200";
-                if (status === "Completed") badgeClass = "bg-emerald-50 text-emerald-800 border-emerald-300 font-bold";
-                else if (status === "On Track") badgeClass = "bg-blue-50 text-blue-800 border-blue-200 font-semibold";
-                else if (status === "In Progress") badgeClass = "bg-indigo-50 text-indigo-800 border-indigo-200 font-medium";
-                else if (status === "Delayed") badgeClass = "bg-amber-50 text-amber-800 border-amber-300 font-bold";
-                else if (status === "Blocked") badgeClass = "bg-rose-50 text-rose-800 border-rose-300 font-bold";
-
-                return (
-                  <span
-                    key={status}
-                    className={`px-2.5 py-1 text-[11px] rounded-lg border ${badgeClass}`}
-                  >
-                    {status}: <strong>{count}</strong>
-                  </span>
-                );
-              })}
+                ))}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* SECTION 2: Vertical Readiness Benchmark (0 - 100%) */}
+      {showReadiness && (
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#F37021]/10 border border-[#F37021]/20 flex items-center justify-center text-[#F37021] shrink-0">
+                <BarChart3 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                  Vertical Readiness Benchmark (%)
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Operational milestone completion across all 9 strategic verticals against 100% target
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-4 text-xs font-bold">
+              <span className="flex items-center gap-1.5 text-[#003B71]">
+                <span className="w-3 h-3 rounded-xs bg-[#003B71] inline-block" /> Green (On Track)
+              </span>
+              <span className="flex items-center gap-1.5 text-[#F37021]">
+                <span className="w-3 h-3 rounded-xs bg-[#F37021] inline-block" /> Amber (Needs Attention)
+              </span>
+              <span className="flex items-center gap-1.5 text-[#D81B60]">
+                <span className="w-3 h-3 rounded-xs bg-[#D81B60] inline-block" /> Red (Critical Alert)
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {readiness.map((r) => {
+              const color = getRagBarColor(r.rag);
+              return (
+                <div
+                  key={r.code}
+                  className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/50 space-y-2.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="font-mono text-[10px] font-black px-2 py-0.5 rounded bg-slate-900 text-white">
+                        {r.code}
+                      </span>
+                      <h4 className="text-xs font-black text-slate-900 mt-1 truncate">{r.name}</h4>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-lg font-black" style={{ color }}>
+                        {r.readiness}%
+                      </div>
+                      <span
+                        className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded text-white"
+                        style={{ backgroundColor: color }}
+                      >
+                        {r.rag}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="w-full h-2.5 rounded-full bg-slate-200 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${r.readiness}%`, backgroundColor: color }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* SECTION 3: Financial Pipeline (Capex vs 3-Year Revenue) */}
+      {showFinancials && (
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#D81B60]/10 border border-[#D81B60]/20 flex items-center justify-center text-[#D81B60] shrink-0">
+                <IndianRupee className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                  Capex Investment vs 3-Year Revenue Pipeline (₹ Cr)
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Financial outlay comparison and projected revenue return across verticals
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 text-xs font-bold">
+              <span className="flex items-center gap-1.5 text-[#003B71]">
+                <span className="w-3 h-3 rounded-xs bg-[#003B71] inline-block" /> Capex (₹ Cr)
+              </span>
+              <span className="flex items-center gap-1.5 text-[#D81B60]">
+                <span className="w-3 h-3 rounded-xs bg-[#D81B60] inline-block" /> 3-Yr Revenue (₹ Cr)
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {financialRows.map((f) => {
+              const capexPct = Math.min(100, Math.round((f.capex / maxFinancial) * 100));
+              const revPct = Math.min(100, Math.round((f.revenue / maxFinancial) * 100));
+              return (
+                <div
+                  key={f.code}
+                  className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/50 space-y-2.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="font-mono text-[10px] font-black px-2 py-0.5 rounded bg-slate-900 text-white">
+                        {f.code}
+                      </span>
+                      <span className="text-xs font-black text-slate-900 ml-2 truncate">
+                        {f.name}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs font-black shrink-0">
+                      <span className="text-[#003B71]">Capex: ₹{f.capex}Cr</span>
+                      <span className="text-[#D81B60]">Rev: ₹{f.revenue}Cr</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
+                      <div
+                        className="h-full bg-[#003B71] rounded-full"
+                        style={{ width: `${capexPct}%` }}
+                      />
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
+                      <div
+                        className="h-full bg-[#D81B60] rounded-full"
+                        style={{ width: `${revPct}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

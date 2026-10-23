@@ -1,843 +1,1229 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   TrendingUp,
+  IndianRupee,
   AlertTriangle,
+  ArrowUpRight,
   Clock,
-  ShieldAlert,
-  Shield,
+  Activity,
   RefreshCw,
   Filter,
   Search,
-  ChevronRight,
-  ArrowRight,
-  Zap,
+  Edit3,
   Check,
+  X,
+  Plus,
+  Download,
+  Building2,
+  BarChart3,
   Layers,
+  ListChecks,
+  Flame,
+  Calendar,
 } from "lucide-react";
 import DashboardGraphs from "@/components/DashboardGraphs";
+import { ExecutiveDashboardData, AttentionItem } from "@/lib/executive";
 import {
-  ExecutiveDashboardData,
-  ExecutiveSummary,
-  DepartmentCard,
-  AttentionItem,
-} from "@/lib/executive";
+  isPendingActionStatus,
+  isRedAlertItem,
+  getActionUpdatesDatewise,
+  sortActionsWithNewAndAlertsOnTop,
+} from "@/lib/action-helpers";
+
+type ExecViewMode =
+  | "actions"
+  | "verticals"
+  | "analytics_directives"
+  | "analytics_readiness"
+  | "analytics_financials";
+
+function ExecutiveControlTowerContent({
+  initialData,
+}: {
+  initialData: ExecutiveDashboardData;
+}) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const viewParam = searchParams.get("view") as ExecViewMode | null;
+  const [activeView, setActiveView] = useState<ExecViewMode>(
+    viewParam &&
+      [
+        "actions",
+        "verticals",
+        "analytics_directives",
+        "analytics_readiness",
+        "analytics_financials",
+      ].includes(viewParam)
+      ? viewParam
+      : "actions"
+  );
+
+  useEffect(() => {
+    if (
+      viewParam &&
+      [
+        "actions",
+        "verticals",
+        "analytics_directives",
+        "analytics_readiness",
+        "analytics_financials",
+      ].includes(viewParam)
+    ) {
+      setActiveView(viewParam);
+    }
+  }, [viewParam]);
+
+  const handleSwitchView = (view: ExecViewMode) => {
+    setActiveView(view);
+    router.replace(`/executive?view=${view}`, { scroll: false });
+  };
+
+  const [data, setData] = useState<ExecutiveDashboardData>(initialData);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedVertical, setSelectedVertical] = useState<string>("ALL");
+  const [selectedAlertFilter, setSelectedAlertFilter] = useState<"ALL" | "RED_ALERT" | "VC_DECISION">("ALL");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
+  // Inline Editing State for Action Register
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<{
+    item: string;
+    owner: string;
+    target_date: string;
+    status: string;
+    rag_status: string;
+    priority: string;
+    issue: string;
+    vc_decision_required: string;
+  }>({
+    item: "",
+    owner: "",
+    target_date: "",
+    status: "",
+    rag_status: "GREEN",
+    priority: "Medium",
+    issue: "",
+    vc_decision_required: "No",
+  });
+  const [savingId, setSavingId] = useState<number | null>(null);
+
+  // Add New Action Modal State
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [creatingAction, setCreatingAction] = useState(false);
+  const [newActionForm, setNewActionForm] = useState({
+    department_id: "1",
+    category: "Strategic Directive",
+    action_point: "",
+    ownership: "",
+    timeline: "",
+    status: "OPEN",
+    rag_status: "RED",
+    priority: "Critical",
+    vc_decision_required: "Yes",
+    remarks: "",
+    supporting_departments: "",
+  });
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/executive/summary", { cache: "no-store" });
+      if (res.ok) {
+        const fresh = await res.json();
+        setData(fresh);
+      }
+    } catch {
+      // silent
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const startEditing = (att: AttentionItem) => {
+    setEditingId(att.id);
+    setEditForm({
+      item: att.item || "",
+      owner: att.owner || "",
+      target_date: att.target_date || "",
+      status: att.status || "OPEN",
+      rag_status: att.effective_rag || att.rag_status || "GREEN",
+      priority: att.priority || "Medium",
+      issue: "", // Leave empty so user can enter a new dated progress update (or keep existing if unchanged)
+      vc_decision_required: att.vc_decision_required || "No",
+    });
+  };
+
+  const handleInlineSave = async (att: AttentionItem) => {
+    setSavingId(att.id);
+    try {
+      const isRecruitment = String(att.item_id || "").startsWith("REC-");
+      if (isRecruitment) {
+        const res = await fetch(`/api/recruitment/${att.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            position_title: editForm.item,
+            hiring_lead: editForm.owner,
+            target_date: editForm.target_date,
+            status: editForm.status,
+            priority: editForm.priority,
+            next_action: editForm.issue.trim() || att.issue,
+            vc_attention: editForm.vc_decision_required === "Yes",
+          }),
+        });
+        if (res.ok) {
+          setEditingId(null);
+          await handleRefresh();
+        }
+      } else {
+        const remarkToSave = editForm.issue.trim() || att.issue;
+        const res = await fetch(`/api/workstreams/${att.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action_point: editForm.item,
+            deliverable: editForm.item,
+            ownership: editForm.owner,
+            owner: editForm.owner,
+            timeline: editForm.target_date,
+            target_date: editForm.target_date,
+            status: editForm.status,
+            rag_status: editForm.rag_status,
+            priority: editForm.priority,
+            remarks: remarkToSave,
+            decision_action: remarkToSave,
+            vc_decision_required: editForm.vc_decision_required,
+          }),
+        });
+        if (res.ok) {
+          setEditingId(null);
+          await handleRefresh();
+        }
+      }
+    } catch {
+      // silent
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const handleCreateAction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newActionForm.action_point.trim()) return;
+    setCreatingAction(true);
+    try {
+      const res = await fetch("/api/workstreams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newActionForm),
+      });
+      if (res.ok) {
+        setShowAddModal(false);
+        setNewActionForm({
+          department_id: "1",
+          category: "Strategic Directive",
+          action_point: "",
+          ownership: "",
+          timeline: "",
+          status: "OPEN",
+          rag_status: "RED",
+          priority: "Critical",
+          vc_decision_required: "Yes",
+          remarks: "",
+          supporting_departments: "",
+        });
+        await handleRefresh();
+      }
+    } catch {
+      // silent
+    } finally {
+      setCreatingAction(false);
+    }
+  };
+
+  const { summary, departments, graphs, management_attention } = data;
+
+  // Ensure ONLY pending items are shown in Pending Action Register, sorted with Newly Added & Red Alerts on top
+  const pendingAttentionItems = sortActionsWithNewAndAlertsOnTop(
+    management_attention.filter((att) => isPendingActionStatus(att.status))
+  );
+
+  const filteredAttention = pendingAttentionItems.filter((att) => {
+    const matchVertical =
+      selectedVertical === "ALL" ||
+      String(att.department_id) === selectedVertical ||
+      att.department_name === selectedVertical ||
+      Boolean(
+        att.supporting_departments &&
+          att.supporting_departments.toLowerCase().includes(selectedVertical.toLowerCase())
+      );
+
+    let matchAlert = true;
+    if (selectedAlertFilter === "RED_ALERT") {
+      matchAlert = isRedAlertItem(att);
+    } else if (selectedAlertFilter === "VC_DECISION") {
+      matchAlert = att.vc_decision_required === "Yes";
+    }
+
+    const q = searchQuery.trim().toLowerCase();
+    const matchSearch =
+      !q ||
+      (att.item || "").toLowerCase().includes(q) ||
+      (att.issue || "").toLowerCase().includes(q) ||
+      (att.owner || "").toLowerCase().includes(q) ||
+      (att.department_name || "").toLowerCase().includes(q) ||
+      (att.item_id || "").toLowerCase().includes(q);
+
+    return matchVertical && matchAlert && matchSearch;
+  });
+
+  // Reliable Blob-based Export CSV for Pending Action Register
+  const handleExportCSV = () => {
+    const headers = [
+      "Action ID",
+      "Primary Vertical",
+      "Supporting Depts",
+      "Action Directive",
+      "Owner / Lead",
+      "Target Timeline",
+      "Priority",
+      "RAG Alert",
+      "VC Decision Required",
+      "Status",
+      "Progress / Updates (Latest First)",
+    ];
+
+    const escapeCsv = (val: any) => {
+      const str = String(val ?? "").replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const rows = filteredAttention.map((att) => {
+      const updates = att.updates_list && att.updates_list.length > 0
+        ? att.updates_list
+        : getActionUpdatesDatewise(att);
+      const formattedUpdates = updates
+        .map((u) => `[${u.formattedDate}] ${u.text}`)
+        .join(" | ");
+
+      return [
+        att.item_id || `ACT-${att.id}`,
+        att.department_name,
+        att.supporting_departments || "None",
+        att.item,
+        att.owner || "Unassigned",
+        att.target_date || "TBD",
+        att.priority || "Medium",
+        att.effective_rag || att.rag_status || "GREEN",
+        att.vc_decision_required || "No",
+        att.status || "OPEN",
+        formattedUpdates || att.issue || "",
+      ]
+        .map(escapeCsv)
+        .join(",");
+    });
+
+    const csvContent = "\uFEFF" + [headers.map(escapeCsv).join(","), ...rows].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute(
+      "download",
+      `RIASAT_Pending_Actions_${new Date().toISOString().split("T")[0]}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="space-y-6 pb-8">
+      {/* Top Brand Header Banner (White + Black/Blue/Pink/Orange Accents) */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-5 md:p-6 shadow-xs relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#003B71] via-[#D81B60] to-[#F37021]" />
+
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0">
+            <img
+              src="/ramaiah_logo.png"
+              alt="Ramaiah Logo"
+              className="h-11 w-auto object-contain shrink-0 hidden sm:block"
+            />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-[#003B71] text-white">
+                  Executive Control Tower
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#F37021]/10 text-[#F37021] border border-[#F37021]/25">
+                  {summary.current_review_week || "Weekly Review"}
+                </span>
+              </div>
+              <h1 className="text-xl md:text-2xl font-black text-slate-950 tracking-tight truncate">
+                RIASAT Strategic Operations &amp; Decision Register
+              </h1>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#003B71] via-[#D81B60] to-[#F37021] text-white text-xs font-black uppercase tracking-wider shadow-sm hover:opacity-95 transition cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              Add Action Item
+            </button>
+            <button
+              onClick={handleExportCSV}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-white text-xs font-black uppercase tracking-wider transition cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5 text-[#F37021]" />
+              Export CSV
+            </button>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 text-xs font-bold transition cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-[#003B71] ${refreshing ? "animate-spin" : ""}`} />
+              Sync
+            </button>
+          </div>
+        </div>
+
+        {/* Clean 5-Card Executive KPI Strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-5 pt-5 border-t border-slate-100">
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex items-center justify-between">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                Overall Readiness
+              </div>
+              <div className="text-xl font-black text-[#003B71] mt-0.5">
+                {summary.overall_readiness}%
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-[#003B71]/10 text-[#003B71] flex items-center justify-center">
+              <TrendingUp className="w-4 h-4" />
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex items-center justify-between">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                Pending Actions
+              </div>
+              <div className="text-xl font-black text-slate-950 mt-0.5">
+                {pendingAttentionItems.length}
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center">
+              <ListChecks className="w-4 h-4" />
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-[#D81B60]/5 border border-[#D81B60]/20 flex items-center justify-between">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-wider text-[#D81B60]">
+                Red Alerts / Overdue
+              </div>
+              <div className="text-xl font-black text-[#D81B60] mt-0.5">
+                {pendingAttentionItems.filter((x) => isRedAlertItem(x)).length}
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-[#D81B60]/15 text-[#D81B60] flex items-center justify-center">
+              <Flame className="w-4 h-4" />
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-[#F37021]/5 border border-[#F37021]/25 flex items-center justify-between">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-wider text-[#F37021]">
+                VC Decisions Pending
+              </div>
+              <div className="text-xl font-black text-[#F37021] mt-0.5">
+                {summary.pending_decisions}
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-[#F37021]/15 text-[#F37021] flex items-center justify-center">
+              <AlertTriangle className="w-4 h-4" />
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex items-center justify-between col-span-2 sm:col-span-1">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                Capex / 3-Yr Rev
+              </div>
+              <div className="text-base font-black text-slate-950 mt-0.5">
+                ₹{summary.total_capex}Cr <span className="text-slate-400">/</span>{" "}
+                <span className="text-[#D81B60]">₹{summary.total_revenue_pipeline}Cr</span>
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-[#003B71]/10 text-[#003B71] flex items-center justify-center">
+              <IndianRupee className="w-4 h-4" />
+            </div>
+          </div>
+        </div>
+
+        {/* Dedicated Sub-Pages Navigation Bar */}
+        <div className="mt-5 pt-4 border-t border-slate-100 flex items-center gap-2 overflow-x-auto no-scrollbar">
+          {[
+            {
+              id: "actions" as ExecViewMode,
+              label: `Pending Items (${pendingAttentionItems.length})`,
+              icon: ListChecks,
+            },
+            {
+              id: "verticals" as ExecViewMode,
+              label: `9 Strategic Verticals (${departments.length})`,
+              icon: Building2,
+            },
+            {
+              id: "analytics_directives" as ExecViewMode,
+              label: "Directives & RAG Analytics",
+              icon: Layers,
+            },
+            {
+              id: "analytics_readiness" as ExecViewMode,
+              label: "Readiness Benchmark",
+              icon: BarChart3,
+            },
+            {
+              id: "analytics_financials" as ExecViewMode,
+              label: "Financial Pipeline",
+              icon: IndianRupee,
+            },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeView === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => handleSwitchView(tab.id)}
+                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black tracking-wide transition shrink-0 cursor-pointer ${
+                  isActive
+                    ? "bg-[#003B71] text-white shadow-xs"
+                    : "bg-slate-100/80 text-slate-700 hover:bg-slate-200/70"
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isActive ? "text-[#F37021]" : "text-slate-500"}`} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ================================================================= */}
+      {/* SUB-PAGE 1: PENDING ACTION REGISTER (ONLY PENDING ITEMS)          */}
+      {/* ================================================================= */}
+      {activeView === "actions" && (
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+          {/* Filter Bar */}
+          <div className="p-5 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-50/40">
+            <div>
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-base font-black text-slate-950 tracking-tight">
+                  Pending Action Items Register
+                </h2>
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-[#003B71] text-white">
+                  {filteredAttention.length} Pending
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Newly added actions &amp; Red Alerts are prioritized at the top. Updates are listed datewise (latest on top).
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Quick Alert Filter Pills */}
+              <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+                <button
+                  onClick={() => setSelectedAlertFilter("ALL")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    selectedAlertFilter === "ALL"
+                      ? "bg-slate-950 text-white"
+                      : "text-slate-600 hover:text-slate-950"
+                  }`}
+                >
+                  All Pending ({pendingAttentionItems.length})
+                </button>
+                <button
+                  onClick={() => setSelectedAlertFilter("RED_ALERT")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    selectedAlertFilter === "RED_ALERT"
+                      ? "bg-[#D81B60] text-white"
+                      : "text-[#D81B60] hover:bg-[#D81B60]/10"
+                  }`}
+                >
+                  Red Alerts ({pendingAttentionItems.filter((x) => isRedAlertItem(x)).length})
+                </button>
+                <button
+                  onClick={() => setSelectedAlertFilter("VC_DECISION")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    selectedAlertFilter === "VC_DECISION"
+                      ? "bg-[#F37021] text-white"
+                      : "text-[#F37021] hover:bg-[#F37021]/10"
+                  }`}
+                >
+                  VC Alerts ({pendingAttentionItems.filter((x) => x.vc_decision_required === "Yes").length})
+                </button>
+              </div>
+
+              {/* Vertical Filter */}
+              <div className="relative">
+                <Filter className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <select
+                  value={selectedVertical}
+                  onChange={(e) => setSelectedVertical(e.target.value)}
+                  className="pl-8 pr-7 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#003B71]"
+                >
+                  <option value="ALL">All 9 Verticals</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.name}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Search Input */}
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search action, owner, ID..."
+                  className="pl-8 pr-3 py-2 rounded-xl border border-slate-200 text-xs font-medium text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#003B71] w-48 sm:w-56"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Responsive Non-Colliding Table */}
+          {filteredAttention.length === 0 ? (
+            <div className="p-12 text-center">
+              <p className="text-sm font-bold text-slate-700">No pending action items match your filter.</p>
+              <p className="text-xs text-slate-400 mt-1">Try resetting the filter or add a new action item.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[1150px]">
+                <thead>
+                  <tr className="bg-slate-950 text-white text-[11px] font-black uppercase tracking-wider">
+                    <th className="py-3.5 px-4 w-[110px]">ID &amp; Alert</th>
+                    <th className="py-3.5 px-4 w-[170px]">Vertical</th>
+                    <th className="py-3.5 px-4 w-[260px]">Action Item / Directive</th>
+                    <th className="py-3.5 px-4 w-[140px]">Owner &amp; Target</th>
+                    <th className="py-3.5 px-4 w-[120px] text-center">Status &amp; RAG</th>
+                    <th className="py-3.5 px-4 min-w-[330px]">
+                      Progress / Updates (Datewise • Latest on Top)
+                    </th>
+                    <th className="py-3.5 px-4 w-[90px] text-right">Edit</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200/80 text-xs">
+                  {filteredAttention.map((att) => {
+                    const isEditing = editingId === att.id;
+                    const isRed = isRedAlertItem(att);
+                    const isNewlyCreated = Number(att.id) > 15 && !String(att.item_id || "").startsWith("REC-");
+                    const updates =
+                      att.updates_list && att.updates_list.length > 0
+                        ? att.updates_list
+                        : getActionUpdatesDatewise(att);
+
+                    return (
+                      <tr
+                        key={`${att.department_id}-${att.id}-${att.item_id}`}
+                        className={`transition align-top ${
+                          isRed
+                            ? "bg-[#D81B60]/[0.03] hover:bg-[#D81B60]/[0.06]"
+                            : isNewlyCreated
+                            ? "bg-[#003B71]/[0.03] hover:bg-[#003B71]/[0.06]"
+                            : "hover:bg-slate-50/90"
+                        }`}
+                      >
+                        {/* ID & Alert Badges */}
+                        <td className="py-4 px-4">
+                          <div className="flex flex-col items-start gap-1.5">
+                            <span className="font-mono text-xs font-black px-2.5 py-1 rounded-lg bg-slate-900 text-white">
+                              {att.item_id || `ACT-${att.id}`}
+                            </span>
+                            {isNewlyCreated && (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-[#003B71] text-white">
+                                NEW ACTION
+                              </span>
+                            )}
+                            {isRed && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-[#D81B60] text-white shadow-2xs">
+                                <Flame className="w-3 h-3" /> RED ALERT
+                              </span>
+                            )}
+                            {att.vc_decision_required === "Yes" && (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-[#F37021] text-white">
+                                VC ALERT
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Vertical */}
+                        <td className="py-4 px-4">
+                          <Link
+                            href={`/department/${att.department_id}`}
+                            className="font-black text-[#003B71] hover:underline block leading-snug"
+                          >
+                            {att.department_name}
+                          </Link>
+                          {att.supporting_departments && (
+                            <div className="mt-1.5 text-[11px] text-slate-500 leading-snug">
+                              <span className="font-bold text-slate-700">Support:</span>{" "}
+                              {att.supporting_departments}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Action Directive */}
+                        <td className="py-4 px-4">
+                          {isEditing ? (
+                            <textarea
+                              rows={3}
+                              value={editForm.item}
+                              onChange={(e) => setEditForm({ ...editForm, item: e.target.value })}
+                              className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#003B71]"
+                            />
+                          ) : (
+                            <div className="font-bold text-slate-900 leading-relaxed break-words">
+                              {att.item}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Owner & Target */}
+                        <td className="py-4 px-4">
+                          {isEditing ? (
+                            <div className="space-y-2">
+                              <input
+                                type="text"
+                                value={editForm.owner}
+                                onChange={(e) => setEditForm({ ...editForm, owner: e.target.value })}
+                                placeholder="Owner"
+                                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300"
+                              />
+                              <input
+                                type="text"
+                                value={editForm.target_date}
+                                onChange={(e) => setEditForm({ ...editForm, target_date: e.target.value })}
+                                placeholder="Timeline"
+                                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300"
+                              />
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5">
+                              <div className="font-bold text-slate-900 break-words">
+                                {att.owner || "Unassigned"}
+                              </div>
+                              <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                                <Clock className="w-3 h-3 text-[#F37021]" />
+                                {att.target_date || "TBD"}
+                              </div>
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Status & RAG */}
+                        <td className="py-4 px-4 text-center">
+                          {isEditing ? (
+                            <div className="space-y-2">
+                              <select
+                                value={editForm.status}
+                                onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                                className="w-full px-2 py-1.5 text-xs font-bold rounded-lg border border-slate-300 bg-white"
+                              >
+                                <option value="OPEN">OPEN</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="On Track">On Track</option>
+                                <option value="Delayed">Delayed</option>
+                                <option value="Blocked">Blocked</option>
+                                <option value="On Hold">On Hold</option>
+                                <option value="Completed">Completed</option>
+                                <option value="CLOSED">CLOSED</option>
+                              </select>
+                              <select
+                                value={editForm.rag_status}
+                                onChange={(e) => setEditForm({ ...editForm, rag_status: e.target.value })}
+                                className="w-full px-2 py-1.5 text-xs font-bold rounded-lg border border-slate-300 bg-white"
+                              >
+                                <option value="RED">RED Alert</option>
+                                <option value="AMBER">AMBER</option>
+                                <option value="GREEN">GREEN</option>
+                              </select>
+                              <select
+                                value={editForm.vc_decision_required}
+                                onChange={(e) =>
+                                  setEditForm({ ...editForm, vc_decision_required: e.target.value })
+                                }
+                                className="w-full px-2 py-1.5 text-xs font-bold rounded-lg border border-slate-300 bg-white"
+                              >
+                                <option value="Yes">VC Alert: Yes</option>
+                                <option value="No">VC Alert: No</option>
+                              </select>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-1.5">
+                              <span
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border ${
+                                  isRed
+                                    ? "bg-[#D81B60]/10 text-[#D81B60] border-[#D81B60]/30"
+                                    : (att.effective_rag || att.rag_status) === "AMBER"
+                                    ? "bg-[#F37021]/10 text-[#F37021] border-[#F37021]/30"
+                                    : "bg-[#003B71]/10 text-[#003B71] border-[#003B71]/25"
+                                }`}
+                              >
+                                {att.status}
+                              </span>
+                              <span className="text-[10px] font-bold text-slate-500">
+                                Priority: <strong className="text-slate-800">{att.priority || "Medium"}</strong>
+                              </span>
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Progress / Updates Column (Datewise, Latest on Top) */}
+                        <td className="py-4 px-4">
+                          {isEditing ? (
+                            <div className="space-y-2">
+                              <label className="block text-[10px] font-black uppercase text-[#003B71]">
+                                Add New Dated Progress Update (Appears on Top):
+                              </label>
+                              <textarea
+                                rows={3}
+                                value={editForm.issue}
+                                onChange={(e) => setEditForm({ ...editForm, issue: e.target.value })}
+                                placeholder="Type new progress update or red alert note..."
+                                className="w-full px-3 py-2 text-xs rounded-xl border border-[#003B71] focus:outline-none focus:ring-2 focus:ring-[#003B71]"
+                              />
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {updates.length === 0 ? (
+                                <span className="text-slate-400 italic text-xs">No updates logged yet</span>
+                              ) : (
+                                updates.slice(0, 6).map((u, idx) => (
+                                  <div
+                                    key={u.id || idx}
+                                    className={`p-2.5 rounded-xl border text-xs leading-relaxed ${
+                                      idx === 0
+                                        ? u.isRedAlert
+                                          ? "bg-[#D81B60]/5 border-[#D81B60]/30 text-slate-900"
+                                          : "bg-[#003B71]/5 border-[#003B71]/25 text-slate-900"
+                                        : "bg-slate-50 border-slate-200/80 text-slate-600"
+                                    }`}
+                                  >
+                                    <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                                      <div className="inline-flex items-center gap-1.5">
+                                        <span
+                                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black ${
+                                            idx === 0
+                                              ? "bg-slate-900 text-white"
+                                              : "bg-slate-200 text-slate-700"
+                                          }`}
+                                        >
+                                          <Calendar className="w-2.5 h-2.5 text-[#F37021]" />
+                                          {u.formattedDate}
+                                        </span>
+                                        {idx === 0 && (
+                                          <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#003B71] text-white">
+                                            LATEST
+                                          </span>
+                                        )}
+                                        {u.isRedAlert && (
+                                          <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#D81B60] text-white">
+                                            ALERT
+                                          </span>
+                                        )}
+                                      </div>
+                                      {u.user && (
+                                        <span className="text-[10px] font-bold text-slate-400">
+                                          {u.user}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="font-medium break-words">{u.text}</p>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Edit / Save Action */}
+                        <td className="py-4 px-4 text-right">
+                          {isEditing ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleInlineSave(att)}
+                                disabled={savingId === att.id}
+                                className="p-2 rounded-lg bg-[#003B71] text-white hover:bg-[#002850] transition cursor-pointer"
+                                title="Save Update"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setEditingId(null)}
+                                className="p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition cursor-pointer"
+                                title="Cancel"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => startEditing(att)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:border-[#003B71] text-slate-700 hover:text-[#003B71] font-bold text-[11px] transition cursor-pointer"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                              Update
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* SUB-PAGE 2: 9 STRATEGIC VERTICALS                                 */}
+      {/* ================================================================= */}
+      {activeView === "verticals" && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200/90 p-5 flex flex-wrap items-center justify-between gap-4 shadow-xs">
+            <div>
+              <h2 className="text-base font-black text-slate-950 uppercase tracking-wider">
+                9 Strategic Verticals Overview
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Select any vertical card to open its dedicated action register, analytics, and sector form
+              </p>
+            </div>
+            <div className="flex items-center gap-3 text-xs font-bold">
+              <span className="px-2.5 py-1 rounded-lg bg-[#003B71]/10 text-[#003B71]">
+                Green: {summary.green_count}
+              </span>
+              <span className="px-2.5 py-1 rounded-lg bg-[#F37021]/10 text-[#F37021]">
+                Amber: {summary.amber_count}
+              </span>
+              <span className="px-2.5 py-1 rounded-lg bg-[#D81B60]/10 text-[#D81B60]">
+                Red: {summary.red_count}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {departments.map((dept) => {
+              const barColor =
+                dept.rag === "GREEN"
+                  ? "#003B71"
+                  : dept.rag === "AMBER"
+                  ? "#F37021"
+                  : dept.rag === "RED"
+                  ? "#D81B60"
+                  : "#64748b";
+
+              return (
+                <Link
+                  key={dept.id}
+                  href={`/department/${dept.id}`}
+                  className="group bg-white rounded-2xl border border-slate-200/90 hover:border-[#003B71] p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="min-w-0">
+                        <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                          {dept.code}
+                        </span>
+                        <h3 className="text-base font-black text-slate-950 group-hover:text-[#003B71] transition mt-1.5 leading-snug">
+                          {dept.name}
+                        </h3>
+                      </div>
+                      <span
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider text-white shrink-0"
+                        style={{ backgroundColor: barColor }}
+                      >
+                        {dept.rag}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-600 line-clamp-2 mb-4 min-h-[32px]">
+                      {dept.key_focus || "Operational readiness and strategic milestone execution."}
+                    </p>
+
+                    {/* Readiness Progress */}
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between text-xs font-bold mb-1.5">
+                        <span className="text-slate-500">Readiness</span>
+                        <span className="font-black text-slate-950">{dept.readiness}%</span>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${dept.readiness}%`, backgroundColor: barColor }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Clean 3-Box Metrics Footer */}
+                  <div className="pt-3.5 border-t border-slate-100 grid grid-cols-3 gap-2 text-center">
+                    <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/60">
+                      <div className="text-sm font-black text-slate-950">{dept.open_items}</div>
+                      <div className="text-[10px] font-bold text-slate-500 uppercase">Pending</div>
+                    </div>
+                    <div className="p-2 rounded-xl bg-[#D81B60]/5 border border-[#D81B60]/20">
+                      <div className="text-sm font-black text-[#D81B60]">{dept.overdue_items || 0}</div>
+                      <div className="text-[10px] font-bold text-[#D81B60] uppercase">Alerts</div>
+                    </div>
+                    <div className="p-2 rounded-xl bg-[#F37021]/5 border border-[#F37021]/20">
+                      <div className="text-sm font-black text-[#F37021]">{dept.pending_vc}</div>
+                      <div className="text-[10px] font-bold text-[#F37021] uppercase">VC Queue</div>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* SUB-PAGE 3: ACTION DIRECTIVES & RAG ANALYTICS                     */}
+      {/* ================================================================= */}
+      {activeView === "analytics_directives" && (
+        <DashboardGraphs
+          readiness={graphs.readiness}
+          financials={graphs.financials}
+          actionsDistribution={graphs.actionsDistribution}
+          ragDistribution={graphs.ragDistribution}
+          statusBreakdown={graphs.statusBreakdown}
+          mode="directives"
+        />
+      )}
+
+      {/* ================================================================= */}
+      {/* SUB-PAGE 4: VERTICAL READINESS BENCHMARK ANALYTICS                */}
+      {/* ================================================================= */}
+      {activeView === "analytics_readiness" && (
+        <DashboardGraphs
+          readiness={graphs.readiness}
+          financials={graphs.financials}
+          actionsDistribution={graphs.actionsDistribution}
+          ragDistribution={graphs.ragDistribution}
+          statusBreakdown={graphs.statusBreakdown}
+          mode="readiness"
+        />
+      )}
+
+      {/* ================================================================= */}
+      {/* SUB-PAGE 5: FINANCIAL PIPELINE ANALYTICS                          */}
+      {/* ================================================================= */}
+      {activeView === "analytics_financials" && (
+        <DashboardGraphs
+          readiness={graphs.readiness}
+          financials={graphs.financials}
+          actionsDistribution={graphs.actionsDistribution}
+          ragDistribution={graphs.ragDistribution}
+          statusBreakdown={graphs.statusBreakdown}
+          mode="financials"
+        />
+      )}
+
+      {/* ================================================================= */}
+      {/* ADD NEW ACTION ITEM MODAL                                         */}
+      {/* ================================================================= */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full overflow-hidden">
+            <div className="h-1.5 bg-gradient-to-r from-[#003B71] via-[#D81B60] to-[#F37021]" />
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-black text-slate-950">
+                  Add New Action Directive
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Newly added actions immediately appear at the top of the Pending Action Register
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateAction} className="p-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Primary Strategic Vertical *
+                  </label>
+                  <select
+                    value={newActionForm.department_id}
+                    onChange={(e) =>
+                      setNewActionForm({ ...newActionForm, department_id: e.target.value })
+                    }
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 bg-white"
+                  >
+                    {departments.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Alert / RAG Level
+                  </label>
+                  <select
+                    value={newActionForm.rag_status}
+                    onChange={(e) =>
+                      setNewActionForm({ ...newActionForm, rag_status: e.target.value })
+                    }
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 bg-white"
+                  >
+                    <option value="RED">RED ALERT (Top Priority)</option>
+                    <option value="AMBER">AMBER (Watch / Attention)</option>
+                    <option value="GREEN">GREEN (On Track)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Action Item / Directive Description *
+                </label>
+                <textarea
+                  required
+                  rows={2}
+                  value={newActionForm.action_point}
+                  onChange={(e) =>
+                    setNewActionForm({ ...newActionForm, action_point: e.target.value })
+                  }
+                  placeholder="Enter the action directive..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium text-slate-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Owner / Lead
+                  </label>
+                  <input
+                    type="text"
+                    value={newActionForm.ownership}
+                    onChange={(e) =>
+                      setNewActionForm({ ...newActionForm, ownership: e.target.value })
+                    }
+                    placeholder="e.g. Dr. Raghavendra"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Target Date / Timeline
+                  </label>
+                  <input
+                    type="text"
+                    value={newActionForm.timeline}
+                    onChange={(e) =>
+                      setNewActionForm({ ...newActionForm, timeline: e.target.value })
+                    }
+                    placeholder="e.g. 2026-10-30"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    VC Decision Alert
+                  </label>
+                  <select
+                    value={newActionForm.vc_decision_required}
+                    onChange={(e) =>
+                      setNewActionForm({
+                        ...newActionForm,
+                        vc_decision_required: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white"
+                  >
+                    <option value="Yes">Yes (VC Alert)</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Initial Progress / Update Note
+                </label>
+                <textarea
+                  rows={2}
+                  value={newActionForm.remarks}
+                  onChange={(e) =>
+                    setNewActionForm({ ...newActionForm, remarks: e.target.value })
+                  }
+                  placeholder="Enter initial progress update or alert details..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingAction}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#003B71] via-[#D81B60] to-[#F37021] text-white text-xs font-black uppercase tracking-wider cursor-pointer"
+                >
+                  {creatingAction ? "Adding..." : "Save & Pin to Top"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ExecutiveControlTowerClient({
   initialData,
 }: {
   initialData: ExecutiveDashboardData;
 }) {
-  const [loading, setLoading] = useState(false);
-  const [summary, setSummary] = useState<ExecutiveSummary>(initialData.summary);
-  const [departments, setDepartments] = useState<DepartmentCard[]>(initialData.departments);
-  const [graphsData, setGraphsData] = useState<any>(initialData.graphs);
-  const [attentionList, setAttentionList] = useState<AttentionItem[]>(initialData.management_attention);
-  const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
-  const [error, setError] = useState<string | null>(null);
-
-  // FILTER BUTTON STATES FOR VERTICAL CARDS
-  const [ragFilter, setRagFilter] = useState<string>("ALL");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL"); // 'ALL', 'SUBMITTED', 'DRAFT', 'CRITICAL'
-  const [deptSearch, setDeptSearch] = useState<string>("");
-
-  // FILTER BUTTON STATES FOR MANAGEMENT ATTENTION TABLE
-  const [attentionDeptFilter, setAttentionDeptFilter] = useState<string>("ALL");
-  const [attentionStatusFilter, setAttentionStatusFilter] = useState<string>("ALL");
-  const [attentionSearch, setAttentionSearch] = useState<string>("");
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await fetch("/api/executive/summary");
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || `Failed to load executive summary (HTTP ${res.status})`);
-      }
-      const data: ExecutiveDashboardData = await res.json();
-      setSummary(data.summary);
-      setDepartments(data.departments);
-      setGraphsData(data.graphs);
-      setAttentionList(data.management_attention);
-      setLastRefreshed(new Date());
-    } catch (err: any) {
-      console.error("Error fetching summary:", err);
-      setError(err.message || "Failed to load executive summary");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Filter vertical cards based on selected filter buttons & search
-  const filteredDepartments = departments.filter((d) => {
-    if (ragFilter !== "ALL" && d.rag.toUpperCase() !== ragFilter.toUpperCase()) {
-      return false;
-    }
-    if (statusFilter === "SUBMITTED" && d.submission_status !== "SUBMITTED") {
-      return false;
-    }
-    if (statusFilter === "DRAFT" && d.submission_status !== "DRAFT") {
-      return false;
-    }
-    if (statusFilter === "CRITICAL" && d.critical_issues === 0 && d.rag !== "RED") {
-      return false;
-    }
-    if (deptSearch.trim() && !d.name.toLowerCase().includes(deptSearch.toLowerCase().trim())) {
-      return false;
-    }
-    return true;
-  });
-
-  // Filter attention items based on selected filter buttons & search
-  const filteredAttention = attentionList.filter((item) => {
-    if (attentionDeptFilter !== "ALL" && item.department_name !== attentionDeptFilter) {
-      return false;
-    }
-    const isClosed = item.status === "Completed" || item.status === "Closed";
-    if (attentionStatusFilter === "PENDING" && isClosed) {
-      return false;
-    }
-    if (attentionStatusFilter === "CARRIED" && (isClosed || !(item.is_carried_forward || (item.weeks_outstanding && item.weeks_outstanding > 0)))) {
-      return false;
-    }
-    if (attentionStatusFilter === "NEW" && (isClosed || !(item.is_new_this_week || (!item.weeks_outstanding && !item.is_carried_forward)))) {
-      return false;
-    }
-    if (attentionStatusFilter === "OVERDUE" && (isClosed || !(item.is_overdue || item.effective_rag === "RED" || item.status === "Delayed"))) {
-      return false;
-    }
-    if (attentionStatusFilter === "BLOCKED" && (isClosed || (item.status !== "Blocked" && !item.is_blocked))) {
-      return false;
-    }
-    if (attentionStatusFilter === "VC_DECISION" && (isClosed || item.vc_decision_required !== "Yes")) {
-      return false;
-    }
-    if (attentionSearch.trim()) {
-      const q = attentionSearch.toLowerCase().trim();
-      const match =
-        (item.item && item.item.toLowerCase().includes(q)) ||
-        (item.owner && item.owner.toLowerCase().includes(q)) ||
-        (item.issue && item.issue.toLowerCase().includes(q)) ||
-        (item.decision_action && item.decision_action.toLowerCase().includes(q)) ||
-        (item.review_week && item.review_week.toLowerCase().includes(q)) ||
-        (item.item_id && item.item_id.toLowerCase().includes(q));
-      if (!match) return false;
-    }
-    return true;
-  });
-
-  const getRagBadge = (rag: string) => {
-    switch (rag.toUpperCase()) {
-      case "GREEN":
-        return "bg-emerald-100 text-emerald-800 border-emerald-300";
-      case "AMBER":
-        return "bg-amber-100 text-amber-800 border-amber-300";
-      case "RED":
-        return "bg-rose-100 text-rose-800 border-rose-300";
-      default:
-        return "bg-slate-100 text-slate-700 border-slate-300";
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "Completed":
-      case "Joined":
-        return "bg-emerald-50 text-emerald-700 border-emerald-200 font-bold";
-      case "On Track":
-      case "Interview":
-      case "Offer":
-        return "bg-blue-50 text-blue-700 border-blue-200 font-semibold";
-      case "In Progress":
-      case "Sourcing":
-      case "Screening":
-        return "bg-indigo-50 text-indigo-700 border-indigo-200";
-      case "Delayed":
-        return "bg-amber-50 text-amber-700 border-amber-300 font-bold";
-      case "Blocked":
-        return "bg-rose-50 text-rose-700 border-rose-300 font-bold";
-      default:
-        return "bg-slate-100 text-slate-700 border-slate-200";
-    }
-  };
-
   return (
-    <div className="space-y-8">
-      {/* 1. TOP HEADER & HIGH-LEVEL KPIS */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-              RIASAT Executive Dashboard
-            </h1>
-            <span className="px-2.5 py-0.5 text-[11px] font-bold rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
-              Live Dashboard
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Real-time management oversight across all 9 strategic verticals • Single Source of Truth
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3 self-stretch sm:self-auto">
-          <div className="text-[11px] text-slate-500 flex items-center gap-1.5 font-medium bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-xs">
-            <Clock className="w-3.5 h-3.5 text-slate-400" />
-            <span>Updated: {lastRefreshed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-          </div>
-          <button
-            onClick={fetchData}
-            disabled={loading}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-xs transition disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-            <span>Refresh</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ERROR BANNER */}
-      {error && (
-        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-3 shadow-xs">
-          <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-          <div className="text-xs">
-            <p className="font-bold text-rose-900">{error}</p>
-            <p className="text-slate-600 mt-1">
-              If you are logged in as a Department Head, please use the sidebar to open your specific department tracker.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* EXECUTIVE REVIEW CYCLE STRIP */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 font-bold shrink-0">
-            <Zap className="w-5 h-5 text-indigo-600" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2.5">
-              <span className="text-sm font-bold text-slate-900 tracking-tight">
-                Weekly Executive Action Register & Oversight Tower
-              </span>
-              <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 text-slate-700 border border-slate-200">
-                {summary.current_review_week || "Week 42 (12 Oct 2026)"}
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Tracking <strong className="text-slate-800 font-semibold">{summary.open_actions ?? 15} open deliverables</strong> across all 9 strategic verticals with continuous carry-forward and executive follow-up
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={() => {
-            setAttentionStatusFilter("PENDING");
-            const el = document.getElementById("management-attention-table");
-            if (el) el.scrollIntoView({ behavior: "smooth" });
-          }}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-xs transition inline-flex items-center gap-2 justify-center self-stretch sm:self-auto"
-        >
-          <span>View Pending Directives</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </button>
-      </div>
-
-      {/* KPI CARDS: 6 CORE MANAGEMENT ACTION METRICS */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
-        {/* Tile 1: Total Pending Actions */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            Active Directives
-          </div>
-          <div className="text-2xl font-black text-slate-900 mt-1 flex items-baseline gap-1">
-            {summary.open_actions ?? 15}
-          </div>
-          <div className="mt-2 text-[10px] font-semibold text-indigo-600 flex items-center gap-1">
-            <TrendingUp className="w-3 h-3" />
-            <span>Open & Tracked</span>
-          </div>
-        </div>
-
-        {/* Tile 2: Carried Forward Actions */}
-        <div className="bg-white p-4 rounded-2xl border border-amber-200/80 bg-amber-50/15 shadow-xs hover:border-amber-300 transition">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
-            Carried Forward
-          </div>
-          <div className="text-2xl font-black text-amber-800 mt-1 flex items-baseline gap-1">
-            {summary.carried_forward_actions ?? 0}
-          </div>
-          <div className="mt-2 text-[10px] font-semibold text-amber-800 flex items-center gap-1">
-            <Clock className="w-3 h-3 text-amber-600" />
-            <span>Prior Review Cycles</span>
-          </div>
-        </div>
-
-        {/* Tile 3: New Actions This Week */}
-        <div className="bg-white p-4 rounded-2xl border border-emerald-200/80 bg-emerald-50/15 shadow-xs hover:border-emerald-300 transition">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
-            New This Week
-          </div>
-          <div className="text-2xl font-black text-emerald-800 mt-1">
-            {summary.new_actions_this_week ?? 15}
-          </div>
-          <div className="mt-2 text-[10px] text-emerald-800 font-semibold flex items-center gap-1">
-            <Check className="w-3 h-3 text-emerald-600" />
-            <span>Current Review</span>
-          </div>
-        </div>
-
-        {/* Tile 4: Overdue Actions in RED */}
-        <div className="bg-white p-4 rounded-2xl border border-rose-200 bg-rose-50/20 shadow-xs hover:border-rose-300 transition">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-rose-800">
-            Overdue (Red Alert)
-          </div>
-          <div className="text-2xl font-black text-rose-600 mt-1">
-            {summary.overdue_actions ?? 0}
-          </div>
-          <div className="mt-2 text-[10px] text-rose-700 font-semibold flex items-center gap-1">
-            <Clock className="w-3 h-3 text-rose-600" />
-            <span>Requires Follow-up</span>
-          </div>
-        </div>
-
-        {/* Tile 5: Blocked Actions */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            Blocked Items
-          </div>
-          <div className="text-2xl font-black text-slate-800 mt-1">
-            {summary.blocked_actions ?? 0}
-          </div>
-          <div className="mt-2 text-[10px] text-slate-500 font-semibold flex items-center gap-1">
-            <Shield className="w-3 h-3 text-slate-400" />
-            <span>Pending Resolution</span>
-          </div>
-        </div>
-
-        {/* Tile 6: VC Decisions Required */}
-        <div className="bg-white p-4 rounded-2xl border border-indigo-200/80 bg-indigo-50/15 shadow-xs hover:border-indigo-300 transition">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-900">
-            VC Decisions Needed
-          </div>
-          <div className="text-2xl font-black text-indigo-900 mt-1">
-            {summary.pending_decisions ?? 8}
-          </div>
-          <div className="mt-2 text-[10px] text-indigo-700 font-semibold flex items-center gap-1">
-            <AlertTriangle className="w-3 h-3 text-indigo-600" />
-            <span>Leadership Focus</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. INTERACTIVE DASHBOARD GRAPHS */}
-      {graphsData && <DashboardGraphs graphs={graphsData} />}
-
-      {/* 3. 9 STRATEGIC VERTICAL CARDS (WITH FILTER BUTTONS) */}
-      <div id="departments" className="space-y-4">
-        {/* FILTER BAR FOR VERTICALS */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-indigo-600" />
-              <h2 className="text-base font-bold text-slate-900 tracking-tight">
-                9 Strategic Verticals Overview
-              </h2>
-            </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Showing {filteredDepartments.length} of {departments.length} verticals
-            </p>
-          </div>
-
-          {/* Filter Buttons & Search Input */}
-          <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
-            {/* Search Input */}
-            <div className="relative flex-1 md:w-48">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search vertical..."
-                value={deptSearch}
-                onChange={(e) => setDeptSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-600"
-              />
-            </div>
-
-            {/* RAG Filter Buttons */}
-            <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold gap-1">
-              <button
-                onClick={() => setRagFilter("ALL")}
-                className={`px-2.5 py-1 rounded-lg transition ${
-                  ragFilter === "ALL" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-600"
-                }`}
-              >
-                All RAG
-              </button>
-              <button
-                onClick={() => setRagFilter("GREEN")}
-                className={`px-2 py-1 rounded-lg transition flex items-center gap-1 ${
-                  ragFilter === "GREEN" ? "bg-emerald-600 text-white shadow-xs font-bold" : "text-slate-600 hover:text-emerald-700"
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Green
-              </button>
-              <button
-                onClick={() => setRagFilter("AMBER")}
-                className={`px-2 py-1 rounded-lg transition flex items-center gap-1 ${
-                  ragFilter === "AMBER" ? "bg-amber-500 text-white shadow-xs font-bold" : "text-slate-600 hover:text-amber-700"
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-300" /> Amber
-              </button>
-              <button
-                onClick={() => setRagFilter("RED")}
-                className={`px-2 py-1 rounded-lg transition flex items-center gap-1 ${
-                  ragFilter === "RED" ? "bg-rose-600 text-white shadow-xs font-bold" : "text-slate-600 hover:text-rose-700"
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-300" /> Red
-              </button>
-            </div>
-
-            {/* Status Filter Buttons */}
-            <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold gap-1">
-              <button
-                onClick={() => setStatusFilter("ALL")}
-                className={`px-2.5 py-1 rounded-lg transition ${
-                  statusFilter === "ALL" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-600"
-                }`}
-              >
-                All Status
-              </button>
-              <button
-                onClick={() => setStatusFilter("SUBMITTED")}
-                className={`px-2 py-1 rounded-lg transition ${
-                  statusFilter === "SUBMITTED" ? "bg-indigo-600 text-white shadow-xs font-bold" : "text-slate-600"
-                }`}
-              >
-                Submitted
-              </button>
-              <button
-                onClick={() => setStatusFilter("DRAFT")}
-                className={`px-2 py-1 rounded-lg transition ${
-                  statusFilter === "DRAFT" ? "bg-amber-600 text-white shadow-xs font-bold" : "text-slate-600"
-                }`}
-              >
-                Draft
-              </button>
-              <button
-                onClick={() => setStatusFilter("CRITICAL")}
-                className={`px-2 py-1 rounded-lg transition ${
-                  statusFilter === "CRITICAL" ? "bg-rose-600 text-white shadow-xs font-bold" : "text-slate-600 text-rose-700"
-                }`}
-              >
-                Critical
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* 9 STRATEGIC VERTICAL CARDS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredDepartments.map((dept) => (
-            <Link
-              key={dept.id}
-              href={`/department/${dept.id}`}
-              className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:shadow-md hover:border-indigo-400 transition flex flex-col justify-between group"
-            >
-              <div>
-                {/* Header: Title + RAG Badge + Draft/Submitted Pill */}
-                <div className="flex justify-between items-start gap-2">
-                  <h3 className="font-bold text-slate-900 text-base group-hover:text-indigo-600 transition tracking-tight">
-                    {dept.name}
-                  </h3>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span
-                      className={`px-2 py-0.5 text-[10px] font-extrabold rounded-md border tracking-wider ${getRagBadge(
-                        dept.rag
-                      )}`}
-                      title={`RAG Status: ${dept.rag}`}
-                    >
-                      {dept.rag}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Submission Status Pill */}
-                <div className="mt-1 flex items-center gap-2">
-                  <span
-                    className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider ${
-                      dept.submission_status === "DRAFT"
-                        ? "bg-amber-100 text-amber-800 border border-amber-200"
-                        : "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                    }`}
-                  >
-                    {dept.submission_status || "SUBMITTED"}
-                  </span>
-                  <span className="text-[10px] text-slate-400">Code: {dept.code}</span>
-                  <span className="text-[10px] text-slate-400">| RAG Status: {dept.rag}</span>
-                </div>
-
-                {/* Readiness Percentage Bar */}
-                <div className="mt-4">
-                  <div className="flex justify-between text-xs font-semibold mb-1">
-                    <span className="text-slate-500">Readiness Score</span>
-                    <span className="font-extrabold text-slate-900">{dept.readiness}%</span>
-                  </div>
-                  <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        dept.rag === "GREEN"
-                          ? "bg-emerald-500"
-                          : dept.rag === "AMBER"
-                          ? "bg-amber-500"
-                          : "bg-rose-500"
-                      }`}
-                      style={{ width: `${Math.min(100, Math.max(5, dept.readiness))}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Key Metrics: Open Action Points, Delayed/Red Action Points, VC Decisions Required, Workstreams */}
-                <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-semibold block uppercase">Open Action Points</span>
-                    <span className="font-bold text-indigo-700">{dept.open_items} Open</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-semibold block uppercase">Delayed / Red Action Points</span>
-                    <span className={`font-bold ${dept.critical_issues > 0 ? "text-rose-600" : "text-slate-600"}`}>
-                      {dept.critical_issues} Items
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-semibold block uppercase">VC Decisions Required</span>
-                    <span className={`font-black ${dept.pending_vc > 0 ? "text-rose-600" : "text-slate-600"}`}>
-                      {dept.pending_vc > 0 ? `⚠️ ${dept.pending_vc} Required` : "0 Pending"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-semibold block uppercase">Workstreams</span>
-                    <span className="font-bold text-slate-800">{dept.total_items} Total</span>
-                  </div>
-                </div>
-
-                {/* Key Focus Snippet */}
-                {dept.key_focus && (
-                  <div className="mt-3 p-2 bg-slate-50 rounded-xl border border-slate-100 text-[11px] text-slate-600 line-clamp-2 leading-relaxed">
-                    <strong className="text-slate-700">Focus:</strong> {dept.key_focus}
-                  </div>
-                )}
-              </div>
-
-              {/* Card Footer */}
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-500">
-                <span className="truncate">
-                  Last Updated: {dept.last_updated
-                    ? new Date(dept.last_updated).toLocaleDateString("en-IN")
-                    : "Not updated yet"}
-                </span>
-                <span className="font-semibold text-indigo-600 flex items-center gap-1 group-hover:translate-x-0.5 transition">
-                  Drill Down <ChevronRight className="w-3 h-3" />
-                </span>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </div>
-
-      {/* 4. VICE CHAIRMAN / MANAGEMENT ATTENTION (WITH FILTER BUTTONS) */}
-      <div id="management-attention-table" className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-6 border-b border-slate-200 bg-slate-50/70 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <Layers className="w-5 h-5 text-indigo-600" />
-              <h2 className="text-base font-bold text-slate-900 tracking-tight">
-                Executive Action Register & Directives
-              </h2>
-              <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-800 text-[11px] font-bold rounded-full border border-indigo-200">
-                {attentionList.filter((x) => x.status !== "Completed" && x.status !== "Closed").length} Active Items
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Weekly deliverables, owners, target timelines, and leadership interventions across all verticals
-            </p>
-          </div>
-
-          {/* Filter Controls for Attention Table */}
-          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            {/* Search Input */}
-            <div className="relative flex-1 md:w-48">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search action, owner..."
-                value={attentionSearch}
-                onChange={(e) => setAttentionSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
-              />
-            </div>
-
-            {/* Department Filter Dropdown */}
-            <select
-              value={attentionDeptFilter}
-              onChange={(e) => setAttentionDeptFilter(e.target.value)}
-              className="px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-600"
-            >
-              <option value="ALL">All Verticals</option>
-              {departments.map((d) => (
-                <option key={d.name} value={d.name}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-
-            {/* Weekly Register Filter Buttons */}
-            <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold gap-1">
-              <button
-                onClick={() => setAttentionStatusFilter("PENDING")}
-                className={`px-2.5 py-1 rounded-lg transition ${
-                  attentionStatusFilter === "PENDING" ? "bg-indigo-600 text-white shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                Active ({attentionList.filter((x) => x.status !== "Completed" && x.status !== "Closed").length})
-              </button>
-
-              <button
-                onClick={() => setAttentionStatusFilter("CARRIED")}
-                className={`px-2.5 py-1 rounded-lg transition ${
-                  attentionStatusFilter === "CARRIED" ? "bg-amber-600 text-white shadow-xs font-bold" : "text-slate-600 hover:text-amber-800"
-                }`}
-              >
-                Carried ({attentionList.filter((x) => (x.status !== "Completed" && x.status !== "Closed") && (x.is_carried_forward || (x.weeks_outstanding && x.weeks_outstanding > 0))).length})
-              </button>
-
-              <button
-                onClick={() => setAttentionStatusFilter("NEW")}
-                className={`px-2.5 py-1 rounded-lg transition ${
-                  attentionStatusFilter === "NEW" ? "bg-emerald-600 text-white shadow-xs font-bold" : "text-slate-600 hover:text-emerald-800"
-                }`}
-              >
-                New ({attentionList.filter((x) => (x.status !== "Completed" && x.status !== "Closed") && (x.is_new_this_week || (!x.weeks_outstanding && !x.is_carried_forward))).length})
-              </button>
-
-              <button
-                onClick={() => setAttentionStatusFilter("OVERDUE")}
-                className={`px-2.5 py-1 rounded-lg transition ${
-                  attentionStatusFilter === "OVERDUE" ? "bg-rose-600 text-white shadow-xs font-bold" : "text-slate-600 hover:text-rose-700"
-                }`}
-              >
-                Overdue ({attentionList.filter((x) => (x.status !== "Completed" && x.status !== "Closed") && (x.is_overdue || x.effective_rag === "RED" || x.status === "Delayed")).length})
-              </button>
-
-              <button
-                onClick={() => setAttentionStatusFilter("BLOCKED")}
-                className={`px-2.5 py-1 rounded-lg transition ${
-                  attentionStatusFilter === "BLOCKED" ? "bg-slate-800 text-white shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                Blocked ({attentionList.filter((x) => (x.status !== "Completed" && x.status !== "Closed") && (x.status === "Blocked" || x.is_blocked)).length})
-              </button>
-
-              <button
-                onClick={() => setAttentionStatusFilter("VC_DECISION")}
-                className={`px-2.5 py-1 rounded-lg transition ${
-                  attentionStatusFilter === "VC_DECISION" ? "bg-purple-700 text-white shadow-xs font-bold" : "text-slate-600 hover:text-purple-700"
-                }`}
-              >
-                VC Decisions ({attentionList.filter((x) => (x.status !== "Completed" && x.status !== "Closed") && x.vc_decision_required === "Yes").length})
-              </button>
-
-              <button
-                onClick={() => setAttentionStatusFilter("ALL")}
-                className={`px-2.5 py-1 rounded-lg transition ${
-                  attentionStatusFilter === "ALL" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                All
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Table of Attention Items - Page to Fit Responsive Table */}
-        <div className="overflow-x-auto w-full">
-          <table className="w-full text-left text-xs table-fixed border-collapse">
-            <thead className="bg-[#0b1329] text-white uppercase text-[10px] font-bold tracking-wider border-b border-slate-800">
-              <tr>
-                <th className="w-[5%] px-2 py-3 text-center font-bold text-slate-100 whitespace-nowrap">ID</th>
-                <th className="w-[12%] px-2.5 py-3 text-left font-bold text-slate-100">Review Cycle</th>
-                <th className="w-[27%] px-3 py-3 text-left font-bold text-slate-100">Action Item</th>
-                <th className="w-[13%] px-2.5 py-3 text-left font-bold text-slate-100">Owner / Support</th>
-                <th className="w-[10%] px-2.5 py-3 text-left font-bold text-slate-100">Timeline</th>
-                <th className="w-[11%] px-2.5 py-3 text-left font-bold text-slate-100">Status & RAG</th>
-                <th className="w-[9%] px-2.5 py-3 text-left font-bold text-slate-100">Department</th>
-                <th className="w-[8%] px-2.5 py-3 text-left font-bold text-slate-100">Remarks / Update</th>
-                <th className="w-[5%] px-1.5 py-3 text-center font-bold text-slate-100 whitespace-nowrap">VC Dec.</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 bg-white">
-              {filteredAttention.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-6 py-8 text-center text-slate-400">
-                    No action items match the selected filters.
-                  </td>
-                </tr>
-              ) : (
-                filteredAttention.map((item) => {
-                  const isVcReq = item.vc_decision_required === "Yes";
-                  const isOverdue = item.is_overdue || item.effective_rag === "RED" || item.rag_status === "RED";
-                  const isBlocked = item.status === "Blocked" || item.is_blocked;
-                  const weeksOutstanding = item.weeks_outstanding ?? 0;
-                  const isCarried = item.is_carried_forward || weeksOutstanding > 0;
-                  const ragStatus = (isOverdue ? "RED" : (item.rag_status || (["Delayed", "Blocked"].includes(item.status) ? "AMBER" : "GREEN"))).toUpperCase();
-
-                  return (
-                    <tr
-                      key={`${item.department_id}-${item.id}`}
-                      className={`transition ${
-                        isOverdue
-                          ? "bg-rose-50/85 hover:bg-rose-100/75 border-l-4 border-l-rose-600"
-                          : isBlocked
-                          ? "bg-rose-50/30 hover:bg-rose-50/60 border-l-4 border-l-rose-400"
-                          : "hover:bg-slate-50"
-                      }`}
-                    >
-                      {/* ID */}
-                      <td className="px-2 py-3 text-center whitespace-nowrap font-mono align-top">
-                        <span className="inline-block px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 font-extrabold text-[10px] border border-indigo-200">
-                          {item.item_id || `ID #${item.id}`}
-                        </span>
-                      </td>
-
-                      {/* Review Cycle & Carry-Forward Status */}
-                      <td className="px-2.5 py-3 text-left align-top">
-                        <div className="text-[11px] font-bold text-slate-800 leading-tight">
-                          {item.review_week || "Week 42 (12 Oct 2026)"}
-                        </div>
-                        <div className="mt-1 flex items-center">
-                          {isCarried ? (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300">
-                              🔄 Carried (+{weeksOutstanding}w)
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-900 border border-emerald-300">
-                              ⚡ New
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Action item */}
-                      <td className="px-3 py-3 text-left align-top">
-                        <div className={`text-xs font-bold leading-snug break-words ${isOverdue ? "text-rose-950 font-black" : "text-slate-900"}`}>
-                          {item.item}
-                        </div>
-                        {item.supporting_departments && (
-                          <div className="text-[10px] text-slate-500 font-normal mt-1 flex flex-wrap items-center gap-1">
-                            <span className="font-semibold text-slate-600">Supporting:</span>
-                            <span className="bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-medium text-[9px]">
-                              {item.supporting_departments}
-                            </span>
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Owner */}
-                      <td className="px-2.5 py-3 text-slate-700 font-medium text-[11px] leading-snug break-words align-top">
-                        {item.owner || "--"}
-                      </td>
-
-                      {/* Timeline */}
-                      <td className="px-2.5 py-3 text-left align-top">
-                        <div className="flex flex-col items-start gap-1">
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] border whitespace-nowrap ${
-                            isOverdue ? "bg-rose-100 text-rose-800 border-rose-300 font-extrabold" : "bg-slate-100 border-slate-200 text-slate-700 font-medium"
-                          }`}>
-                            {item.target_date || "--"}
-                          </span>
-                          {isOverdue && (
-                            <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-rose-600 text-white shadow-xs whitespace-nowrap">
-                              🚨 OVERDUE
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Status & RAG */}
-                      <td className="px-2.5 py-3 text-left align-top">
-                        <div className="flex flex-wrap items-center gap-1">
-                          <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded border whitespace-nowrap ${
-                            isBlocked ? "bg-rose-600 text-white font-black border-rose-700 shadow-xs" : getStatusBadge(item.status)
-                          }`}>
-                            {isBlocked ? "⛔ BLOCKED" : item.status}
-                          </span>
-                          <span
-                            className={`px-1.5 py-0.2 text-[8px] font-black rounded uppercase tracking-wider whitespace-nowrap ${
-                              ragStatus === "GREEN"
-                                ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                                : ragStatus === "AMBER"
-                                ? "bg-amber-100 text-amber-800 border border-amber-300"
-                                : "bg-rose-600 text-white shadow-xs font-black"
-                            }`}
-                          >
-                            {ragStatus}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Department */}
-                      <td className="px-2.5 py-3 text-left align-top">
-                        <Link
-                          href={`/department/${item.department_id}`}
-                          className="font-bold text-indigo-600 hover:text-indigo-800 hover:underline text-xs break-words"
-                        >
-                          {item.department_name}
-                        </Link>
-                      </td>
-
-                      {/* Remarks */}
-                      <td className="px-2.5 py-3 text-slate-600 text-[11px] leading-snug break-words align-top">
-                        {item.decision_action || item.issue || "--"}
-                      </td>
-
-                      {/* VC Decision */}
-                      <td className="px-1.5 py-3 text-center whitespace-nowrap align-top">
-                        {isVcReq ? (
-                          <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-black rounded bg-rose-600 text-white shadow-xs">
-                            YES
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-medium text-slate-400">
-                            No
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* 5. INFORMATIONAL CARD: WEEKLY REVIEW PROTOCOL & EMAIL NOTIFICATION ARCHITECTURE */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs text-slate-600">
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded font-bold text-[10px] uppercase">
-              Follow-Up Engine
-            </span>
-            <span>
-              Unfinished actions automatically carry forward every review cycle until formally <strong>Closed</strong>. Overdue items trigger high-priority red reminders.
-            </span>
-          </div>
-          <div className="text-[11px] text-slate-500 font-medium">
-            Email & Telegram Reminders: Configured for automated weekly dispatch via the audit ledger.
-          </div>
-        </div>
-      </div>
-    </div>
+    <Suspense fallback={<div className="p-8 text-center text-xs font-bold text-slate-500">Loading Executive Control Tower...</div>}>
+      <ExecutiveControlTowerContent initialData={initialData} />
+    </Suspense>
   );
 }

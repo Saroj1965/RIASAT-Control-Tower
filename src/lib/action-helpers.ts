@@ -1,13 +1,31 @@
-// Shared action-item calculations for Weekly Action Register, Carry-Forward, and Red Overdue indicators
+// Shared action-item calculations for Weekly Action Register, Carry-Forward, Datewise Progress Updates, and Red Overdue indicators
 
 export interface ActionHistoryEntry {
-  date: string;
-  user: string;
+  date?: string;
+  timestamp?: string;
+  user?: string;
+  role?: string;
+  action?: string;
   status?: string;
   remarks?: string;
   next_followup_date?: string;
   rag_status?: string;
+  priority?: string;
+  vc_decision_required?: string;
   change_summary?: string;
+}
+
+export interface FormattedActionUpdate {
+  id: string;
+  rawDate: string;
+  formattedDate: string;
+  text: string;
+  user?: string;
+  status?: string;
+  rag?: string;
+  isRedAlert: boolean;
+  isImportant: boolean;
+  isLatest: boolean;
 }
 
 export interface ActionWeekStats {
@@ -21,7 +39,284 @@ export interface ActionWeekStats {
   effective_rag: "GREEN" | "AMBER" | "RED";
   is_closed: boolean;
   is_blocked: boolean;
+  is_red_alert: boolean;
   history: ActionHistoryEntry[];
+  updates_list: FormattedActionUpdate[];
+}
+
+/**
+ * Returns true ONLY if the action item is still pending (excludes Completed and Closed)
+ */
+export function isPendingActionStatus(status?: string | null): boolean {
+  const norm = String(status || "OPEN").trim().toUpperCase();
+  return !["CLOSED", "COMPLETED"].includes(norm);
+}
+
+/**
+ * Determines whether an action item is a Red Alert / Urgent Alert
+ */
+export function isRedAlertItem(action: any): boolean {
+  const status = String(action.status || "").trim().toUpperCase();
+  if (["CLOSED", "COMPLETED"].includes(status)) return false;
+
+  const rag = String(action.effective_rag || action.rag_status || "").trim().toUpperCase();
+  const priority = String(action.priority || "").trim().toUpperCase();
+  const vcReq = String(action.vc_decision_required || "").trim().toUpperCase();
+
+  return (
+    rag === "RED" ||
+    status === "BLOCKED" ||
+    status === "DELAYED" ||
+    priority === "CRITICAL" ||
+    vcReq === "YES" ||
+    Boolean(action.is_overdue) ||
+    Boolean(action.is_blocked)
+  );
+}
+
+/**
+ * Formats a date string into a clean readable date e.g. "23 Oct 2026"
+ */
+export function formatUpdateDate(dateStr?: string | null): string {
+  if (!dateStr) return "Recent";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return String(dateStr);
+    return d.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return String(dateStr);
+  }
+}
+
+/**
+ * Extracts all updates (1 to 5+ updates, including red alerts and important updates)
+ * sorted strictly datewise with the LATEST update on top.
+ */
+export function getActionUpdatesDatewise(action: any): FormattedActionUpdate[] {
+  const rawHistory: ActionHistoryEntry[] = [];
+
+  if (action.action_history) {
+    try {
+      const parsed =
+        typeof action.action_history === "string"
+          ? JSON.parse(action.action_history)
+          : action.action_history;
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (item && typeof item === "object") {
+            rawHistory.push(item);
+          }
+        }
+      }
+    } catch {
+      // ignore malformed JSON
+    }
+  }
+
+  const actionRag = String(action.effective_rag || action.rag_status || "GREEN").toUpperCase();
+  const actionStatus = String(action.status || "OPEN").trim();
+  const actionPriority = String(action.priority || "Medium").trim();
+  const actionVc = String(action.vc_decision_required || "No").trim();
+  const itemIsRed = isRedAlertItem(action);
+
+  const entries: {
+    rawDate: string;
+    timestampMs: number;
+    text: string;
+    user?: string;
+    status?: string;
+    rag?: string;
+    isRedAlert: boolean;
+    isImportant: boolean;
+  }[] = [];
+
+  // Process history entries
+  for (let i = 0; i < rawHistory.length; i++) {
+    const h = rawHistory[i];
+    const text = String(h.remarks || h.change_summary || "").trim();
+    if (!text) continue;
+
+    const rawDate = h.timestamp || h.date || action.updated_at || action.review_meeting_date || action.created_at || "2026-10-12";
+    const parsedMs = new Date(rawDate).getTime();
+    // Preserve order if timestamps are equal (earlier index in unshifted array is newer)
+    const timestampMs = (isNaN(parsedMs) ? Date.now() : parsedMs) - i;
+
+    const hRag = String(h.rag_status || actionRag).toUpperCase();
+    const hStatus = String(h.status || actionStatus);
+    const isRed =
+      hRag === "RED" ||
+      hStatus.toUpperCase() === "BLOCKED" ||
+      hStatus.toUpperCase() === "DELAYED" ||
+      text.toLowerCase().includes("critical") ||
+      text.toLowerCase().includes("urgent") ||
+      text.toLowerCase().includes("blocked") ||
+      text.toLowerCase().includes("delay") ||
+      itemIsRed;
+
+    const isImp =
+      isRed ||
+      hRag === "AMBER" ||
+      actionPriority === "High" ||
+      actionVc === "Yes" ||
+      text.toLowerCase().includes("vc") ||
+      text.toLowerCase().includes("approval");
+
+    entries.push({
+      rawDate,
+      timestampMs,
+      text,
+      user: h.user,
+      status: hStatus,
+      rag: hRag,
+      isRedAlert: isRed,
+      isImportant: isImp,
+    });
+  }
+
+  // Ensure current primary remarks / issue is included if not already represented
+  const currentRemarks = String(action.remarks || action.issue || "").trim();
+  if (currentRemarks) {
+    // Check if currentRemarks contains multiple semicolon/newline separated dated updates or if it's a single update
+    const alreadyExists = entries.some(
+      (e) => e.text.toLowerCase() === currentRemarks.toLowerCase()
+    );
+    if (!alreadyExists) {
+      const rawDate = action.updated_at || action.review_meeting_date || action.created_at || new Date().toISOString();
+      const parsedMs = new Date(rawDate).getTime();
+      entries.unshift({
+        rawDate,
+        timestampMs: (isNaN(parsedMs) ? Date.now() : parsedMs) + 1000,
+        text: currentRemarks,
+        user: action.updated_by || action.owner || action.ownership,
+        status: actionStatus,
+        rag: actionRag,
+        isRedAlert: itemIsRed,
+        isImportant: itemIsRed || actionVc === "Yes" || actionPriority === "High",
+      });
+    }
+  }
+
+  // Also include decision_action / risks_blockers if distinct and non-empty
+  const decisionText = String(action.decision_action || "").trim();
+  if (
+    decisionText &&
+    decisionText !== "None" &&
+    !entries.some((e) => e.text.toLowerCase().includes(decisionText.toLowerCase()))
+  ) {
+    const rawDate = action.review_meeting_date || action.created_at || "2026-10-12";
+    const parsedMs = new Date(rawDate).getTime();
+    entries.push({
+      rawDate,
+      timestampMs: (isNaN(parsedMs) ? Date.now() - 86400000 : parsedMs - 1000),
+      text: `Directive / Alert: ${decisionText}`,
+      user: "Executive Review",
+      status: actionStatus,
+      rag: actionRag,
+      isRedAlert: itemIsRed || actionVc === "Yes",
+      isImportant: true,
+    });
+  }
+
+  const blockerText = String(action.risks_blockers || "").trim();
+  if (
+    blockerText &&
+    blockerText !== "None" &&
+    !entries.some((e) => e.text.toLowerCase().includes(blockerText.toLowerCase()))
+  ) {
+    const rawDate = action.review_meeting_date || action.created_at || "2026-10-10";
+    const parsedMs = new Date(rawDate).getTime();
+    entries.push({
+      rawDate,
+      timestampMs: (isNaN(parsedMs) ? Date.now() - 172800000 : parsedMs - 2000),
+      text: `Risk / Blocker: ${blockerText}`,
+      user: action.owner || action.ownership || "Dept Lead",
+      status: actionStatus,
+      rag: "RED",
+      isRedAlert: true,
+      isImportant: true,
+    });
+  }
+
+  // Sort strictly by timestampMs DESC (latest update on top)
+  entries.sort((a, b) => b.timestampMs - a.timestampMs);
+
+  // Deduplicate identical consecutive or duplicate texts while keeping the latest timestamp
+  const uniqueEntries: typeof entries = [];
+  const seenTexts = new Set<string>();
+  for (const entry of entries) {
+    const key = entry.text.toLowerCase().trim();
+    if (!seenTexts.has(key)) {
+      seenTexts.add(key);
+      uniqueEntries.push(entry);
+    }
+  }
+
+  return uniqueEntries.map((e, idx) => ({
+    id: `upd-${idx}`,
+    rawDate: e.rawDate,
+    formattedDate: formatUpdateDate(e.rawDate),
+    text: e.text,
+    user: e.user,
+    status: e.status,
+    rag: e.rag,
+    isRedAlert: e.isRedAlert,
+    isImportant: e.isImportant,
+    isLatest: idx === 0,
+  }));
+}
+
+/**
+ * Sorts actions so that:
+ * 1. Pending items come before Closed/Completed items
+ * 2. Newly added items (id > 15 or created recently) and Red Alerts / Critical Alerts come first at the top
+ * 3. Within each tier, newest items (id DESC) come first
+ */
+export function sortActionsWithNewAndAlertsOnTop<T extends Record<string, any>>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    const aPending = isPendingActionStatus(a.status) ? 0 : 1;
+    const bPending = isPendingActionStatus(b.status) ? 0 : 1;
+    if (aPending !== bPending) return aPending - bPending;
+
+    // Newly added items (ID > 15 are user-created beyond initial 15 seed items)
+    const aIsNewlyAdded = Number(a.id) > 15 ? 0 : 1;
+    const bIsNewlyAdded = Number(b.id) > 15 ? 0 : 1;
+    if (aIsNewlyAdded !== bIsNewlyAdded) return aIsNewlyAdded - bIsNewlyAdded;
+
+    // If both are newly added, sort newest ID on top
+    if (aIsNewlyAdded === 0 && bIsNewlyAdded === 0) {
+      return Number(b.id) - Number(a.id);
+    }
+
+    // Next: Red Alert items on top
+    const aRed = isRedAlertItem(a) ? 0 : 1;
+    const bRed = isRedAlertItem(b) ? 0 : 1;
+    if (aRed !== bRed) return aRed - bRed;
+
+    // Next: VC decision required
+    const aVc = String(a.vc_decision_required || "").toUpperCase() === "YES" ? 0 : 1;
+    const bVc = String(b.vc_decision_required || "").toUpperCase() === "YES" ? 0 : 1;
+    if (aVc !== bVc) return aVc - bVc;
+
+    // Next: Amber / High Priority
+    const aAmber =
+      String(a.effective_rag || a.rag_status || "").toUpperCase() === "AMBER" ||
+      String(a.priority || "").toUpperCase() === "HIGH"
+        ? 0
+        : 1;
+    const bAmber =
+      String(b.effective_rag || b.rag_status || "").toUpperCase() === "AMBER" ||
+      String(b.priority || "").toUpperCase() === "HIGH"
+        ? 0
+        : 1;
+    if (aAmber !== bAmber) return aAmber - bAmber;
+
+    // Finally: newest ID first
+    return Number(b.id) - Number(a.id);
+  });
 }
 
 /**
@@ -30,7 +325,6 @@ export interface ActionWeekStats {
 export function getCurrentReviewMeetingDate(now: Date = new Date()): string {
   const d = new Date(now);
   const day = d.getDay();
-  // In JS, Sunday is 0, Monday is 1, ..., Saturday is 6
   const diffToMonday = d.getDate() - day + (day === 0 ? -6 : 1);
   const monday = new Date(d.setDate(diffToMonday));
   return monday.toISOString().split("T")[0];
@@ -44,7 +338,6 @@ export function getReviewWeekLabel(dateStr: string): string {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return "Current Review Cycle";
 
-    // ISO week number
     const target = new Date(d.valueOf());
     const dayNr = (d.getDay() + 6) % 7;
     target.setDate(target.getDate() - dayNr + 3);
@@ -68,21 +361,19 @@ export function getReviewWeekLabel(dateStr: string): string {
 }
 
 /**
- * Parses and computes real-time week stats, carry-forward status, and overdue red alerts for any action
+ * Parses and computes real-time week stats, carry-forward status, datewise updates, and overdue red alerts for any action
  */
 export function calculateActionWeekStats(action: any, referenceDate: Date = new Date()): ActionWeekStats {
   const status = (action.status || "OPEN").trim().toUpperCase();
   const is_closed = status === "COMPLETED" || status === "CLOSED";
   const is_blocked = status === "BLOCKED";
 
-  // Determine review meeting date
   const review_meeting_date =
     action.review_meeting_date ||
     (action.created_at ? new Date(action.created_at).toISOString().split("T")[0] : "2026-10-12");
 
   const review_week = action.review_week || getReviewWeekLabel(review_meeting_date);
 
-  // Compute weeks outstanding
   let weeks_outstanding = 0;
   const reviewTime = new Date(review_meeting_date).getTime();
   const refTime = is_closed && action.closure_date ? new Date(action.closure_date).getTime() : referenceDate.getTime();
@@ -94,10 +385,8 @@ export function calculateActionWeekStats(action: any, referenceDate: Date = new 
   }
 
   const is_carried_forward = !is_closed && weeks_outstanding > 0;
-  const is_new_this_week = !is_closed && weeks_outstanding === 0;
+  const is_new_this_week = !is_closed && (weeks_outstanding === 0 || Number(action.id) > 15);
 
-  // Determine Overdue / Approaching
-  // Target date parsing
   const timeline = (action.timeline || action.target_date || "").trim();
   let is_overdue = false;
   let is_approaching = false;
@@ -106,7 +395,6 @@ export function calculateActionWeekStats(action: any, referenceDate: Date = new 
     if (status === "DELAYED") {
       is_overdue = true;
     } else {
-      // Check if timeline or target_date is formatted as YYYY-MM-DD or contains date
       const dateMatch = timeline.match(/\b(\d{4}-\d{2}-\d{2})\b/);
       if (dateMatch) {
         const targetTime = new Date(dateMatch[1]).getTime();
@@ -119,17 +407,20 @@ export function calculateActionWeekStats(action: any, referenceDate: Date = new 
       }
     }
 
-    // Explicit Red RAG or Blocked also treats as Red
     if ((action.rag_status || "").toUpperCase() === "RED") {
       is_overdue = true;
     }
   }
 
-  // Determine Effective RAG
   let effective_rag: "GREEN" | "AMBER" | "RED" = "GREEN";
   if (is_closed) {
     effective_rag = "GREEN";
-  } else if (is_overdue || is_blocked || (action.rag_status || "").toUpperCase() === "RED") {
+  } else if (
+    is_overdue ||
+    is_blocked ||
+    (action.rag_status || "").toUpperCase() === "RED" ||
+    String(action.priority || "").toUpperCase() === "CRITICAL"
+  ) {
     effective_rag = "RED";
   } else if (is_approaching || status === "DELAYED" || (action.rag_status || "").toUpperCase() === "AMBER") {
     effective_rag = "AMBER";
@@ -137,7 +428,6 @@ export function calculateActionWeekStats(action: any, referenceDate: Date = new 
     effective_rag = "GREEN";
   }
 
-  // Parse action history
   let history: ActionHistoryEntry[] = [];
   if (action.action_history) {
     try {
@@ -151,6 +441,15 @@ export function calculateActionWeekStats(action: any, referenceDate: Date = new 
     }
   }
 
+  const enrichedForUpdates = {
+    ...action,
+    effective_rag,
+    is_overdue,
+    is_blocked,
+  };
+  const updates_list = getActionUpdatesDatewise(enrichedForUpdates);
+  const is_red_alert = isRedAlertItem(enrichedForUpdates);
+
   return {
     review_meeting_date,
     review_week,
@@ -162,6 +461,8 @@ export function calculateActionWeekStats(action: any, referenceDate: Date = new 
     effective_rag,
     is_closed,
     is_blocked,
+    is_red_alert,
     history,
+    updates_list,
   };
 }

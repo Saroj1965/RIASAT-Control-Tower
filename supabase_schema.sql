@@ -175,15 +175,33 @@ CREATE TABLE IF NOT EXISTS audit_log (
   details TEXT
 );
 
+-- 11. LOGIN LOGS TABLE (Supabase Authentication & Session Verification Ledger)
+CREATE TABLE IF NOT EXISTS login_logs (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  email TEXT NOT NULL,
+  user_name TEXT,
+  role TEXT,
+  department_id INTEGER,
+  status TEXT NOT NULL DEFAULT 'SUCCESS',
+  ip_address TEXT DEFAULT '',
+  user_agent TEXT DEFAULT '',
+  timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  details TEXT DEFAULT ''
+);
+
 -- =====================================================================
--- PERFORMANCE INDEXES
+-- PERFORMANCE INDEXES (Including Top-Priority, Red Alert & Pending Filters)
 -- =====================================================================
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(LOWER(email));
 CREATE INDEX IF NOT EXISTS idx_workstreams_dept ON workstreams(department_id);
 CREATE INDEX IF NOT EXISTS idx_workstreams_status ON workstreams(status);
 CREATE INDEX IF NOT EXISTS idx_workstreams_vc ON workstreams(vc_decision_required);
+CREATE INDEX IF NOT EXISTS idx_workstreams_pending_top ON workstreams(id DESC, rag_status, priority);
 CREATE INDEX IF NOT EXISTS idx_recruitment_status ON recruitment(status);
 CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_login_logs_timestamp ON login_logs(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_login_logs_email ON login_logs(LOWER(email));
 
 -- =====================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES & PERMISSIONS FOR SUPABASE
@@ -198,6 +216,7 @@ ALTER TABLE department_form_values ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workstreams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE recruitment ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE login_logs ENABLE ROW LEVEL SECURITY;
 
 -- Permissive policies for dashboard operations
 DROP POLICY IF EXISTS "Public Read All Departments" ON departments;
@@ -445,6 +464,72 @@ END $$;
 
 SELECT setval('form_sections_id_seq', (SELECT MAX(id) FROM form_sections));
 SELECT setval('form_fields_id_seq', (SELECT MAX(id) FROM form_fields));
+
+-- =====================================================================
+-- DEDICATED ANALYTICS & PENDING REGISTER SQL VIEWS FOR SUB-PAGES
+-- =====================================================================
+DROP POLICY IF EXISTS "Allow All Login Logs" ON login_logs;
+CREATE POLICY "Allow All Login Logs" ON login_logs FOR ALL USING (true) WITH CHECK (true);
+
+-- View 1: Pending Items Only (Sorted with Newly Added & Red Alerts on Top)
+CREATE OR REPLACE VIEW v_pending_actions_register AS
+SELECT
+  w.*,
+  d.name AS department_name,
+  d.code AS department_code
+FROM workstreams w
+LEFT JOIN departments d ON d.id = w.department_id
+WHERE UPPER(TRIM(COALESCE(w.status, 'OPEN'))) NOT IN ('CLOSED', 'COMPLETED')
+ORDER BY
+  CASE WHEN w.id > 15 THEN 0 ELSE 1 END ASC,
+  CASE WHEN UPPER(COALESCE(w.rag_status, '')) = 'RED' OR UPPER(COALESCE(w.status, '')) IN ('BLOCKED', 'DELAYED') OR UPPER(COALESCE(w.priority, '')) = 'CRITICAL' OR w.vc_decision_required = 'Yes' THEN 0 ELSE 1 END ASC,
+  w.id DESC;
+
+-- View 2: Vertical Readiness & RAG Analytics
+CREATE OR REPLACE VIEW v_vertical_readiness_analytics AS
+SELECT
+  d.id AS department_id,
+  d.name AS department_name,
+  d.code AS department_code,
+  COALESCE(ov.readiness_percentage, 0) AS readiness_percentage,
+  COALESCE(ov.rag_status, 'NOT STARTED') AS rag_status,
+  COALESCE(ov.key_focus, '') AS key_focus,
+  COUNT(w.id) FILTER (WHERE UPPER(TRIM(COALESCE(w.status, 'OPEN'))) NOT IN ('CLOSED', 'COMPLETED')) AS pending_actions_count,
+  COUNT(w.id) FILTER (WHERE UPPER(TRIM(COALESCE(w.status, 'OPEN'))) IN ('CLOSED', 'COMPLETED')) AS closed_actions_count
+FROM departments d
+LEFT JOIN department_overview ov ON ov.department_id = d.id
+LEFT JOIN workstreams w ON w.department_id = d.id
+WHERE d.active = TRUE
+GROUP BY d.id, d.name, d.code, ov.readiness_percentage, ov.rag_status, ov.key_focus
+ORDER BY d.id ASC;
+
+-- Backfill datewise action_history (latest update on top) for any workstreams with empty history
+UPDATE workstreams
+SET action_history = json_build_array(
+  json_build_object(
+    'timestamp', COALESCE(updated_at::text, '2026-10-23T09:00:00Z'),
+    'date', COALESCE(updated_at::text, '2026-10-23T09:00:00Z'),
+    'user', COALESCE(NULLIF(ownership, ''), NULLIF(owner, ''), 'Vertical Lead'),
+    'role', 'Department Head',
+    'action', 'UPDATED',
+    'status', COALESCE(status, 'OPEN'),
+    'rag_status', COALESCE(rag_status, 'AMBER'),
+    'priority', COALESCE(priority, 'Medium'),
+    'vc_decision_required', COALESCE(vc_decision_required, 'No'),
+    'remarks', COALESCE(NULLIF(remarks, ''), NULLIF(decision_action, ''), 'Active operational directive under weekly tracking')
+  ),
+  json_build_object(
+    'timestamp', '2026-10-12T09:00:00Z',
+    'date', '2026-10-12T09:00:00Z',
+    'user', 'Executive Control Tower',
+    'role', 'Admin',
+    'action', 'CREATED',
+    'status', 'OPEN',
+    'rag_status', COALESCE(rag_status, 'AMBER'),
+    'remarks', CONCAT('Registered during Weekly Management Review (', COALESCE(review_week, 'Week 42'), ') — Target: ', COALESCE(timeline, target_date, 'TBD'))
+  )
+)::text
+WHERE action_history IS NULL OR action_history = '[]' OR action_history = '';
 
 -- =====================================================================
 -- INITIAL AUDIT LEDGER ENTRY

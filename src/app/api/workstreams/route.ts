@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSupabaseClient, logAudit } from "@/lib/db";
 import { getSessionUser, canEditDepartment } from "@/lib/auth";
-import { getCurrentReviewMeetingDate, getReviewWeekLabel } from "@/lib/action-helpers";
+import {
+  getCurrentReviewMeetingDate,
+  getReviewWeekLabel,
+  calculateActionWeekStats,
+  sortActionsWithNewAndAlertsOnTop,
+} from "@/lib/action-helpers";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -29,10 +34,16 @@ export async function GET(req: Request) {
 
     let enriched = (wsRows || []).map((w: any) => {
       const d = deptMap.get(Number(w.department_id)) || {};
+      const stats = calculateActionWeekStats(w);
       return {
         ...w,
         department_name: d.name || "",
         department_code: d.code || "",
+        effective_rag: stats.effective_rag,
+        is_overdue: stats.is_overdue,
+        is_red_alert: stats.is_red_alert,
+        action_history: stats.history,
+        updates_list: stats.updates_list,
       };
     });
 
@@ -49,6 +60,8 @@ export async function GET(req: Request) {
         return (targetNameLower && supp.includes(targetNameLower)) || suppIds.includes(String(deptId));
       });
     }
+
+    enriched = sortActionsWithNewAndAlertsOnTop(enriched);
 
     return NextResponse.json({ workstreams: enriched });
   } catch (err: any) {

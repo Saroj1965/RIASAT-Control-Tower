@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { getSupabaseClient, logAudit } from "@/lib/db";
 import { getSessionUser, canEditDepartment, canViewDepartment, hasFullAccess } from "@/lib/auth";
 import { ROLES } from "@/lib/constants";
-import { calculateActionWeekStats, getCurrentReviewMeetingDate, getReviewWeekLabel } from "@/lib/action-helpers";
+import {
+  calculateActionWeekStats,
+  getCurrentReviewMeetingDate,
+  getReviewWeekLabel,
+  sortActionsWithNewAndAlertsOnTop,
+} from "@/lib/action-helpers";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -115,7 +120,7 @@ export async function GET(req: Request, { params }: Params) {
     const currentMeetingDate = getCurrentReviewMeetingDate();
     const currentReviewWeek = getReviewWeekLabel(currentMeetingDate);
 
-    const items = filteredWs.map((row: any) => {
+    const rawItems = filteredWs.map((row: any) => {
       const stats = calculateActionWeekStats(row);
       return {
         ...row,
@@ -126,10 +131,14 @@ export async function GET(req: Request, { params }: Params) {
         is_new_this_week: stats.is_new_this_week,
         is_overdue: stats.is_overdue,
         is_approaching: stats.is_approaching,
+        is_red_alert: stats.is_red_alert,
         effective_rag: stats.effective_rag,
         action_history: stats.history,
+        updates_list: stats.updates_list,
       };
     });
+
+    const items = sortActionsWithNewAndAlertsOnTop(rawItems);
 
     const userCanEdit = canEditDepartment(user, deptId);
 

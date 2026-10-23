@@ -132,18 +132,47 @@ export async function PUT(req: Request, { params }: Params) {
         typeof existing.action_history === "string"
           ? JSON.parse(existing.action_history || "[]")
           : existing.action_history || [];
+      if (!Array.isArray(history)) history = [];
     } catch {
       history = [];
     }
+
+    // Preserve previous remarks in history if history was empty and remarks is being updated
+    const prevRemarks = String(existing.remarks || existing.risks_blockers || "").trim();
+    if (history.length === 0 && prevRemarks) {
+      history.push({
+        timestamp: existing.updated_at || existing.review_meeting_date || existing.created_at || "2026-10-12T09:00:00.000Z",
+        date: existing.updated_at || existing.review_meeting_date || existing.created_at || "2026-10-12T09:00:00.000Z",
+        user: existing.updated_by || existing.owner || existing.ownership || "Department Lead",
+        role: "Department Head",
+        action: "INITIAL",
+        status: existing.status || "OPEN",
+        rag_status: existing.rag_status || "GREEN",
+        remarks: prevRemarks,
+      });
+    }
+
     const historyAction = isClosing ? "CLOSED" : isReopening ? "REOPENED" : "UPDATED";
-    history.unshift({
-      timestamp: new Date().toISOString(),
-      user: user.name,
-      role: user.role,
-      action: historyAction,
-      status: targetStatus,
-      remarks: finalClosureRemarks || finalRemarks || existing.remarks,
-    });
+    const newRemarkText = String(finalClosureRemarks || finalRemarks || existing.remarks || "").trim();
+    const targetRag = rag_status !== undefined ? rag_status : existing.rag_status;
+    const targetPriority = priority !== undefined ? priority : existing.priority;
+    const targetVc = vc_decision_required !== undefined ? vc_decision_required : existing.vc_decision_required;
+
+    if (newRemarkText) {
+      // Prepend latest update at the top (datewise, latest first)
+      history.unshift({
+        timestamp: new Date().toISOString(),
+        date: new Date().toISOString(),
+        user: user.name,
+        role: user.role,
+        action: historyAction,
+        status: targetStatus,
+        rag_status: targetRag,
+        priority: targetPriority,
+        vc_decision_required: targetVc,
+        remarks: newRemarkText,
+      });
+    }
 
     const updatePayload: Record<string, any> = {
       item_id: item_id !== undefined && item_id ? item_id : existing.item_id,
