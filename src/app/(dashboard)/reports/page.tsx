@@ -241,7 +241,7 @@ export default function ReportsPage() {
             onClick={handleExportDatabase}
             disabled={exportingDb}
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 shadow-xs transition disabled:opacity-50"
-            title="Download complete PostgreSQL database backup JSON"
+            title="Download complete database backup JSON"
           >
             {exportingDb ? (
               <RefreshCw className="w-3.5 h-3.5 animate-spin" />

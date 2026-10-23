@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     }
 
     const trimmedEmail = email.trim().toLowerCase();
-    let result = await query("SELECT * FROM users WHERE LOWER(email) = $1", [trimmedEmail]);
+    let result = await query("SELECT * FROM users WHERE LOWER(email) = $1 LIMIT 1", [trimmedEmail]);
 
     if (result.rows.length === 0) {
       if (trimmedEmail === "forms.admin@riasat.ac.in") {
@@ -21,26 +21,26 @@ export async function POST(req: Request) {
           "INSERT INTO users (name, email, password_hash, designation, role, status) VALUES ($1, $2, $3, $4, $5, 'Active')",
           ["Form Configuration Admin", "forms.admin@riasat.ac.in", hash, "Forms & Schema Administrator", ROLES.FORM_ADMIN]
         );
-        result = await query("SELECT * FROM users WHERE LOWER(email) = $1", [trimmedEmail]);
+        result = await query("SELECT * FROM users WHERE LOWER(email) = $1 LIMIT 1", [trimmedEmail]);
       } else if (trimmedEmail === "users.admin@riasat.ac.in") {
         const hash = await hashPassword("Users@123");
         await query(
           "INSERT INTO users (name, email, password_hash, designation, role, status) VALUES ($1, $2, $3, $4, $5, 'Active')",
           ["User Management Admin", "users.admin@riasat.ac.in", hash, "User Access Administrator", ROLES.USER_ADMIN]
         );
-        result = await query("SELECT * FROM users WHERE LOWER(email) = $1", [trimmedEmail]);
+        result = await query("SELECT * FROM users WHERE LOWER(email) = $1 LIMIT 1", [trimmedEmail]);
       } else if (trimmedEmail === "dept.admin@riasat.ac.in") {
         const hash = await hashPassword("Dept@123");
         await query(
           "INSERT INTO users (name, email, password_hash, designation, role, status) VALUES ($1, $2, $3, $4, $5, 'Active')",
           ["Departments Master Admin", "dept.admin@riasat.ac.in", hash, "Departments Master Administrator", ROLES.DEPT_ADMIN]
         );
-        result = await query("SELECT * FROM users WHERE LOWER(email) = $1", [trimmedEmail]);
+        result = await query("SELECT * FROM users WHERE LOWER(email) = $1 LIMIT 1", [trimmedEmail]);
       }
     }
 
     if (result.rows.length === 0) {
-      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+      return NextResponse.json({ error: "Invalid email or password. Please verify your credentials or click 'See Credentials'." }, { status: 401 });
     }
 
     const user = result.rows[0];
@@ -51,7 +51,6 @@ export async function POST(req: Request) {
 
     let isValid = await verifyPassword(password, user.password_hash);
     if (!isValid) {
-      // Support friendly demo variations without requiring special characters or case
       const p = password.trim();
       const pLower = p.toLowerCase();
       const em = trimmedEmail;
@@ -76,11 +75,8 @@ export async function POST(req: Request) {
     }
 
     if (!isValid) {
-      return NextResponse.json({ error: "Invalid email or password. Please verify your credentials or use the Quick Test buttons below." }, { status: 401 });
+      return NextResponse.json({ error: "Invalid email or password. Please verify your credentials or click 'See Credentials'." }, { status: 401 });
     }
-
-    // Update last_login
-    await query("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
 
     const sessionUser = {
       id: user.id,
@@ -116,13 +112,17 @@ export async function POST(req: Request) {
       redirectUrl = user.department_id ? `/department/${user.department_id}` : "/executive";
     }
 
-    await logAudit({
-      userId: user.id,
-      userName: user.name,
-      action: "USER_LOGIN",
-      departmentId: user.department_id,
-      details: `${user.name} (${user.role}) logged in successfully.`,
-    });
+    // Execute non-blocking background audit & last_login update
+    Promise.allSettled([
+      query("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1", [user.id]),
+      logAudit({
+        userId: user.id,
+        userName: user.name,
+        action: "USER_LOGIN",
+        departmentId: user.department_id,
+        details: `${user.name} (${user.role}) logged in successfully.`,
+      })
+    ]).catch(() => {});
 
     const response = NextResponse.json({
       success: true,

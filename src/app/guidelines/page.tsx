@@ -700,7 +700,7 @@ export default function PublicGuidelinesPage() {
               </span>
               <h3 className="font-bold text-sm text-white">Save as Draft</h3>
               <p className="text-slate-400 text-xs">
-                Saves your work progressively into PostgreSQL. Does not publish final numbers to the Executive Dashboard.
+                Saves your work progressively into the database. Does not publish final numbers to the Executive Dashboard.
                 Use this while gathering data from faculty and vendors.
               </p>
             </div>

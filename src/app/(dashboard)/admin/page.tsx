@@ -669,7 +669,7 @@ function AdminPageContent() {
               onClick={handleExportDatabase}
               disabled={exportingDb}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition disabled:opacity-50"
-              title="Download complete PostgreSQL database backup JSON"
+              title="Download complete database backup JSON"
             >
               {exportingDb ? (
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />

@@ -1,23 +1,226 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Lock, Mail, ArrowRight, ShieldCheck, AlertCircle, Building2, User, Eye, EyeOff } from "lucide-react";
+import {
+  Lock,
+  Mail,
+  ArrowRight,
+  Eye,
+  EyeOff,
+  KeyRound,
+  X,
+  Search,
+  CheckCircle2,
+  Shield,
+  Building2,
+  Users,
+  Sparkles,
+  ChevronRight,
+} from "lucide-react";
+
+interface DemoAccount {
+  name: string;
+  role: string;
+  email: string;
+  pass: string;
+  category: "Leadership" | "Administration" | "Department Heads";
+  badgeColor: string;
+  scope: string;
+}
+
+const DEMO_ACCOUNTS: DemoAccount[] = [
+  // Leadership
+  {
+    name: "Vice Chairman",
+    role: "Vice Chairman",
+    email: "vicechairman@riasat.ac.in",
+    pass: "ViceChairman@123",
+    category: "Leadership",
+    badgeColor: "bg-blue-600 text-white",
+    scope: "Complete Executive Control & Action Sign-off",
+  },
+  {
+    name: "System Administrator",
+    role: "Admin",
+    email: "admin@riasat.ac.in",
+    pass: "Admin@123",
+    category: "Leadership",
+    badgeColor: "bg-black text-white",
+    scope: "Full Access & System Configuration",
+  },
+  {
+    name: "Executive Office",
+    role: "Executive",
+    email: "executive@riasat.ac.in",
+    pass: "Exec@123",
+    category: "Leadership",
+    badgeColor: "bg-pink-600 text-white",
+    scope: "Executive Control Tower (Read-Only)",
+  },
+
+  // Administration
+  {
+    name: "Form Configuration Admin",
+    role: "Form Admin",
+    email: "forms.admin@riasat.ac.in",
+    pass: "Forms@123",
+    category: "Administration",
+    badgeColor: "bg-orange-600 text-white",
+    scope: "Form Schema & Field Builder Only",
+  },
+  {
+    name: "User Management Admin",
+    role: "User Admin",
+    email: "users.admin@riasat.ac.in",
+    pass: "Users@123",
+    category: "Administration",
+    badgeColor: "bg-blue-800 text-white",
+    scope: "User Directory & Credentials Only",
+  },
+  {
+    name: "Departments Master Admin",
+    role: "Department Admin",
+    email: "dept.admin@riasat.ac.in",
+    pass: "Dept@123",
+    category: "Administration",
+    badgeColor: "bg-pink-700 text-white",
+    scope: "Department Verticals Master Only",
+  },
+
+  // 9 Vertical Department Heads
+  {
+    name: "Dr. Arun Kumar",
+    role: "Semicon Head",
+    email: "semicon.head@riasat.ac.in",
+    pass: "Semicon@123",
+    category: "Department Heads",
+    badgeColor: "bg-blue-600 text-white",
+    scope: "Semiconductor Vertical & Cleanrooms",
+  },
+  {
+    name: "Wg Cdr R. Sharma",
+    role: "Aerospace Head",
+    email: "aero.head@riasat.ac.in",
+    pass: "Aero@123",
+    category: "Department Heads",
+    badgeColor: "bg-orange-600 text-white",
+    scope: "Aerospace & Defence Systems",
+  },
+  {
+    name: "Dr. P. Sundaram",
+    role: "Space Head",
+    email: "space.head@riasat.ac.in",
+    pass: "Space@123",
+    category: "Department Heads",
+    badgeColor: "bg-blue-700 text-white",
+    scope: "Space Payloads & Ground Station",
+  },
+  {
+    name: "Col. K. Menon",
+    role: "Cybersecurity Head",
+    email: "cyber.head@riasat.ac.in",
+    pass: "Cyber@123",
+    category: "Department Heads",
+    badgeColor: "bg-black text-white",
+    scope: "Cyber Range & Threat Defence",
+  },
+  {
+    name: "Dr. Neha Varma",
+    role: "MedTech Head",
+    email: "medtech.head@riasat.ac.in",
+    pass: "MedTech@123",
+    category: "Department Heads",
+    badgeColor: "bg-pink-600 text-white",
+    scope: "Bio-Medical & Healthcare Sim",
+  },
+  {
+    name: "Prof. Rajesh Iyer",
+    role: "Advanced Mfg Head",
+    email: "mfg.head@riasat.ac.in",
+    pass: "Mfg@123",
+    category: "Department Heads",
+    badgeColor: "bg-orange-600 text-white",
+    scope: "Advanced Manufacturing & CNC Labs",
+  },
+  {
+    name: "Sumanth Rao",
+    role: "HR & Recruitment",
+    email: "hr.head@riasat.ac.in",
+    pass: "Hr@123",
+    category: "Department Heads",
+    badgeColor: "bg-pink-700 text-white",
+    scope: "Talent Acquisition Pipeline",
+  },
+  {
+    name: "Ananya Sen",
+    role: "Communications Head",
+    email: "comm.head@riasat.ac.in",
+    pass: "Comm@123",
+    category: "Department Heads",
+    badgeColor: "bg-blue-600 text-white",
+    scope: "Communications, Outreach & Brand",
+  },
+  {
+    name: "Dr. Venkat Raman",
+    role: "Strategy & Ops Head",
+    email: "ops.head@riasat.ac.in",
+    pass: "Ops@123",
+    category: "Department Heads",
+    badgeColor: "bg-orange-700 text-white",
+    scope: "Strategy, Alliances & Operations",
+  },
+];
 
 export default function LoginPage() {
-  const router = useRouter();
+  const [showLoading, setShowLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingPhase, setLoadingPhase] = useState("Initializing secure session...");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // See Credentials Modal state
+  const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [credentialSearch, setCredentialSearch] = useState("");
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // 3-second animated loading screen
+  useEffect(() => {
+    const startTime = Date.now();
+    const duration = 3000;
+
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(100, Math.round((elapsed / duration) * 100));
+      setLoadingProgress(progress);
+
+      if (elapsed < 1000) {
+        setLoadingPhase("Connecting to RIASAT Institutional Network...");
+      } else if (elapsed < 2000) {
+        setLoadingPhase("Verifying role permissions & control gateway...");
+      } else if (elapsed < 3000) {
+        setLoadingPhase("Welcome to RIASAT. Opening access gateway...");
+      } else {
+        clearInterval(interval);
+        setTimeout(() => {
+          setShowLoading(false);
+        }, 200);
+      }
+    }, 40);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setLoading(true);
+    setSubmitting(true);
 
     try {
       const res = await fetch("/api/auth/login", {
@@ -31,90 +234,154 @@ export default function LoginPage() {
         throw new Error(data.error || "Login failed");
       }
 
-      // Use window.location.href to guarantee full document reload with session cookies attached
       window.location.href = data.redirectUrl || "/executive";
     } catch (err: any) {
       setError(err.message || "Failed to log in");
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
-  const setDemoAccount = (demoEmail: string, demoPass: string) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
+  const handleSelectCredential = (acc: DemoAccount) => {
+    setEmail(acc.email);
+    setPassword(acc.pass);
     setError("");
+    setCopiedKey(acc.email);
+    setTimeout(() => setCopiedKey(null), 1500);
+    setShowCredentialsModal(false);
   };
 
+  const filteredCredentials = DEMO_ACCOUNTS.filter((acc) => {
+    const matchesCat = selectedCategory === "ALL" || acc.category === selectedCategory;
+    const q = credentialSearch.toLowerCase().trim();
+    const matchesQuery =
+      !q ||
+      acc.name.toLowerCase().includes(q) ||
+      acc.role.toLowerCase().includes(q) ||
+      acc.email.toLowerCase().includes(q);
+    return matchesCat && matchesQuery;
+  });
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex flex-col justify-center items-center px-4 py-8">
-      {/* Container */}
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
-        {/* Header with Logo */}
-        <div className="bg-slate-900 px-8 pt-8 pb-6 text-center border-b border-slate-800">
-          <div className="flex justify-center mb-4">
-            <div className="relative w-16 h-16 rounded-xl overflow-hidden ring-2 ring-indigo-500/50 shadow-lg bg-white p-1" style={{ width: 64, height: 64, minWidth: 64, minHeight: 64 }}>
+    <div className="relative min-h-screen bg-white font-sans text-slate-900 selection:bg-pink-100 selection:text-pink-900 flex flex-col justify-center items-center px-4 py-8">
+      {/* =====================================================================
+          1. 3-SECOND RESPONSIVE WHITE LOADING ANIMATION BEFORE LOGIN PAGE
+      ====================================================================== */}
+      {showLoading && (
+        <div className="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center px-6 transition-opacity duration-500 ease-out">
+          <div className="w-full max-w-lg flex flex-col items-center text-center">
+            {/* Centered Responsive Official Logo */}
+            <div className="relative w-64 sm:w-80 md:w-96 h-24 sm:h-28 flex items-center justify-center mb-8 transform transition-transform duration-700 animate-pulse">
               <img
-                src="/riasat_logo.jpg"
-                alt="RIASAT Logo"
-                width={64}
-                height={64}
-                style={{ width: 64, height: 64, objectFit: "contain" }}
-                className="w-full h-full object-contain"
+                src="/ramaiah_logo.png"
+                alt="Ramaiah Logo"
+                className="w-full h-full object-contain max-h-24 sm:max-h-28"
+              />
+            </div>
+
+            {/* Welcome & Context Typography in Blue, Black, Orange, Pink */}
+            <div className="space-y-2 mb-8">
+              <h1 className="text-xl sm:text-2xl font-extrabold text-[#1e1b4b] tracking-tight">
+                Welcome to <span className="text-black">RIASAT</span>{" "}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-700 via-pink-600 to-orange-500">
+                  Control Tower
+                </span>
+              </h1>
+              <p className="text-xs sm:text-sm font-semibold text-slate-800 tracking-wide uppercase">
+                Ramaiah Institute for Advanced Skills &amp; Technology
+              </p>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                Executive Decision Support &bull; Multi-Vertical Operational Control &bull; Management Cockpit
+              </p>
+            </div>
+
+            {/* Minimal Smooth Progress Bar with Blue -> Pink -> Orange Gradient */}
+            <div className="w-full max-w-xs sm:max-w-sm mb-3">
+              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-blue-600 via-pink-500 to-orange-500 transition-all duration-100 ease-out"
+                  style={{ width: `${loadingProgress}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Dynamic Status Indicator */}
+            <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+              <span className="inline-block w-2 h-2 rounded-full bg-orange-500 animate-ping" />
+              <span>{loadingPhase}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          2. REDESIGNED CLEAN & PROFESSIONAL WHITE LOGIN PAGE
+      ====================================================================== */}
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl shadow-slate-200/60 border border-slate-200/90 overflow-hidden transition-all duration-300">
+        {/* Header with Logo */}
+        <div className="px-8 pt-10 pb-6 text-center bg-white border-b border-slate-100">
+          <div className="flex justify-center mb-5">
+            <div className="relative w-56 sm:w-64 h-16 sm:h-20 flex items-center justify-center">
+              <img
+                src="/ramaiah_logo.png"
+                alt="Ramaiah Logo"
+                className="w-full h-full object-contain max-h-16 sm:max-h-20"
               />
             </div>
           </div>
-          <h1 className="text-xl font-bold text-white tracking-tight">
-            RIASAT Executive Dashboard
-          </h1>
-          <p className="text-xs text-indigo-200 mt-1 uppercase tracking-wider font-medium">
-            Ramaiah Institute for Advanced Skills & Technology
+          <h2 className="text-lg font-bold text-[#1e1b4b] tracking-tight">
+            Executive Control Tower
+          </h2>
+          <p className="text-xs text-slate-500 mt-1 font-medium">
+            Ramaiah Institute for Advanced Skills &amp; Technology
           </p>
         </div>
 
         {/* Form Body */}
-        <div className="p-8">
+        <div className="p-8 bg-white">
           {error && (
-            <div className="mb-6 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm flex items-start gap-2.5">
-              <AlertCircle className="w-5 h-5 shrink-0 text-rose-500 mt-0.5" />
+            <div className="mb-6 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs sm:text-sm font-medium flex items-start gap-2.5 animate-fadeIn">
+              <span className="w-2 h-2 rounded-full bg-rose-500 mt-1.5 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Email Field */}
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
                 Official Email
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Mail className="w-4 h-4" />
+                  <Mail className="w-4 h-4 text-blue-900" />
                 </div>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="e.g. semicon.head@riasat.ac.in"
+                  placeholder="name@riasat.ac.in"
                   required
-                  className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition"
+                  className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition placeholder:text-slate-400"
                 />
               </div>
             </div>
 
+            {/* Password Field */}
             <div>
               <div className="flex justify-between items-center mb-1.5">
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
                   Password
                 </label>
                 <Link
                   href="/forgot-password"
-                  className="text-xs font-medium text-indigo-600 hover:text-indigo-800 transition"
+                  className="text-xs font-medium text-pink-600 hover:text-pink-700 transition"
                 >
                   Forgot Password?
                 </Link>
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Lock className="w-4 h-4" />
+                  <Lock className="w-4 h-4 text-blue-900" />
                 </div>
                 <input
                   type={showPassword ? "text" : "password"}
@@ -122,12 +389,12 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
                   required
-                  className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition"
+                  className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-pink-600 focus:border-transparent transition placeholder:text-slate-400"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none"
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-700 focus:outline-none"
                   title={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -135,12 +402,13 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {/* Sign In Primary Action Button */}
             <button
               type="submit"
-              disabled={loading}
-              className="w-full mt-2 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-xl shadow-md hover:shadow-indigo-500/25 transition flex items-center justify-center gap-2 disabled:opacity-50"
+              disabled={submitting}
+              className="w-full mt-2 py-3 px-4 bg-[#1e1b4b] hover:bg-gradient-to-r hover:from-blue-800 hover:via-pink-600 hover:to-orange-500 text-white font-semibold text-sm rounded-xl shadow-md hover:shadow-blue-900/20 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
             >
-              {loading ? (
+              {submitting ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
@@ -149,189 +417,149 @@ export default function LoginPage() {
                 </>
               )}
             </button>
+
+            {/* See Credentials Secondary Button */}
+            <button
+              type="button"
+              onClick={() => setShowCredentialsModal(true)}
+              className="w-full py-2.5 px-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-pink-300 text-slate-800 font-semibold text-xs rounded-xl transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+            >
+              <KeyRound className="w-4 h-4 text-orange-500" />
+              <span>See Credentials</span>
+            </button>
           </form>
+        </div>
+      </div>
 
-          {/* Institutional Role Credentials */}
-          <div className="mt-8 pt-6 border-t border-slate-100">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider text-center mb-3">
-              Institutional Role Credentials (Click to populate)
-            </p>
-            <div className="space-y-3">
-              {/* Leadership accounts */}
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setDemoAccount("vicechairman@riasat.ac.in", "ViceChairman@123")}
-                  className="text-left p-2 rounded-lg border border-indigo-300 bg-indigo-50/70 hover:border-indigo-500 hover:bg-indigo-100/70 transition col-span-2"
-                >
-                  <div className="font-bold text-indigo-900 flex items-center justify-between">
-                    <span>Vice Chairman</span>
-                    <span className="text-[10px] bg-indigo-600 text-white px-1.5 py-0.5 rounded font-bold">COMPLETE ACCESS</span>
+      {/* =====================================================================
+          3. SEE CREDENTIALS MODAL (CLICK TO AUTO-SELECT & ENTER)
+      ====================================================================== */}
+      {showCredentialsModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 max-h-[88vh] flex flex-col overflow-hidden animate-scaleUp">
+            {/* Modal Header */}
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-700 via-pink-600 to-orange-500 p-0.5 flex items-center justify-center">
+                  <div className="w-full h-full bg-white rounded-[10px] flex items-center justify-center">
+                    <KeyRound className="w-4 h-4 text-[#1e1b4b]" />
                   </div>
-                  <div className="text-[11px] text-indigo-700">vicechairman@riasat.ac.in • ViceChairman@123</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDemoAccount("admin@riasat.ac.in", "Admin@123")}
-                  className="text-left p-2 rounded-lg border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50 transition"
-                >
-                  <div className="font-semibold text-slate-800 flex items-center justify-between">
-                    <span>Admin</span>
-                    <span className="text-[9px] bg-purple-600 text-white px-1 rounded">ALL</span>
-                  </div>
-                  <div className="text-[11px] text-slate-500 truncate">admin@riasat.ac.in</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDemoAccount("executive@riasat.ac.in", "Exec@123")}
-                  className="text-left p-2 rounded-lg border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50 transition"
-                >
-                  <div className="font-semibold text-slate-800">Executive Office</div>
-                  <div className="text-[11px] text-slate-500 truncate">executive@riasat.ac.in</div>
-                </button>
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Accounts &amp; Credentials
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Click on any credential to autofill and enter the dashboard
+                  </p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowCredentialsModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition"
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-              {/* 3 Dedicated Administrative Accounts */}
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 pt-1">
-                3 Dedicated Admin Roles (Separate Logins):
-              </div>
-              <div className="grid grid-cols-1 gap-1.5 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setDemoAccount("forms.admin@riasat.ac.in", "Forms@123")}
-                  className="text-left p-2 rounded-lg border border-emerald-200 bg-emerald-50/40 hover:border-emerald-400 hover:bg-emerald-50 transition flex items-center justify-between"
-                >
-                  <div>
-                    <div className="font-semibold text-emerald-950 flex items-center gap-1.5">
-                      <span>Form Configuration Admin</span>
-                      <span className="text-[9px] bg-emerald-600 text-white px-1 rounded font-bold">TAB 1</span>
-                    </div>
-                    <div className="text-[11px] text-emerald-800">forms.admin@riasat.ac.in • Forms@123</div>
-                  </div>
-                  <span className="text-[10px] text-emerald-700 font-medium">Form Config Only &rarr;</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDemoAccount("users.admin@riasat.ac.in", "Users@123")}
-                  className="text-left p-2 rounded-lg border border-purple-200 bg-purple-50/40 hover:border-purple-400 hover:bg-purple-50 transition flex items-center justify-between"
-                >
-                  <div>
-                    <div className="font-semibold text-purple-950 flex items-center gap-1.5">
-                      <span>User Management Admin</span>
-                      <span className="text-[9px] bg-purple-600 text-white px-1 rounded font-bold">TAB 2</span>
-                    </div>
-                    <div className="text-[11px] text-purple-800">users.admin@riasat.ac.in • Users@123</div>
-                  </div>
-                  <span className="text-[10px] text-purple-700 font-medium">User Mgmt Only &rarr;</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDemoAccount("dept.admin@riasat.ac.in", "Dept@123")}
-                  className="text-left p-2 rounded-lg border border-blue-200 bg-blue-50/40 hover:border-blue-400 hover:bg-blue-50 transition flex items-center justify-between"
-                >
-                  <div>
-                    <div className="font-semibold text-blue-950 flex items-center gap-1.5">
-                      <span>Departments Master Admin</span>
-                      <span className="text-[9px] bg-blue-600 text-white px-1 rounded font-bold">TAB 3</span>
-                    </div>
-                    <div className="text-[11px] text-blue-800">dept.admin@riasat.ac.in • Dept@123</div>
-                  </div>
-                  <span className="text-[10px] text-blue-700 font-medium">Departments Only &rarr;</span>
-                </button>
+            {/* Filter & Search Bar */}
+            <div className="p-4 border-b border-slate-100 bg-white space-y-3">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={credentialSearch}
+                  onChange={(e) => setCredentialSearch(e.target.value)}
+                  placeholder="Search role, name, or department..."
+                  className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition"
+                />
               </div>
 
-              {/* 9 Verticals / Department Heads */}
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 pt-1">
-                9 Vertical Department Heads:
+              {/* Category Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-semibold">
+                {["ALL", "Leadership", "Administration", "Department Heads"].map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition ${
+                      selectedCategory === cat
+                        ? "bg-[#1e1b4b] text-white shadow-sm"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setDemoAccount("semicon.head@riasat.ac.in", "Semicon@123")}
-                  className="text-left p-2 rounded-lg border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50 transition"
+            </div>
+
+            {/* Credentials List */}
+            <div className="p-4 overflow-y-auto space-y-2 flex-1 divide-y divide-slate-100">
+              {filteredCredentials.map((acc) => (
+                <div
+                  key={acc.email}
+                  onClick={() => handleSelectCredential(acc)}
+                  className="pt-2 first:pt-0 group p-3 rounded-2xl hover:bg-gradient-to-r hover:from-blue-50/60 hover:via-pink-50/40 hover:to-orange-50/40 border border-transparent hover:border-slate-200 transition-all duration-150 cursor-pointer flex items-center justify-between gap-3"
                 >
-                  <div className="font-semibold text-slate-800">1. Semicon Head</div>
-                  <div className="text-[11px] text-slate-500 truncate">semicon.head@riasat.ac.in</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDemoAccount("aero.head@riasat.ac.in", "Aero@123")}
-                  className="text-left p-2 rounded-lg border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50 transition"
-                >
-                  <div className="font-semibold text-slate-800">2. Aerospace & Defence</div>
-                  <div className="text-[11px] text-slate-500 truncate">aero.head@riasat.ac.in</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDemoAccount("space.head@riasat.ac.in", "Space@123")}
-                  className="text-left p-2 rounded-lg border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50 transition"
-                >
-                  <div className="font-semibold text-slate-800">3. Space Head</div>
-                  <div className="text-[11px] text-slate-500 truncate">space.head@riasat.ac.in</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDemoAccount("cyber.head@riasat.ac.in", "Cyber@123")}
-                  className="text-left p-2 rounded-lg border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50 transition"
-                >
-                  <div className="font-semibold text-slate-800">4. Cybersecurity Head</div>
-                  <div className="text-[11px] text-slate-500 truncate">cyber.head@riasat.ac.in</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDemoAccount("medtech.head@riasat.ac.in", "MedTech@123")}
-                  className="text-left p-2 rounded-lg border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50 transition"
-                >
-                  <div className="font-semibold text-slate-800">5. MedTech Head</div>
-                  <div className="text-[11px] text-slate-500 truncate">medtech.head@riasat.ac.in</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDemoAccount("mfg.head@riasat.ac.in", "Mfg@123")}
-                  className="text-left p-2 rounded-lg border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50 transition"
-                >
-                  <div className="font-semibold text-slate-800">6. Advanced Mfg Head</div>
-                  <div className="text-[11px] text-slate-500 truncate">mfg.head@riasat.ac.in</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDemoAccount("hr.head@riasat.ac.in", "Hr@123")}
-                  className="text-left p-2 rounded-lg border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50 transition"
-                >
-                  <div className="font-semibold text-slate-800">7. HR & Recruitment</div>
-                  <div className="text-[11px] text-slate-500 truncate">hr.head@riasat.ac.in</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDemoAccount("comm.head@riasat.ac.in", "Comm@123")}
-                  className="text-left p-2 rounded-lg border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50 transition"
-                >
-                  <div className="font-semibold text-slate-800">8. Communications</div>
-                  <div className="text-[11px] text-slate-500 truncate">comm.head@riasat.ac.in</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDemoAccount("ops.head@riasat.ac.in", "Ops@123")}
-                  className="text-left p-2 rounded-lg border border-indigo-200 bg-indigo-50/30 hover:border-indigo-400 hover:bg-indigo-50/70 transition col-span-2"
-                >
-                  <div className="font-semibold text-indigo-900 flex items-center justify-between">
-                    <span>9. Strategy & Operations Head</span>
-                    <span className="text-[9px] bg-indigo-600 text-white px-1.5 py-0.2 rounded font-bold">VERTICAL 9</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="font-bold text-sm text-slate-900 group-hover:text-blue-900 transition">
+                        {acc.name}
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${acc.badgeColor}`}
+                      >
+                        {acc.role}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs text-slate-600">
+                      <span className="font-mono text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md inline-block">
+                        {acc.email}
+                      </span>
+                      <span className="font-mono text-slate-500">
+                        Password: <strong className="text-slate-800">{acc.pass}</strong>
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-slate-400 mt-1 truncate">
+                      {acc.scope}
+                    </p>
                   </div>
-                  <div className="text-[11px] text-indigo-600 truncate">ops.head@riasat.ac.in</div>
-                </button>
-              </div>
+
+                  <button
+                    type="button"
+                    className="shrink-0 px-3 py-1.5 bg-slate-100 group-hover:bg-[#1e1b4b] group-hover:text-white text-slate-700 text-xs font-semibold rounded-xl transition flex items-center gap-1"
+                  >
+                    <span>Autofill</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+
+              {filteredCredentials.length === 0 && (
+                <div className="text-center py-8 text-xs text-slate-400">
+                  No credentials match your search.
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3 border-t border-slate-100 bg-slate-50/70 text-right">
+              <button
+                type="button"
+                onClick={() => setShowCredentialsModal(false)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-xl transition"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
-
-        {/* Footer */}
-        <div className="bg-slate-50 px-8 py-3 text-center border-t border-slate-100">
-          <p className="text-[11px] text-slate-500">
-            PostgreSQL Live Database • Single Source of Truth
-          </p>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

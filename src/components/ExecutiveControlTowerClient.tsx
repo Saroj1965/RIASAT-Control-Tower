@@ -834,7 +834,7 @@ export default function ExecutiveControlTowerClient({
             </span>
           </div>
           <div className="text-[11px] text-slate-500 font-medium">
-            Email & Telegram Reminders: Configured for automated weekly dispatch via Neon PostgreSQL audit trail.
+            Email & Telegram Reminders: Configured for automated weekly dispatch via the audit ledger.
           </div>
         </div>
       </div>

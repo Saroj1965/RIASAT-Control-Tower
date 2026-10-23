@@ -1,21 +1,32 @@
-# RIASAT EXECUTIVE DASHBOARD
+# RIASAT EXECUTIVE CONTROL TOWER
 
-Management Decision Support & Departmental Operations Dashboard for:
+Enterprise Decision Support & Multi-Vertical Operations Management Cockpit for:  
 **Ramaiah Institute for Advanced Skills & Technology (RIASAT)**
 
 ---
 
-## 🌟 Core Flow
-`USER LOGIN → DEPARTMENT FORM → POSTGRESQL DATABASE → EXECUTIVE DASHBOARD`
+## 🌟 Architecture & Core Flow
+`USER AUTHENTICATION → VERTICAL WORKSTREAM FORM → SUPABASE DATABASE → EXECUTIVE CONTROL TOWER`
 
-1. **Role-Based Login**: Each user signs in and is automatically routed to their dedicated dashboard based on role and department assignment.
-2. **PostgreSQL as Single Source of Truth**: All overview stats, workstreams, talent acquisition pipelines, and audit logs persist directly in PostgreSQL (Neon PostgreSQL compatible).
-3. **Executive Dashboard**: Consolidated leadership view displaying the 5 top KPIs, 9 department operational cards (with `UPDATE REQUIRED` staleness warnings), and the live Management Attention escalation table.
-4. **Strict Server-Enforced Security**: Department heads can only edit their assigned department; cross-department edits and unauthorized views return `403 Forbidden`. Executives are strictly read-only. Admins have complete user and department management rights.
+1. **3-Second Responsive Loading Screen**:
+   - High-fidelity white branded entry portal featuring the official Ramaiah insignia.
+   - Blue, black, pink, and orange thematic typography with animated progress synchronization.
+2. **Clean Minimal Login Portal**:
+   - Pure white aesthetic with dedicated official fields (Email & Password).
+   - Instant credential selector via the **"See Credentials"** modal — click any institutional role to automatically fill and enter.
+   - Zero database indicators or visual clutter on the login screen.
+3. **Supabase Enterprise Cloud Database**:
+   - Single source of truth powered by Supabase PostgreSQL and `@supabase/supabase-js`.
+   - Full DDL schema and complete seed dataset available in [`supabase_schema.sql`](./supabase_schema.sql).
+4. **Executive Control Tower Dashboard**:
+   - Consolidated leadership view presenting the 5 top strategic KPIs, 9 department operational cards, and live Management Attention escalation tracker.
+5. **Role-Based Access Control (RBAC)**:
+   - Department Heads are restricted strictly to their vertical (`403 Forbidden` on cross-department requests).
+   - Executives and Vice Chairman have read-only visibility over all 9 verticals with strategic action sign-off authority.
 
 ---
 
-## 🏛 The 8 Strategic Departments
+## 🏛 The 9 Strategic Vertical Departments
 1. **Semicon** (`SEMICON`)
 2. **Aerospace & Defence** (`AERO_DEFENCE`)
 3. **Space** (`SPACE`)
@@ -24,61 +35,52 @@ Management Decision Support & Departmental Operations Dashboard for:
 6. **Advanced Manufacturing** (`ADV_MFG`)
 7. **HR & Recruitment** (`HR_REC`)
 8. **Communications** (`COMM`)
-
-*Note: New departments can also be dynamically added by the Administrator at runtime without rebuilding.*
+9. **Strategy & Operations** (`STRATEGY_OPS`)
 
 ---
 
-## 👥 Seed Test Accounts & Credentials
+## 👥 Institutional Accounts & Credentials (Available in "See Credentials")
 
-| Role | Name | Email | Password | Access |
+| Role | Name | Official Email | Password | Access Scope |
 |---|---|---|---|---|
-| **Admin** | System Administrator | `admin@riasat.ac.in` | `Admin@123` | Full access, user & dept management |
-| **Executive** | Vice Chairman Office | `executive@riasat.ac.in` | `Exec@123` | Executive Dashboard (Read-Only) |
-| **Dept Head** | Dr. Arun Kumar | `semicon.head@riasat.ac.in` | `Semicon@123` | Semicon Department Dashboard & Form |
-| **Dept Head** | Wg Cdr R. Sharma | `aero.head@riasat.ac.in` | `Aero@123` | Aerospace & Defence Dashboard & Form |
-| **Dept Head** | Dr. P. Sundaram | `space.head@riasat.ac.in` | `Space@123` | Space Technology Dashboard & Form |
-| **Dept Head** | Col. K. Menon | `cyber.head@riasat.ac.in` | `Cyber@123` | Cybersecurity Systems Dashboard & Form |
-| **Dept Head** | Dr. Neha Varma | `medtech.head@riasat.ac.in` | `MedTech@123` | MedTech & Healthcare Dashboard & Form |
-| **Dept Head** | Prof. Rajesh Iyer | `mfg.head@riasat.ac.in` | `Mfg@123` | Advanced Manufacturing Dashboard & Form |
-| **Dept Head** | Sumanth Rao | `hr.head@riasat.ac.in` | `Hr@123` | HR & Recruitment Tracker |
-| **Dept Head** | Ananya Sen | `comm.head@riasat.ac.in` | `Comm@123` | Communications Dashboard & Form |
-
-*(The login page includes convenient 1-click test buttons to auto-populate any of these credentials for quick review.)*
+| **Vice Chairman** | Vice Chairman Office | `vicechairman@riasat.ac.in` | `ViceChairman@123` | Complete Executive Control & Action Sign-off |
+| **Admin** | System Administrator | `admin@riasat.ac.in` | `Admin@123` | Full access, user directory & schema configuration |
+| **Executive** | Executive Director | `executive@riasat.ac.in` | `Exec@123` | Executive Control Tower (Read-Only) |
+| **Form Admin** | Form Configuration Admin | `forms.admin@riasat.ac.in` | `Forms@123` | Dynamic Form Builder & Field Schema |
+| **User Admin** | User Management Admin | `users.admin@riasat.ac.in` | `Users@123` | User Access & Credential Administration |
+| **Dept Admin** | Departments Master Admin | `dept.admin@riasat.ac.in` | `Dept@123` | Department Master Verticals Configuration |
+| **Dept Head** | Dr. Arun Kumar | `semicon.head@riasat.ac.in` | `Semicon@123` | Semicon Vertical Operational Workspace |
+| **Dept Head** | Wg Cdr R. Sharma | `aero.head@riasat.ac.in` | `Aero@123` | Aerospace & Defence Workspace |
+| **Dept Head** | Dr. P. Sundaram | `space.head@riasat.ac.in` | `Space@123` | Space Technology Workspace |
+| **Dept Head** | Col. K. Menon | `cyber.head@riasat.ac.in` | `Cyber@123` | Cybersecurity Systems Workspace |
+| **Dept Head** | Dr. Neha Varma | `medtech.head@riasat.ac.in` | `MedTech@123` | MedTech & Healthcare Workspace |
+| **Dept Head** | Prof. Rajesh Iyer | `mfg.head@riasat.ac.in` | `Mfg@123` | Advanced Manufacturing Workspace |
+| **Dept Head** | Sumanth Rao | `hr.head@riasat.ac.in` | `Hr@123` | HR & Talent Acquisition Pipeline |
+| **Dept Head** | Ananya Sen | `comm.head@riasat.ac.in` | `Comm@123` | Communications & Brand Workspace |
+| **Dept Head** | Dr. Venkat Raman | `ops.head@riasat.ac.in` | `Ops@123` | Strategy & Operations Workspace |
 
 ---
 
 ## 🛠 Technology Stack
-- **Framework**: Next.js 14 (App Router) + TypeScript
-- **Styling**: Tailwind CSS + Lucide Icons
-- **Database**: PostgreSQL (Neon PostgreSQL ready + local persistent engine)
-- **Security**: HttpOnly JWT Session Cookies, bcrypt password hashing, server-side access control
-- **Audit Logging**: Automatic ledger recording all logins, edits, and status changes with timestamps
+- **Frontend**: Next.js 14 (App Router) + React 18 + TypeScript 5
+- **Design System**: Tailwind CSS 3.4 with custom Ramaiah Blue, Black, Pink, and Orange theme
+- **Database**: Supabase PostgreSQL + `@supabase/supabase-js`
+- **Security**: HttpOnly Signed JWT Session Cookies, bcrypt password hashing, server-side RBAC
+- **Audit Ledger**: Comprehensive audit trail recording user logins, departmental updates, and action item status changes
 
 ---
 
-## 🚀 Running the Application
+## 🚀 Supabase Setup Guide
 
-### 1. Start the Server
-```bash
-npm start
-```
-The application will be live at `http://localhost:3000`.
-
-### 2. Configure Neon PostgreSQL (Optional)
-To point to your cloud Neon PostgreSQL instance, configure `.env`:
+### 1. Configure `.env`
+Fill in your Supabase project credentials in `.env`:
 ```env
-DATABASE_URL="postgresql://[user]:[password]@[endpoint].neon.tech/riasat?sslmode=require"
+NEXT_PUBLIC_SUPABASE_URL="https://your-project-id.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="your-supabase-anon-key"
+SUPABASE_SERVICE_ROLE_KEY="your-supabase-service-role-key"
+DATABASE_URL="postgresql://postgres:[PASSWORD]@db.[PROJECT-ID].supabase.co:5432/postgres"
 ```
-If not specified, the system automatically uses the embedded persistent PostgreSQL engine in `.data/riasat_pg`.
 
-### 3. Run Acceptance Test Suite
-Execute the 12 acceptance tests from Section 35:
-```bash
-node scripts/run-acceptance-tests.mjs
-```
-Expected output:
-```text
-SUMMARY: 12 OF 12 ACCEPTANCE TESTS PASSED!
-ALL 12 ACCEPTANCE CRITERIA VERIFIED AND VALIDATED 100%!
-```
+### 2. Execute SQL Schema in Supabase
+Open your **Supabase Dashboard → SQL Editor**, paste the contents of [`supabase_schema.sql`](./supabase_schema.sql), and click **Run**.  
+This creates all 10 tables, performance indexes, dynamic form schemas, and pre-seeds all 15 institutional accounts.
