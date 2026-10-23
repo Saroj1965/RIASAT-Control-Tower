@@ -1,71 +1,73 @@
 import { NextResponse } from "next/server";
-import { query } from "@/lib/db";
+import { getSupabaseClient } from "@/lib/db";
 import { getSessionUser, hasFullAccess } from "@/lib/auth";
 import { ROLES } from "@/lib/constants";
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
     const user = await getSessionUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Vice Chairman, Admin, or Executive Office can export
     const canExport = hasFullAccess(user) || user.role === ROLES.EXECUTIVE;
     if (!canExport) {
-      return NextResponse.json({ error: "Access Denied: Admin or Leadership privileges required to export database." }, { status: 403 });
+      return NextResponse.json(
+        { error: "Access Denied: Admin or Leadership privileges required to export database." },
+        { status: 403 }
+      );
     }
 
-    // Fetch all core tables
+    const sb = getSupabaseClient();
     const [
-      deptsRes,
-      overviewRes,
-      sectionsRes,
-      fieldsRes,
-      optionsRes,
-      formValuesRes,
-      workstreamsRes,
-      recruitmentRes,
+      { data: depts },
+      { data: overviews },
+      { data: sections },
+      { data: fields },
+      { data: options },
+      { data: formValues },
+      { data: workstreams },
+      { data: recruitment },
     ] = await Promise.all([
-      query("SELECT * FROM departments ORDER BY id ASC"),
-      query("SELECT * FROM department_overview ORDER BY department_id ASC"),
-      query("SELECT * FROM form_sections ORDER BY department_id ASC, display_order ASC"),
-      query("SELECT * FROM form_fields ORDER BY department_id ASC, display_order ASC"),
-      query("SELECT * FROM form_field_options ORDER BY field_id ASC, display_order ASC"),
-      query("SELECT * FROM department_form_values ORDER BY department_id ASC, field_id ASC"),
-      query("SELECT * FROM workstreams ORDER BY department_id ASC, id ASC"),
-      query("SELECT * FROM recruitment ORDER BY id ASC"),
+      sb.from("departments").select("*").order("id", { ascending: true }),
+      sb.from("department_overview").select("*").order("department_id", { ascending: true }),
+      sb.from("form_sections").select("*").order("department_id", { ascending: true }).order("display_order", { ascending: true }),
+      sb.from("form_fields").select("*").order("department_id", { ascending: true }).order("display_order", { ascending: true }),
+      sb.from("form_field_options").select("*").order("field_id", { ascending: true }).order("display_order", { ascending: true }),
+      sb.from("department_form_values").select("*").order("department_id", { ascending: true }).order("field_id", { ascending: true }),
+      sb.from("workstreams").select("*").order("department_id", { ascending: true }).order("id", { ascending: true }),
+      sb.from("recruitment").select("*").order("id", { ascending: true }),
     ]);
 
     const backupPayload = {
       version: "1.0",
-      app: "RIASAT Executive Dashboard",
+      app: "RIASAT Executive Dashboard (Supabase)",
       exported_at: new Date().toISOString(),
       exported_by: user.name,
       exported_by_email: user.email,
       counts: {
-        departments: deptsRes.rows.length,
-        department_overview: overviewRes.rows.length,
-        form_sections: sectionsRes.rows.length,
-        form_fields: fieldsRes.rows.length,
-        form_field_options: optionsRes.rows.length,
-        department_form_values: formValuesRes.rows.length,
-        workstreams: workstreamsRes.rows.length,
-        recruitment: recruitmentRes.rows.length,
+        departments: (depts || []).length,
+        department_overview: (overviews || []).length,
+        form_sections: (sections || []).length,
+        form_fields: (fields || []).length,
+        form_field_options: (options || []).length,
+        department_form_values: (formValues || []).length,
+        workstreams: (workstreams || []).length,
+        recruitment: (recruitment || []).length,
       },
       data: {
-        departments: deptsRes.rows,
-        department_overview: overviewRes.rows,
-        form_sections: sectionsRes.rows,
-        form_fields: fieldsRes.rows,
-        form_field_options: optionsRes.rows,
-        department_form_values: formValuesRes.rows,
-        workstreams: workstreamsRes.rows,
-        recruitment: recruitmentRes.rows,
+        departments: depts || [],
+        department_overview: overviews || [],
+        form_sections: sections || [],
+        form_fields: fields || [],
+        form_field_options: options || [],
+        department_form_values: formValues || [],
+        workstreams: workstreams || [],
+        recruitment: recruitment || [],
       },
     };
 
-    const fileName = `RIASAT_Database_Backup_${new Date().toISOString().split("T")[0]}.json`;
+    const fileName = `RIASAT_Supabase_Backup_${new Date().toISOString().split("T")[0]}.json`;
 
     return new NextResponse(JSON.stringify(backupPayload, null, 2), {
       status: 200,

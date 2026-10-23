@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { query, logAudit } from "@/lib/db";
-import { getSessionUser, hasFullAccess, canManageDepartments } from "@/lib/auth";
-import { ROLES } from "@/lib/constants";
+import { getSupabaseClient, logAudit } from "@/lib/db";
+import { getSessionUser, canManageDepartments } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -13,54 +12,59 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const deptRes = await query(`
-      SELECT d.*, 
-             o.readiness_percentage, 
-             o.rag_status, 
-             o.key_focus, 
-             o.last_updated, 
-             o.updated_by
-      FROM departments d
-      LEFT JOIN department_overview o ON d.id = o.department_id
-      WHERE d.active = TRUE
-      ORDER BY d.id ASC
-    `);
+    const sb = getSupabaseClient();
+    const [
+      { data: deptsData },
+      { data: ovData },
+      { data: wsData },
+      { data: recData },
+    ] = await Promise.all([
+      sb.from("departments").select("*").eq("active", true).order("id", { ascending: true }),
+      sb.from("department_overview").select("*"),
+      sb.from("workstreams").select("department_id, status"),
+      sb.from("recruitment").select("status, priority"),
+    ]);
 
-    // Fetch workstream stats per department
-    const wsStatsRes = await query(`
-      SELECT department_id,
-             COUNT(*) as total_count,
-             COUNT(CASE WHEN status NOT IN ('Completed', 'On Hold') THEN 1 END) as open_count,
-             COUNT(CASE WHEN status = 'Completed' THEN 1 END) as completed_count,
-             COUNT(CASE WHEN status IN ('Delayed', 'Blocked') THEN 1 END) as delayed_count
-      FROM workstreams
-      GROUP BY department_id
-    `);
-
-    const statsMap: Record<number, any> = {};
-    for (const row of wsStatsRes.rows) {
-      statsMap[row.department_id] = row;
+    const ovMap = new Map<number, any>();
+    for (const o of ovData || []) {
+      ovMap.set(Number(o.department_id), o);
     }
 
-    // HR stats
-    const hrStatsRes = await query(`
-      SELECT COUNT(*) as total_count,
-             COUNT(CASE WHEN status NOT IN ('Joined', 'Closed') THEN 1 END) as open_count,
-             COUNT(CASE WHEN status = 'Joined' THEN 1 END) as completed_count,
-             COUNT(CASE WHEN priority = 'Critical' AND status NOT IN ('Joined', 'Closed') THEN 1 END) as delayed_count
-      FROM recruitment
-    `);
-    const hrStat = hrStatsRes.rows[0];
+    const statsMap: Record<number, { total_count: number; open_count: number; completed_count: number; delayed_count: number }> = {};
+    for (const w of wsData || []) {
+      const dId = Number(w.department_id);
+      if (!statsMap[dId]) {
+        statsMap[dId] = { total_count: 0, open_count: 0, completed_count: 0, delayed_count: 0 };
+      }
+      statsMap[dId].total_count++;
+      if (!["Completed", "On Hold", "CLOSED", "Closed"].includes(w.status)) {
+        statsMap[dId].open_count++;
+      }
+      if (["Completed", "CLOSED", "Closed"].includes(w.status)) {
+        statsMap[dId].completed_count++;
+      }
+      if (["Delayed", "Blocked"].includes(w.status)) {
+        statsMap[dId].delayed_count++;
+      }
+    }
 
-    const departments = deptRes.rows.map((d: any) => {
-      const stats = d.code === "HR_REC" ? hrStat : (statsMap[d.id] || { total_count: 0, open_count: 0, completed_count: 0, delayed_count: 0 });
-      
-      // Calculate if update is required (e.g. > 7 days or not updated)
+    const recs = recData || [];
+    const hrStat = {
+      total_count: recs.length,
+      open_count: recs.filter((r: any) => !["Joined", "Closed"].includes(r.status)).length,
+      completed_count: recs.filter((r: any) => r.status === "Joined").length,
+      delayed_count: recs.filter((r: any) => r.priority === "Critical" && !["Joined", "Closed"].includes(r.status)).length,
+    };
+
+    const departments = (deptsData || []).map((d: any) => {
+      const ov = ovMap.get(Number(d.id)) || {};
+      const stats = d.code === "HR_REC" ? hrStat : (statsMap[Number(d.id)] || { total_count: 0, open_count: 0, completed_count: 0, delayed_count: 0 });
+
       let updateRequired = false;
-      if (!d.last_updated) {
+      if (!ov.last_updated) {
         updateRequired = true;
       } else {
-        const lastDate = new Date(d.last_updated).getTime();
+        const lastDate = new Date(ov.last_updated).getTime();
         const diffDays = (Date.now() - lastDate) / (1000 * 60 * 60 * 24);
         if (diffDays > 7) {
           updateRequired = true;
@@ -69,11 +73,16 @@ export async function GET() {
 
       return {
         ...d,
+        readiness_percentage: ov.readiness_percentage ?? 0,
+        rag_status: ov.rag_status ?? "NOT STARTED",
+        key_focus: ov.key_focus ?? "",
+        last_updated: ov.last_updated ?? null,
+        updated_by: ov.updated_by ?? null,
         stats: {
-          total: parseInt(stats.total_count || "0", 10),
-          open: parseInt(stats.open_count || "0", 10),
-          completed: parseInt(stats.completed_count || "0", 10),
-          delayed: parseInt(stats.delayed_count || "0", 10),
+          total: stats.total_count,
+          open: stats.open_count,
+          completed: stats.completed_count,
+          delayed: stats.delayed_count,
         },
         updateRequired,
       };
@@ -98,70 +107,70 @@ export async function POST(req: Request) {
     }
 
     const cleanCode = code.trim().toUpperCase().replace(/\s+/g, "_");
+    const sb = getSupabaseClient();
 
-    // Compute safe next ID to avoid sequence desynchronization
-    const nextIdRes = await query("SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM departments");
-    const nextId = parseInt(nextIdRes.rows[0].next_id, 10);
+    const { data: maxDept } = await sb.from("departments").select("id").order("id", { ascending: false }).limit(1);
+    const nextId = maxDept && maxDept.length > 0 ? Number(maxDept[0].id) + 1 : 10;
 
-    const insertRes = await query(
-      "INSERT INTO departments (id, name, code, active) VALUES ($1, $2, $3, TRUE) RETURNING *",
-      [nextId, name.trim(), cleanCode]
-    );
+    const { data: newDept, error: insError } = await sb
+      .from("departments")
+      .insert({ id: nextId, name: name.trim(), code: cleanCode, active: true })
+      .select("*")
+      .single();
 
-    const newDept = insertRes.rows[0];
-
-    // Synchronize sequence if present
-    try {
-      await query("SELECT setval(pg_get_serial_sequence('departments', 'id'), $1)", [nextId]);
-    } catch (e) {
-      try {
-        await query("SELECT setval('departments_id_seq', $1)", [nextId]);
-      } catch (err) {}
+    if (insError || !newDept) {
+      return NextResponse.json({ error: insError?.message || "Failed to create department" }, { status: 500 });
     }
 
-    // Create default overview entry safely with next ID
-    const ovNextIdRes = await query("SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM department_overview");
-    const ovNextId = parseInt(ovNextIdRes.rows[0].next_id, 10);
-
-    await query(
-      "INSERT INTO department_overview (id, department_id, readiness_percentage, rag_status, key_focus, updated_by, submission_status) VALUES ($1, $2, 0, 'NOT STARTED', 'Initial Setup', $3, 'DRAFT')",
-      [ovNextId, newDept.id, user.name]
+    // Create default overview entry
+    await sb.from("department_overview").upsert(
+      {
+        department_id: newDept.id,
+        readiness_percentage: 0,
+        rag_status: "NOT STARTED",
+        key_focus: "Initial Setup",
+        updated_by: user.name,
+        submission_status: "DRAFT",
+        last_updated: new Date().toISOString(),
+      },
+      { onConflict: "department_id" }
     );
-
-    try {
-      await query("SELECT setval(pg_get_serial_sequence('department_overview', 'id'), $1)", [ovNextId]);
-    } catch (e) {
-      try {
-        await query("SELECT setval('department_overview_id_seq', $1)", [ovNextId]);
-      } catch (err) {}
-    }
 
     // Seed default overview section and 3 standard initial fields for the new department
     try {
-      const secNextIdRes = await query("SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM form_sections");
-      const secNextId = parseInt(secNextIdRes.rows[0].next_id, 10);
-      const secRes = await query(
-        `INSERT INTO form_sections (id, department_id, section_key, title, display_order, active)
-         VALUES ($1, $2, 'overview_section', 'Sector Overview & Vice Chairman Focus / Decision Required', 1, TRUE)
-         RETURNING id`,
-        [secNextId, newDept.id]
-      );
-      const sectionId = secRes.rows[0]?.id || secNextId;
+      const { data: secRow } = await sb
+        .from("form_sections")
+        .insert({
+          department_id: newDept.id,
+          section_key: "overview_section",
+          title: "Sector Overview & Vice Chairman Focus / Decision Required",
+          display_order: 1,
+          active: true,
+        })
+        .select("id")
+        .single();
 
-      const defaultFields = [
-        { key: "readiness_score", label: "Readiness Score", type: "Percentage", req: true, order: 1, help: "0-100 percentage" },
-        { key: "rag_status", label: "RAG Status", type: "RAG Status", req: true, order: 2, help: "Current operational RAG status" },
-        { key: "vc_focus_decision", label: "Vice Chairman Focus / Decision", type: "Long Text", req: false, order: 3, help: "Direct decisions required from Vice Chairman" },
-      ];
+      const sectionId = secRow?.id;
+      if (sectionId) {
+        const defaultFields = [
+          { key: "readiness_score", label: "Readiness Score", type: "Percentage", req: true, order: 1, help: "0-100 percentage" },
+          { key: "rag_status", label: "RAG Status", type: "RAG Status", req: true, order: 2, help: "Current operational RAG status" },
+          { key: "vc_focus_decision", label: "Vice Chairman Focus / Decision", type: "Long Text", req: false, order: 3, help: "Direct decisions required from Vice Chairman" },
+        ];
 
-      for (const f of defaultFields) {
-        const fNextIdRes = await query("SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM form_fields");
-        const fNextId = parseInt(fNextIdRes.rows[0].next_id, 10);
-        await query(
-          `INSERT INTO form_fields (id, department_id, section_id, field_key, label, field_type, required, active, display_order, help_text)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, $8, $9)`,
-          [fNextId, newDept.id, sectionId, f.key, f.label, f.type, f.req, f.order, f.help]
-        );
+        for (const f of defaultFields) {
+          await sb.from("form_fields").insert({
+            department_id: newDept.id,
+            section_id: sectionId,
+            field_key: f.key,
+            label: f.label,
+            field_type: f.type,
+            required: f.req,
+            active: true,
+            display_order: f.order,
+            help_text: f.help,
+          });
+        }
       }
     } catch (formErr) {
       console.warn("Could not seed default form fields for new department:", formErr);

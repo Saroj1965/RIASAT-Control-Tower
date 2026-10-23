@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { query, logAudit } from "@/lib/db";
+import { getSupabaseClient, logAudit } from "@/lib/db";
 import { getSessionUser, canEditDepartment } from "@/lib/auth";
 import { getCurrentReviewMeetingDate, getReviewWeekLabel } from "@/lib/action-helpers";
 
@@ -16,25 +16,41 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const deptParam = searchParams.get("department_id");
 
-    let sql = `
-      SELECT w.*, d.name as department_name, d.code as department_code
-      FROM workstreams w
-      JOIN departments d ON w.department_id = d.id
-    `;
-    const params: any[] = [];
+    const sb = getSupabaseClient();
+    const [{ data: wsRows }, { data: deptRows }] = await Promise.all([
+      sb.from("workstreams").select("*").order("id", { ascending: true }),
+      sb.from("departments").select("id, name, code"),
+    ]);
+
+    const deptMap = new Map<number, any>();
+    for (const d of deptRows || []) {
+      deptMap.set(Number(d.id), d);
+    }
+
+    let enriched = (wsRows || []).map((w: any) => {
+      const d = deptMap.get(Number(w.department_id)) || {};
+      return {
+        ...w,
+        department_name: d.name || "",
+        department_code: d.code || "",
+      };
+    });
 
     if (deptParam) {
       const deptId = parseInt(deptParam, 10);
-      sql += ` WHERE (w.department_id = $1 
-               OR w.supporting_departments ILIKE '%' || (SELECT name FROM departments WHERE id = $1) || '%'
-               OR w.supporting_department_ids LIKE '%' || $1::text || '%')`;
-      params.push(deptId);
+      const targetDept = deptMap.get(deptId);
+      const targetNameLower = String(targetDept?.name || "").toLowerCase();
+      enriched = enriched.filter((w: any) => {
+        if (Number(w.department_id) === deptId) return true;
+        const supp = String(w.supporting_departments || "").toLowerCase();
+        const suppIds = String(w.supporting_department_ids || "")
+          .split(",")
+          .map((s) => s.trim());
+        return (targetNameLower && supp.includes(targetNameLower)) || suppIds.includes(String(deptId));
+      });
     }
 
-    sql += " ORDER BY w.id ASC";
-
-    const res = await query(sql, params);
-    return NextResponse.json({ workstreams: res.rows });
+    return NextResponse.json({ workstreams: enriched });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -81,7 +97,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid department ID" }, { status: 400 });
     }
 
-    // Access control
     if (!canEditDepartment(user, deptId)) {
       return NextResponse.json(
         { error: "Access Denied: You cannot create workstreams for this department." },
@@ -113,11 +128,9 @@ export async function POST(req: Request) {
       finalVcReq = "Yes";
     }
 
-    // Review cycle tracking
     const finalReviewMeetingDate = (review_meeting_date || "").trim() || getCurrentReviewMeetingDate();
     const finalReviewWeek = (review_week || "").trim() || getReviewWeekLabel(finalReviewMeetingDate);
 
-    // Initial audit/action history
     const initialHistory = [
       {
         date: new Date().toISOString(),
@@ -131,81 +144,68 @@ export async function POST(req: Request) {
       },
     ];
 
-    // Auto-generate Item_ID if not supplied
+    const sb = getSupabaseClient();
+
     let finalItemId = (item_id || "").trim();
     if (!finalItemId) {
-      try {
-        const maxRes = await query("SELECT item_id FROM workstreams WHERE item_id ~ '^ACT-[0-9]+' ORDER BY id DESC LIMIT 1");
-        let nextNum = 16;
-        if (maxRes.rows.length > 0) {
-          const match = maxRes.rows[0].item_id.match(/ACT-(\d+)/);
-          if (match) nextNum = parseInt(match[1], 10) + 1;
-        }
-        finalItemId = `ACT-${String(nextNum).padStart(2, "0")}`;
-      } catch {
-        const countRes = await query("SELECT COUNT(*) as count FROM workstreams");
-        finalItemId = `ACT-${String(parseInt(countRes.rows[0]?.count || "15", 10) + 1).padStart(2, "0")}`;
-      }
+      const { data: allItems } = await sb.from("workstreams").select("item_id");
+      const actNums = (allItems || [])
+        .map((w: any) => {
+          const m = String(w.item_id || "").match(/^ACT-(\d+)/);
+          return m ? parseInt(m[1], 10) : 0;
+        })
+        .filter((n: number) => n > 0);
+      const nextNum = actNums.length > 0 ? Math.max(...actNums) + 1 : 16;
+      finalItemId = `ACT-${String(nextNum).padStart(2, "0")}`;
     }
 
-    // Insert workstream
-    const insertRes = await query(
-      `INSERT INTO workstreams (
-        item_id, department_id, category, deliverable, infrastructure_partnership, 
-        target_date, status, capex, revenue_pipeline, owner, 
-        risks_blockers, decision_action, action_point, ownership, timeline,
-        rag_status, remarks, vc_decision_required,
-        supporting_departments, supporting_department_ids, next_followup_date, meeting_context, updated_by, priority,
-        review_meeting_date, review_week, initial_target_date, action_history
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
-      RETURNING *`,
-      [
-        finalItemId,
-        deptId,
-        finalCategory,
-        finalActionPoint,
-        infrastructure_partnership || "",
-        finalTimeline,
-        finalStatus,
-        capex || "",
-        revenue_pipeline || "",
-        finalOwnership,
-        risks_blockers || "",
-        finalDecisionAction,
-        finalActionPoint,
-        finalOwnership,
-        finalTimeline,
-        finalRag,
-        finalRemarks,
-        finalVcReq,
-        supporting_departments || "",
-        supporting_department_ids || "",
-        next_followup_date || "",
-        meeting_context || `Weekly Management Review - ${finalReviewMeetingDate}`,
-        user.name,
-        finalPriority,
-        finalReviewMeetingDate,
-        finalReviewWeek,
-        finalTimeline,
-        JSON.stringify(initialHistory),
-      ]
-    );
+    const { data: newWs, error: insError } = await sb
+      .from("workstreams")
+      .insert({
+        item_id: finalItemId,
+        department_id: deptId,
+        category: finalCategory,
+        deliverable: finalActionPoint,
+        infrastructure_partnership: infrastructure_partnership || "",
+        target_date: finalTimeline,
+        status: finalStatus,
+        capex: capex || "",
+        revenue_pipeline: revenue_pipeline || "",
+        owner: finalOwnership,
+        risks_blockers: risks_blockers || "",
+        decision_action: finalDecisionAction,
+        action_point: finalActionPoint,
+        ownership: finalOwnership,
+        timeline: finalTimeline,
+        rag_status: finalRag,
+        remarks: finalRemarks,
+        vc_decision_required: finalVcReq,
+        supporting_departments: supporting_departments || "",
+        supporting_department_ids: supporting_department_ids || "",
+        next_followup_date: next_followup_date || "",
+        meeting_context: meeting_context || `Weekly Management Review - ${finalReviewMeetingDate}`,
+        updated_by: user.name,
+        priority: finalPriority,
+        review_meeting_date: finalReviewMeetingDate,
+        review_week: finalReviewWeek,
+        initial_target_date: finalTimeline,
+        action_history: JSON.stringify(initialHistory),
+      })
+      .select("*")
+      .single();
 
-    const newWs = insertRes.rows[0];
+    if (insError || !newWs) {
+      return NextResponse.json({ error: insError?.message || "Failed to create workstream" }, { status: 500 });
+    }
 
-    // Update department_overview timestamp
-    await query(
-      `UPDATE department_overview 
-       SET last_updated = CURRENT_TIMESTAMP, updated_by = $1 
-       WHERE department_id = $2`,
-      [user.name, deptId]
-    );
+    await sb
+      .from("department_overview")
+      .update({ last_updated: new Date().toISOString(), updated_by: user.name })
+      .eq("department_id", deptId);
 
-    // Fetch department name for log
-    const dRes = await query("SELECT name FROM departments WHERE id = $1", [deptId]);
-    const deptName = dRes.rows[0]?.name || "Department";
+    const { data: dRow } = await sb.from("departments").select("name").eq("id", deptId).maybeSingle();
+    const deptName = dRow?.name || "Department";
 
-    // Audit log
     await logAudit({
       userId: user.id,
       userName: user.name,

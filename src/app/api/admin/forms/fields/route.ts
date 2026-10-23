@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { query, logAudit } from "@/lib/db";
-import { getSessionUser, hasFullAccess, canManageForms } from "@/lib/auth";
+import { getSupabaseClient, logAudit } from "@/lib/db";
+import { getSessionUser, canManageForms } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,35 +15,51 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const departmentId = searchParams.get("department_id");
 
-    let sql = `
-      SELECT f.*, s.title as section_title, s.section_key, d.name as department_name
-      FROM form_fields f
-      JOIN form_sections s ON f.section_id = s.id
-      JOIN departments d ON f.department_id = d.id
-    `;
-    const params: any[] = [];
+    const sb = getSupabaseClient();
+    let fieldsQuery = sb
+      .from("form_fields")
+      .select("*")
+      .order("department_id", { ascending: true })
+      .order("display_order", { ascending: true })
+      .order("id", { ascending: true });
 
     if (departmentId) {
-      sql += " WHERE f.department_id = $1";
-      params.push(parseInt(departmentId, 10));
+      fieldsQuery = fieldsQuery.eq("department_id", parseInt(departmentId, 10));
     }
 
-    sql += " ORDER BY f.department_id ASC, f.display_order ASC, f.id ASC";
+    const [{ data: fieldsRows }, { data: sectionsRows }, { data: deptsRows }, { data: optRows }] = await Promise.all([
+      fieldsQuery,
+      sb.from("form_sections").select("id, title, section_key"),
+      sb.from("departments").select("id, name"),
+      sb.from("form_field_options").select("*").eq("active", true).order("display_order", { ascending: true }),
+    ]);
 
-    const res = await query(sql, params);
+    const secMap = new Map<number, any>();
+    for (const s of sectionsRows || []) {
+      secMap.set(Number(s.id), s);
+    }
 
-    // Fetch options for dropdown fields
-    const optRes = await query("SELECT * FROM form_field_options WHERE active = TRUE ORDER BY display_order ASC");
+    const deptMap = new Map<number, string>();
+    for (const d of deptsRows || []) {
+      deptMap.set(Number(d.id), d.name);
+    }
+
     const optionsByField: Record<number, any[]> = {};
-    for (const opt of optRes.rows) {
+    for (const opt of optRows || []) {
       if (!optionsByField[opt.field_id]) optionsByField[opt.field_id] = [];
       optionsByField[opt.field_id].push(opt);
     }
 
-    const fields = res.rows.map((f: any) => ({
-      ...f,
-      options: optionsByField[f.id] || [],
-    }));
+    const fields = (fieldsRows || []).map((f: any) => {
+      const s = secMap.get(Number(f.section_id)) || {};
+      return {
+        ...f,
+        section_title: s.title || "",
+        section_key: s.section_key || "",
+        department_name: deptMap.get(Number(f.department_id)) || "",
+        options: optionsByField[f.id] || [],
+      };
+    });
 
     return NextResponse.json({ fields });
   } catch (err: any) {
@@ -65,14 +81,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Department and field label are required." }, { status: 400 });
     }
 
-    // Handle internal field_key validation and uniqueness
+    const sb = getSupabaseClient();
+    const deptIdNum = parseInt(department_id, 10);
+
     let finalKey = field_key ? field_key.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "") : "";
     if (finalKey) {
-      const dupCheck = await query(
-        "SELECT id FROM form_fields WHERE department_id = $1 AND field_key = $2",
-        [parseInt(department_id, 10), finalKey]
-      );
-      if (dupCheck.rows.length > 0) {
+      const { data: dupCheck } = await sb
+        .from("form_fields")
+        .select("id")
+        .eq("department_id", deptIdNum)
+        .eq("field_key", finalKey)
+        .maybeSingle();
+      if (dupCheck) {
         return NextResponse.json(
           { error: `A field with internal key '${finalKey}' already exists in this department.` },
           { status: 400 }
@@ -83,48 +103,58 @@ export async function POST(req: Request) {
       finalKey = `${rawKey}_${Date.now().toString(36)}`;
     }
 
-    // Resolve section_id if not provided
     let targetSectionId = section_id ? parseInt(section_id, 10) : null;
     if (!targetSectionId) {
-      const secRes = await query(
-        "SELECT id FROM form_sections WHERE department_id = $1 AND section_key = 'sector_overview'",
-        [department_id]
-      );
-      if (secRes.rows.length > 0) {
-        targetSectionId = secRes.rows[0].id;
+      const { data: secRow } = await sb
+        .from("form_sections")
+        .select("id")
+        .eq("department_id", deptIdNum)
+        .order("display_order", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (secRow) {
+        targetSectionId = secRow.id;
       } else {
-        const insSec = await query(
-          "INSERT INTO form_sections (department_id, section_key, title, display_order) VALUES ($1, 'sector_overview', 'Sector Overview', 1) RETURNING id",
-          [department_id]
-        );
-        targetSectionId = insSec.rows[0].id;
+        const { data: insSec } = await sb
+          .from("form_sections")
+          .insert({
+            department_id: deptIdNum,
+            section_key: "sector_overview",
+            title: "Sector Overview",
+            display_order: 1,
+            active: true,
+          })
+          .select("id")
+          .single();
+        targetSectionId = insSec?.id || 1;
       }
     }
 
-    const insRes = await query(
-      `INSERT INTO form_fields (
-        department_id, section_id, field_key, label, field_type, required, active, display_order, help_text
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [
-        parseInt(department_id, 10),
-        targetSectionId,
-        finalKey,
-        label.trim(),
-        field_type || "Short Text",
-        Boolean(required),
-        active !== undefined ? Boolean(active) : true,
-        parseInt(display_order || "10", 10),
-        help_text || "",
-      ]
-    );
+    const { data: newField, error: insError } = await sb
+      .from("form_fields")
+      .insert({
+        department_id: deptIdNum,
+        section_id: targetSectionId,
+        field_key: finalKey,
+        label: label.trim(),
+        field_type: field_type || "Short Text",
+        required: Boolean(required),
+        active: active !== undefined ? Boolean(active) : true,
+        display_order: parseInt(display_order || "10", 10),
+        help_text: help_text || "",
+      })
+      .select("*")
+      .single();
 
-    const newField = insRes.rows[0];
+    if (insError || !newField) {
+      return NextResponse.json({ error: insError?.message || "Failed to create form field" }, { status: 500 });
+    }
 
-    // If options provided for Dropdown, save to form_field_options
     if ((field_type === "Dropdown" || field_type === "Select") && options) {
       let optList: string[] = [];
       if (Array.isArray(options)) {
-        optList = options.map((o: any) => typeof o === "string" ? o.trim() : (o.value || o.label || "").trim());
+        optList = options.map((o: any) => (typeof o === "string" ? o.trim() : (o.value || o.label || "").trim()));
       } else if (typeof options === "string") {
         optList = options.split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean);
       }
@@ -132,11 +162,13 @@ export async function POST(req: Request) {
       for (let i = 0; i < optList.length; i++) {
         const optVal = optList[i];
         if (optVal) {
-          await query(
-            `INSERT INTO form_field_options (field_id, label, value, display_order, active)
-             VALUES ($1, $2, $3, $4, TRUE)`,
-            [newField.id, optVal, optVal, (i + 1) * 10]
-          );
+          await sb.from("form_field_options").insert({
+            field_id: newField.id,
+            label: optVal,
+            value: optVal,
+            display_order: (i + 1) * 10,
+            active: true,
+          });
         }
       }
     }
@@ -145,7 +177,7 @@ export async function POST(req: Request) {
       userId: user.id,
       userName: user.name,
       action: "CREATE_FORM_FIELD",
-      departmentId: parseInt(department_id, 10),
+      departmentId: deptIdNum,
       recordId: newField.id,
       details: `${user.name} added new form field "${newField.label}" [${newField.field_key}] (${newField.field_type}) to Department ID ${department_id}`,
     });
@@ -170,22 +202,24 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Field ID is required." }, { status: 400 });
     }
 
-    const oldFieldRes = await query("SELECT * FROM form_fields WHERE id = $1", [id]);
-    if (oldFieldRes.rows.length === 0) {
+    const sb = getSupabaseClient();
+    const { data: oldField } = await sb.from("form_fields").select("*").eq("id", id).maybeSingle();
+    if (!oldField) {
       return NextResponse.json({ error: "Field not found." }, { status: 404 });
     }
-    const oldField = oldFieldRes.rows[0];
 
-    // Check duplicate key if field_key is changed
     let finalKey = oldField.field_key;
     if (field_key !== undefined) {
       const sanitizedKey = field_key.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
       if (sanitizedKey && sanitizedKey !== oldField.field_key) {
-        const dupCheck = await query(
-          "SELECT id FROM form_fields WHERE department_id = $1 AND field_key = $2 AND id != $3",
-          [oldField.department_id, sanitizedKey, id]
-        );
-        if (dupCheck.rows.length > 0) {
+        const { data: dupCheck } = await sb
+          .from("form_fields")
+          .select("id")
+          .eq("department_id", oldField.department_id)
+          .eq("field_key", sanitizedKey)
+          .neq("id", id)
+          .maybeSingle();
+        if (dupCheck) {
           return NextResponse.json(
             { error: `Internal key '${sanitizedKey}' is already used by another field in this department.` },
             { status: 400 }
@@ -195,50 +229,45 @@ export async function PUT(req: Request) {
       }
     }
 
-    const updateRes = await query(
-      `UPDATE form_fields SET
-        label = COALESCE($1, label),
-        field_key = $2,
-        field_type = COALESCE($3, field_type),
-        required = COALESCE($4, required),
-        active = COALESCE($5, active),
-        display_order = COALESCE($6, display_order),
-        help_text = COALESCE($7, help_text),
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = $8
-      RETURNING *`,
-      [
-        label !== undefined ? label.trim() : null,
-        finalKey,
-        field_type !== undefined ? field_type : null,
-        required !== undefined ? Boolean(required) : null,
-        active !== undefined ? Boolean(active) : null,
-        display_order !== undefined ? parseInt(display_order, 10) : null,
-        help_text !== undefined ? help_text : null,
-        id,
-      ]
-    );
+    const { data: updatedField, error: upError } = await sb
+      .from("form_fields")
+      .update({
+        label: label !== undefined ? label.trim() : oldField.label,
+        field_key: finalKey,
+        field_type: field_type !== undefined ? field_type : oldField.field_type,
+        required: required !== undefined ? Boolean(required) : oldField.required,
+        active: active !== undefined ? Boolean(active) : oldField.active,
+        display_order: display_order !== undefined ? parseInt(display_order, 10) : oldField.display_order,
+        help_text: help_text !== undefined ? help_text : oldField.help_text,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select("*")
+      .single();
 
-    const updatedField = updateRes.rows[0];
+    if (upError || !updatedField) {
+      return NextResponse.json({ error: upError?.message || "Failed to update field" }, { status: 500 });
+    }
 
-    // Handle dropdown options synchronization
     if (options !== undefined) {
       let optList: string[] = [];
       if (Array.isArray(options)) {
-        optList = options.map((o: any) => typeof o === "string" ? o.trim() : (o.value || o.label || "").trim());
+        optList = options.map((o: any) => (typeof o === "string" ? o.trim() : (o.value || o.label || "").trim()));
       } else if (typeof options === "string") {
         optList = options.split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean);
       }
 
-      await query("DELETE FROM form_field_options WHERE field_id = $1", [id]);
+      await sb.from("form_field_options").delete().eq("field_id", id);
       for (let i = 0; i < optList.length; i++) {
         const optVal = optList[i];
         if (optVal) {
-          await query(
-            `INSERT INTO form_field_options (field_id, label, value, display_order, active)
-             VALUES ($1, $2, $3, $4, TRUE)`,
-            [id, optVal, optVal, (i + 1) * 10]
-          );
+          await sb.from("form_field_options").insert({
+            field_id: id,
+            label: optVal,
+            value: optVal,
+            display_order: (i + 1) * 10,
+            active: true,
+          });
         }
       }
     }
@@ -281,7 +310,7 @@ export async function DELETE(req: Request) {
         id = body?.id;
         if (body?.force) force = Boolean(body.force);
         if (body?.retire) retire = Boolean(body.retire);
-      } catch (e) {
+      } catch {
         // body may be empty
       }
     }
@@ -291,13 +320,12 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Field ID is required." }, { status: 400 });
     }
 
-    const oldFieldRes = await query("SELECT * FROM form_fields WHERE id = $1", [fieldId]);
-    if (oldFieldRes.rows.length === 0) {
+    const sb = getSupabaseClient();
+    const { data: oldField } = await sb.from("form_fields").select("*").eq("id", fieldId).maybeSingle();
+    if (!oldField) {
       return NextResponse.json({ error: "Field not found." }, { status: 404 });
     }
-    const oldField = oldFieldRes.rows[0];
 
-    // Protect system-generated and essential core fields
     const PROTECTED_KEYS = ["readiness_score", "rag_status", "key_focus", "sl_no", "item_id", "status", "action_item"];
     if (PROTECTED_KEYS.includes(oldField.field_key)) {
       return NextResponse.json(
@@ -308,16 +336,14 @@ export async function DELETE(req: Request) {
       );
     }
 
-    // Check if historical values depend on this field
-    const valCheck = await query(
-      "SELECT COUNT(*) as count FROM department_form_values WHERE field_id = $1 AND (text_value IS NOT NULL AND text_value != '')",
-      [fieldId]
-    );
-    const hasValues = parseInt(valCheck.rows[0]?.count || "0", 10) > 0;
+    const { data: valRows } = await sb
+      .from("department_form_values")
+      .select("id, text_value")
+      .eq("field_id", fieldId);
+    const hasValues = (valRows || []).some((r: any) => r.text_value !== null && r.text_value !== "");
 
     if (retire || (hasValues && !force)) {
-      // Safe deactivation / retirement rather than destructive deletion
-      await query("UPDATE form_fields SET active = FALSE WHERE id = $1", [fieldId]);
+      await sb.from("form_fields").update({ active: false }).eq("id", fieldId);
       await logAudit({
         userId: user.id,
         userName: user.name,
@@ -334,10 +360,9 @@ export async function DELETE(req: Request) {
       });
     }
 
-    // Safely delete associated values, options and the field itself
-    await query("DELETE FROM department_form_values WHERE field_id = $1", [fieldId]);
-    await query("DELETE FROM form_field_options WHERE field_id = $1", [fieldId]);
-    await query("DELETE FROM form_fields WHERE id = $1", [fieldId]);
+    await sb.from("department_form_values").delete().eq("field_id", fieldId);
+    await sb.from("form_field_options").delete().eq("field_id", fieldId);
+    await sb.from("form_fields").delete().eq("id", fieldId);
 
     await logAudit({
       userId: user.id,
@@ -356,4 +381,3 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
-

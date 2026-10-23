@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { query, logAudit } from "@/lib/db";
+import { getSupabaseClient, logAudit } from "@/lib/db";
 import { getSessionUser, canEditDepartment } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -28,11 +28,11 @@ export async function PUT(req: Request, { params }: Params) {
       );
     }
 
-    const existingRes = await query("SELECT * FROM recruitment WHERE id = $1", [recId]);
-    if (existingRes.rows.length === 0) {
+    const sb = getSupabaseClient();
+    const { data: existing } = await sb.from("recruitment").select("*").eq("id", recId).maybeSingle();
+    if (!existing) {
       return NextResponse.json({ error: "Position not found" }, { status: 404 });
     }
-    const existing = existingRes.rows[0];
 
     const body = await req.json();
     const {
@@ -58,70 +58,59 @@ export async function PUT(req: Request, { params }: Params) {
       vc_decision_required,
     } = body;
 
-    const finalVcReq = vc_decision_required !== undefined ? vc_decision_required : (vc_attention !== undefined ? (vc_attention ? "Yes" : "No") : undefined);
+    const finalVcReq =
+      vc_decision_required !== undefined
+        ? vc_decision_required
+        : vc_attention !== undefined
+        ? vc_attention
+          ? "Yes"
+          : "No"
+        : undefined;
     const finalVcAttention = finalVcReq !== undefined ? finalVcReq === "Yes" : undefined;
 
-    const updateRes = await query(
-      `UPDATE recruitment SET
-        position_id = COALESCE($1, position_id),
-        position_title = COALESCE($2, position_title),
-        strategic_segment = COALESCE($3, strategic_segment),
-        priority = COALESCE($4, priority),
-        target_date = COALESCE($5, target_date),
-        status = COALESCE($6, status),
-        candidates_sourced = COALESCE($7, candidates_sourced),
-        interviews = COALESCE($8, interviews),
-        offers = COALESCE($9, offers),
-        ageing_days = COALESCE($10, ageing_days),
-        target_ctc = COALESCE($11, target_ctc),
-        budget = COALESCE($12, budget),
-        hiring_lead = COALESCE($13, hiring_lead),
-        next_action = COALESCE($14, next_action),
-        vc_attention = COALESCE($15, vc_attention),
-        candidates_shortlisted = COALESCE($16, candidates_shortlisted),
-        candidates_joined = COALESCE($17, candidates_joined),
-        remarks = COALESCE($18, remarks),
-        rag_status = COALESCE($19, rag_status),
-        vc_decision_required = COALESCE($20, vc_decision_required),
-        updated_at = CURRENT_TIMESTAMP,
-        updated_by = $21
-      WHERE id = $22
-      RETURNING *`,
-      [
-        position_id !== undefined ? position_id : null,
-        position_title !== undefined ? position_title : null,
-        strategic_segment !== undefined ? strategic_segment : null,
-        priority !== undefined ? priority : null,
-        target_date !== undefined ? target_date : null,
-        status !== undefined ? status : null,
-        candidates_sourced !== undefined ? parseInt(candidates_sourced, 10) : null,
-        interviews !== undefined ? parseInt(interviews, 10) : null,
-        offers !== undefined ? parseInt(offers, 10) : null,
-        ageing_days !== undefined ? parseInt(ageing_days, 10) : null,
-        target_ctc !== undefined ? target_ctc : null,
-        budget !== undefined ? budget : null,
-        hiring_lead !== undefined ? hiring_lead : null,
-        next_action !== undefined ? next_action : null,
-        finalVcAttention !== undefined ? finalVcAttention : null,
-        candidates_shortlisted !== undefined ? parseInt(candidates_shortlisted, 10) : null,
-        candidates_joined !== undefined ? parseInt(candidates_joined, 10) : null,
-        remarks !== undefined ? remarks : null,
-        rag_status !== undefined ? rag_status : null,
-        finalVcReq !== undefined ? finalVcReq : null,
-        user.name,
-        recId,
-      ]
-    );
+    const updatePayload: Record<string, any> = {
+      position_id: position_id !== undefined ? position_id : existing.position_id,
+      position_title: position_title !== undefined ? position_title : existing.position_title,
+      strategic_segment: strategic_segment !== undefined ? strategic_segment : existing.strategic_segment,
+      priority: priority !== undefined ? priority : existing.priority,
+      target_date: target_date !== undefined ? target_date : existing.target_date,
+      status: status !== undefined ? status : existing.status,
+      candidates_sourced:
+        candidates_sourced !== undefined ? parseInt(candidates_sourced, 10) : existing.candidates_sourced,
+      interviews: interviews !== undefined ? parseInt(interviews, 10) : existing.interviews,
+      offers: offers !== undefined ? parseInt(offers, 10) : existing.offers,
+      ageing_days: ageing_days !== undefined ? parseInt(ageing_days, 10) : existing.ageing_days,
+      target_ctc: target_ctc !== undefined ? target_ctc : existing.target_ctc,
+      budget: budget !== undefined ? budget : existing.budget,
+      hiring_lead: hiring_lead !== undefined ? hiring_lead : existing.hiring_lead,
+      next_action: next_action !== undefined ? next_action : existing.next_action,
+      vc_attention: finalVcAttention !== undefined ? finalVcAttention : existing.vc_attention,
+      candidates_shortlisted:
+        candidates_shortlisted !== undefined ? parseInt(candidates_shortlisted, 10) : existing.candidates_shortlisted,
+      candidates_joined:
+        candidates_joined !== undefined ? parseInt(candidates_joined, 10) : existing.candidates_joined,
+      remarks: remarks !== undefined ? remarks : existing.remarks,
+      rag_status: rag_status !== undefined ? rag_status : existing.rag_status,
+      vc_decision_required: finalVcReq !== undefined ? finalVcReq : existing.vc_decision_required,
+      updated_at: new Date().toISOString(),
+      updated_by: user.name,
+    };
 
-    const updated = updateRes.rows[0];
+    const { data: updated, error: upError } = await sb
+      .from("recruitment")
+      .update(updatePayload)
+      .eq("id", recId)
+      .select("*")
+      .single();
 
-    // Update HR overview timestamp
-    await query(
-      `UPDATE department_overview 
-       SET last_updated = CURRENT_TIMESTAMP, updated_by = $1 
-       WHERE department_id = 7`,
-      [user.name]
-    );
+    if (upError || !updated) {
+      return NextResponse.json({ error: upError?.message || "Failed to update position" }, { status: 500 });
+    }
+
+    await sb
+      .from("department_overview")
+      .update({ last_updated: new Date().toISOString(), updated_by: user.name })
+      .eq("department_id", 7);
 
     let detailMsg = `${user.name} updated recruitment position "${updated.position_title}"`;
     if (existing.status !== updated.status) {
@@ -162,13 +151,13 @@ export async function DELETE(req: Request, { params }: Params) {
       return NextResponse.json({ error: "Access Denied" }, { status: 403 });
     }
 
-    const existingRes = await query("SELECT * FROM recruitment WHERE id = $1", [recId]);
-    if (existingRes.rows.length === 0) {
+    const sb = getSupabaseClient();
+    const { data: existing } = await sb.from("recruitment").select("*").eq("id", recId).maybeSingle();
+    if (!existing) {
       return NextResponse.json({ error: "Position not found" }, { status: 404 });
     }
-    const existing = existingRes.rows[0];
 
-    await query("DELETE FROM recruitment WHERE id = $1", [recId]);
+    await sb.from("recruitment").delete().eq("id", recId);
 
     await logAudit({
       userId: user.id,

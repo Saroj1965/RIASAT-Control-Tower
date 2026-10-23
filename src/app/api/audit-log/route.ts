@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { query } from "@/lib/db";
+import { getSupabaseClient } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { ROLES } from "@/lib/constants";
 
@@ -16,30 +16,30 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get("limit") || "50", 10);
 
-    let res;
-    if (user.role === ROLES.ADMIN || user.role === ROLES.EXECUTIVE) {
-      res = await query(
-        `SELECT a.*, d.name as department_name_full
-         FROM audit_log a
-         LEFT JOIN departments d ON a.department_id = d.id
-         ORDER BY a.timestamp DESC
-         LIMIT $1`,
-        [limit]
-      );
-    } else {
-      // Department Head sees logs related to their own department
-      res = await query(
-        `SELECT a.*, d.name as department_name_full
-         FROM audit_log a
-         LEFT JOIN departments d ON a.department_id = d.id
-         WHERE a.department_id = $1 OR a.user_id = $2
-         ORDER BY a.timestamp DESC
-         LIMIT $3`,
-        [user.department_id, user.id, limit]
+    const sb = getSupabaseClient();
+    const [{ data: deptsRows }, { data: logsRows }] = await Promise.all([
+      sb.from("departments").select("id, name"),
+      sb.from("audit_log").select("*").order("timestamp", { ascending: false }).limit(Math.max(limit * 2, 100)),
+    ]);
+
+    const deptMap = new Map<number, string>();
+    for (const d of deptsRows || []) {
+      deptMap.set(Number(d.id), d.name);
+    }
+
+    let filtered = logsRows || [];
+    if (user.role !== ROLES.ADMIN && user.role !== ROLES.EXECUTIVE && user.role !== ROLES.VICE_CHAIRMAN) {
+      filtered = filtered.filter(
+        (a: any) => Number(a.department_id) === Number(user.department_id) || Number(a.user_id) === Number(user.id)
       );
     }
 
-    return NextResponse.json({ logs: res.rows });
+    const logs = filtered.slice(0, limit).map((a: any) => ({
+      ...a,
+      department_name_full: a.department_id ? deptMap.get(Number(a.department_id)) || a.department_name : a.department_name,
+    }));
+
+    return NextResponse.json({ logs });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

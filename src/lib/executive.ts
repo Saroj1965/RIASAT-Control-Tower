@@ -1,4 +1,4 @@
-import { query } from "@/lib/db";
+import { getSupabaseClient } from "@/lib/db";
 import { calculateActionWeekStats, getCurrentReviewMeetingDate, getReviewWeekLabel } from "@/lib/action-helpers";
 
 export interface ExecutiveSummary {
@@ -91,36 +91,53 @@ export interface ExecutiveDashboardData {
 }
 
 export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData> {
-  // 1. Fetch all departments and their current overview
-  const deptRes = await query(`
-    SELECT d.id, d.name, d.code,
-           COALESCE(o.readiness_percentage, 0) as readiness_percentage,
-           COALESCE(o.rag_status, 'NOT STARTED') as rag_status,
-           o.key_focus,
-           o.last_updated,
-           o.updated_by,
-           COALESCE(o.submission_status, 'DRAFT') as submission_status
-    FROM departments d
-    LEFT JOIN department_overview o ON d.id = o.department_id
-    WHERE d.active = TRUE
-    ORDER BY d.id ASC
-  `);
+  const sb = getSupabaseClient();
 
-  // 2. Fetch all workstreams for calculations
-  // 2. Fetch all workstreams for calculations
-  const allWsRes = await query(`
-    SELECT id, item_id, department_id, deliverable, category, status, capex, revenue_pipeline, 
-           owner, risks_blockers, decision_action, target_date,
-           action_point, ownership, timeline, rag_status, remarks, vc_decision_required,
-           supporting_departments, supporting_department_ids, next_followup_date, meeting_context,
-           review_meeting_date, review_week, priority, closure_date, closure_remarks, created_at, action_history
-    FROM workstreams
-    ORDER BY id ASC
-  `);
+  // Fetch all 4 tables in parallel directly from Supabase REST API
+  const [
+    { data: deptsData },
+    { data: overviewsData },
+    { data: wsData },
+    { data: recData },
+  ] = await Promise.all([
+    sb.from("departments").select("*").eq("active", true).order("id", { ascending: true }),
+    sb.from("department_overview").select("*"),
+    sb.from("workstreams").select("*").order("id", { ascending: true }),
+    sb.from("recruitment").select("*").order("id", { ascending: true }),
+  ]);
+
+  const rawDepts = deptsData || [];
+  const overviewsMap = new Map<number, any>();
+  for (const ov of overviewsData || []) {
+    overviewsMap.set(Number(ov.department_id), ov);
+  }
+
+  const deptRows = rawDepts.map((d: any) => {
+    const ov = overviewsMap.get(Number(d.id)) || {};
+    return {
+      id: d.id,
+      name: d.name,
+      code: d.code,
+      readiness_percentage: ov.readiness_percentage ?? 0,
+      rag_status: ov.rag_status || "NOT STARTED",
+      key_focus: ov.key_focus || "",
+      last_updated: ov.last_updated || null,
+      updated_by: ov.updated_by || "",
+      submission_status: ov.submission_status || "DRAFT",
+    };
+  });
+
+  const deptNameById = new Map<number, string>();
+  for (const d of rawDepts) {
+    deptNameById.set(Number(d.id), d.name);
+  }
+
+  const allWsRows = wsData || [];
+  const allRecRows = recData || [];
 
   const parseAmount = (val: string | null | undefined): number => {
     if (!val) return 0;
-    const cleaned = val.replace(/[^0-9.]/g, "");
+    const cleaned = String(val).replace(/[^0-9.]/g, "");
     const num = parseFloat(cleaned);
     return isNaN(num) ? 0 : num;
   };
@@ -163,8 +180,8 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
     "On Hold": 0,
   };
 
-  for (const ws of allWsRes.rows) {
-    const dId = ws.department_id;
+  for (const ws of allWsRows) {
+    const dId = Number(ws.department_id);
     if (!deptStatsMap[dId]) {
       deptStatsMap[dId] = {
         total: 0, open: 0, completed: 0, delayed: 0, blocked: 0,
@@ -238,24 +255,19 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
     totalGlobalCapex += c;
     totalGlobalRevenue += r;
 
-    const isVcReq = ws.vc_decision_required === "Yes" || 
+    const isVcReq =
+      ws.vc_decision_required === "Yes" ||
       (!ws.vc_decision_required && ws.decision_action && ws.decision_action.trim().length > 0 && ws.decision_action.trim() !== "None");
     if (isVcReq && !isClosed) {
       deptStatsMap[dId].pending_vc++;
     }
   }
 
-  // HR counts
-  const hrCountsRes = await query(`
-    SELECT 
-      COUNT(*) as total_items,
-      COUNT(CASE WHEN status NOT IN ('Joined', 'Closed') THEN 1 END) as open_items,
-      COUNT(CASE WHEN priority = 'Critical' AND status NOT IN ('Joined', 'Closed') THEN 1 END) as critical_issues,
-      COUNT(CASE WHEN vc_attention = TRUE AND status NOT IN ('Joined', 'Closed') THEN 1 END) as pending_vc,
-      SUM(CASE WHEN budget IS NOT NULL THEN 1 ELSE 0 END) as budget_items
-    FROM recruitment
-  `);
-  const hrCount = hrCountsRes.rows[0];
+  // Compute HR recruitment counts
+  const hrTotalItems = allRecRows.length;
+  const hrOpenItems = allRecRows.filter((r: any) => !["Joined", "Closed"].includes(r.status)).length;
+  const hrCriticalIssues = allRecRows.filter((r: any) => r.priority === "Critical" && !["Joined", "Closed"].includes(r.status)).length;
+  const hrPendingVc = allRecRows.filter((r: any) => Boolean(r.vc_attention) && !["Joined", "Closed"].includes(r.status)).length;
 
   let greenCount = 0;
   let amberCount = 0;
@@ -263,13 +275,15 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
   let notStartedCount = 0;
   let totalReadiness = 0;
 
-  const departmentCards: DepartmentCard[] = deptRes.rows.map((d: any) => {
-    const isHR = d.code === "HR_REC" || d.id === 7;
-    const wsStat = deptStatsMap[d.id] || { total: 0, open: 0, in_progress: 0, blocked: 0, overdue: 0, delayed: 0, capex: 0, revenue: 0, pending_vc: 0 };
-    const hrOpen = isHR ? parseInt(hrCount.open_items || "0", 10) : 0;
-    const hrCritical = isHR ? parseInt(hrCount.critical_issues || "0", 10) : 0;
-    const hrPendingVc = isHR ? parseInt(hrCount.pending_vc || "0", 10) : 0;
-    const hrTotal = isHR ? parseInt(hrCount.total_items || "0", 10) : 0;
+  const departmentCards: DepartmentCard[] = deptRows.map((d: any) => {
+    const isHR = d.code === "HR_REC" || Number(d.id) === 7;
+    const wsStat = deptStatsMap[Number(d.id)] || {
+      total: 0, open: 0, in_progress: 0, blocked: 0, overdue: 0, delayed: 0, capex: 0, revenue: 0, pending_vc: 0,
+    };
+    const hrOpen = isHR ? hrOpenItems : 0;
+    const hrCritical = isHR ? hrCriticalIssues : 0;
+    const hrPending = isHR ? hrPendingVc : 0;
+    const hrTotal = isHR ? hrTotalItems : 0;
 
     const stats = {
       total: wsStat.total + hrTotal,
@@ -280,7 +294,7 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
       critical: wsStat.delayed + wsStat.blocked + (isHR ? hrCritical : 0),
       capex: isHR ? 0 : Math.round((wsStat.capex || 0) * 10) / 10,
       revenue: isHR ? 0 : Math.round((wsStat.revenue || 0) * 10) / 10,
-      pending_vc: wsStat.pending_vc + hrPendingVc,
+      pending_vc: wsStat.pending_vc + hrPending,
     };
 
     const rag = (d.rag_status || "NOT STARTED").toUpperCase();
@@ -289,7 +303,7 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
     else if (rag === "RED") redCount++;
     else notStartedCount++;
 
-    const readiness = parseInt(d.readiness_percentage || "0", 10);
+    const readiness = parseInt(String(d.readiness_percentage || "0"), 10);
     totalReadiness += readiness;
 
     let isStale = false;
@@ -353,62 +367,50 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
     totalPendingDecisions += c.pending_vc;
   });
 
-  const attentionWsRes = await query(`
-    SELECT w.id, 
-           w.item_id,
-           COALESCE(w.action_point, w.deliverable) as item, 
-           w.status, 
-           COALESCE(w.ownership, w.owner) as owner, 
-           COALESCE(w.timeline, w.target_date) as target_date, 
-           COALESCE(w.remarks, w.decision_action, w.risks_blockers) as issue,
-           COALESCE(w.remarks, w.decision_action) as decision_action,
-           COALESCE(w.rag_status, 'AMBER') as rag_status,
-           COALESCE(w.vc_decision_required, 'No') as vc_decision_required,
-           w.supporting_departments,
-           w.supporting_department_ids,
-           w.next_followup_date,
-           w.meeting_context,
-           w.review_meeting_date,
-           w.review_week,
-           w.priority,
-           w.created_at,
-           w.closure_date,
-           w.action_history,
-           d.name as department_name, d.id as department_id,
-           w.capex, w.revenue_pipeline
-    FROM workstreams w
-    JOIN departments d ON w.department_id = d.id
-    WHERE UPPER(w.status) NOT IN ('COMPLETED', 'CLOSED')
-    ORDER BY 
-      CASE WHEN w.vc_decision_required = 'Yes' THEN 1 ELSE 2 END,
-      CASE WHEN UPPER(w.rag_status) = 'RED' OR UPPER(w.status) = 'BLOCKED' THEN 1
-           WHEN UPPER(w.rag_status) = 'AMBER' OR UPPER(w.status) = 'DELAYED' THEN 2
-           ELSE 3 END,
-      w.id ASC
-    LIMIT 150
-  `);
+  // Filter and sort workstreams for management attention
+  const openWsRows = allWsRows
+    .filter((w: any) => !["COMPLETED", "CLOSED"].includes(String(w.status || "").toUpperCase()))
+    .sort((a: any, b: any) => {
+      const aVc = a.vc_decision_required === "Yes" ? 1 : 2;
+      const bVc = b.vc_decision_required === "Yes" ? 1 : 2;
+      if (aVc !== bVc) return aVc - bVc;
 
-  const enrichedAttentionWs: AttentionItem[] = attentionWsRes.rows.map((row: any) => {
-    const stats = calculateActionWeekStats(row);
+      const ragOrder = (w: any) => {
+        const r = String(w.rag_status || "").toUpperCase();
+        const s = String(w.status || "").toUpperCase();
+        if (r === "RED" || s === "BLOCKED") return 1;
+        if (r === "AMBER" || s === "DELAYED") return 2;
+        return 3;
+      };
+      const aRag = ragOrder(a);
+      const bRag = ragOrder(b);
+      if (aRag !== bRag) return aRag - bRag;
+      return Number(a.id) - Number(b.id);
+    })
+    .slice(0, 150);
+
+  const enrichedAttentionWs: AttentionItem[] = openWsRows.map((w: any) => {
+    const stats = calculateActionWeekStats(w);
+    const deptName = deptNameById.get(Number(w.department_id)) || "Department";
     return {
-      id: row.id,
-      item_id: row.item_id,
-      department_id: row.department_id,
-      department_name: row.department_name,
-      item: row.item,
-      issue: row.issue,
-      owner: row.owner,
-      target_date: row.target_date,
-      status: row.status,
+      id: w.id,
+      item_id: w.item_id,
+      department_id: w.department_id,
+      department_name: deptName,
+      item: w.action_point || w.deliverable,
+      issue: w.remarks || w.decision_action || w.risks_blockers || "",
+      owner: w.ownership || w.owner || "",
+      target_date: w.timeline || w.target_date || "",
+      status: w.status,
       rag_status: stats.effective_rag,
-      priority: row.priority || "Medium",
-      decision_action: row.decision_action,
-      vc_decision_required: row.vc_decision_required,
-      supporting_departments: row.supporting_departments,
-      next_followup_date: row.next_followup_date,
-      meeting_context: row.meeting_context,
-      capex: row.capex,
-      revenue_pipeline: row.revenue_pipeline,
+      priority: w.priority || "Medium",
+      decision_action: w.remarks || w.decision_action || "",
+      vc_decision_required: w.vc_decision_required || "No",
+      supporting_departments: w.supporting_departments,
+      next_followup_date: w.next_followup_date,
+      meeting_context: w.meeting_context,
+      capex: w.capex,
+      revenue_pipeline: w.revenue_pipeline,
       review_meeting_date: stats.review_meeting_date,
       review_week: stats.review_week,
       weeks_outstanding: stats.weeks_outstanding,
@@ -421,51 +423,43 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
     };
   });
 
-  const attentionHrRes = await query(`
-    SELECT r.id, r.position_title as item, r.status, r.hiring_lead as owner, r.target_date,
-           COALESCE(r.next_action, 'Critical leadership hiring attention') as issue,
-           'VC Attention: Key leadership role pending approval' as decision_action,
-           'HR & Recruitment' as department_name, 7 as department_id,
-           CASE WHEN r.priority = 'Critical' THEN 'RED' ELSE 'AMBER' END as rag_status,
-           CASE WHEN r.vc_attention = TRUE THEN 'Yes' ELSE 'No' END as vc_decision_required,
-           r.budget as capex, r.target_ctc as revenue_pipeline,
-           r.priority
-    FROM recruitment r
-    WHERE (r.vc_attention = TRUE OR r.priority = 'Critical')
-      AND r.status NOT IN ('Joined', 'Closed')
-    ORDER BY 
-      CASE WHEN r.vc_attention = TRUE THEN 1 ELSE 2 END,
-      r.id ASC
-    LIMIT 10
-  `);
+  const attentionHrRows = allRecRows
+    .filter((r: any) => (Boolean(r.vc_attention) || r.priority === "Critical") && !["Joined", "Closed"].includes(r.status))
+    .sort((a: any, b: any) => {
+      const aVc = a.vc_attention ? 1 : 2;
+      const bVc = b.vc_attention ? 1 : 2;
+      if (aVc !== bVc) return aVc - bVc;
+      return Number(a.id) - Number(b.id);
+    })
+    .slice(0, 10);
 
-  const enrichedAttentionHr: AttentionItem[] = attentionHrRes.rows.map((row: any) => ({
-    id: row.id,
-    item_id: `REC-${row.id}`,
-    department_id: row.department_id,
-    department_name: row.department_name,
-    item: row.item,
-    issue: row.issue,
-    owner: row.owner,
-    target_date: row.target_date,
-    status: row.status,
-    rag_status: row.rag_status,
-    priority: row.priority || "Critical",
-    decision_action: row.decision_action,
-    vc_decision_required: row.vc_decision_required,
+  const enrichedAttentionHr: AttentionItem[] = attentionHrRows.map((r: any) => ({
+    id: r.id,
+    item_id: `REC-${r.id}`,
+    department_id: 7,
+    department_name: "HR & Recruitment",
+    item: r.position_title,
+    issue: r.next_action || "Critical leadership hiring attention",
+    owner: r.hiring_lead || "",
+    target_date: r.target_date || "",
+    status: r.status,
+    rag_status: r.priority === "Critical" ? "RED" : "AMBER",
+    priority: r.priority || "Critical",
+    decision_action: "VC Attention: Key leadership role pending approval",
+    vc_decision_required: r.vc_attention ? "Yes" : "No",
     supporting_departments: "",
     next_followup_date: "",
     meeting_context: "Talent Acquisition Pipeline",
-    capex: row.capex,
-    revenue_pipeline: row.revenue_pipeline,
+    capex: r.budget,
+    revenue_pipeline: r.target_ctc,
     review_meeting_date: "2026-10-12",
     review_week: "Week 42 (12 Oct 2026)",
     weeks_outstanding: 1,
     is_carried_forward: true,
     is_new_this_week: false,
-    is_overdue: row.priority === "Critical",
+    is_overdue: r.priority === "Critical",
     is_blocked: false,
-    effective_rag: row.priority === "Critical" ? "RED" : "AMBER",
+    effective_rag: r.priority === "Critical" ? "RED" : "AMBER",
     action_history: [],
   }));
 
@@ -474,7 +468,7 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
   const actionsDistribution = departmentCards.map((d) => {
     let primary = 0;
     let supporting = 0;
-    for (const ws of allWsRes.rows) {
+    for (const ws of allWsRows) {
       if (Number(ws.department_id) === Number(d.id)) {
         primary++;
       } else {
@@ -516,7 +510,7 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
       total_capex: Math.round(totalGlobalCapex * 10) / 10,
       total_revenue_pipeline: Math.round(totalGlobalRevenue * 10) / 10,
       pending_decisions: totalPendingDecisions,
-      critical_openings: parseInt(hrCount.critical_issues || "0", 10),
+      critical_openings: hrCriticalIssues,
       total_actions: totalActions,
       open_actions: openActions,
       urgent_actions: urgentActions,

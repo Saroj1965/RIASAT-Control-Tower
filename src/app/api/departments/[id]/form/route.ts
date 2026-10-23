@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { query, logAudit } from "@/lib/db";
+import { getSupabaseClient, logAudit } from "@/lib/db";
 import { getSessionUser, canEditDepartment, canViewDepartment } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -25,42 +25,35 @@ export async function GET(req: Request, { params }: Params) {
       return NextResponse.json({ error: "Access Denied" }, { status: 403 });
     }
 
-    // 1. Fetch active sections
-    const sectionsRes = await query(
-      "SELECT * FROM form_sections WHERE department_id = $1 AND active = TRUE ORDER BY display_order ASC",
-      [deptId]
-    );
-
-    // 2. Fetch active fields
-    const fieldsRes = await query(
-      "SELECT * FROM form_fields WHERE department_id = $1 AND active = TRUE ORDER BY display_order ASC, id ASC",
-      [deptId]
-    );
-
-    // 3. Fetch existing values
-    const valuesRes = await query(
-      "SELECT * FROM department_form_values WHERE department_id = $1",
-      [deptId]
-    );
+    const sb = getSupabaseClient();
+    const [
+      { data: sectionsRows },
+      { data: fieldsRows },
+      { data: valuesRows },
+      { data: ovRow },
+    ] = await Promise.all([
+      sb.from("form_sections").select("*").eq("department_id", deptId).eq("active", true).order("display_order", { ascending: true }),
+      sb.from("form_fields").select("*").eq("department_id", deptId).eq("active", true).order("display_order", { ascending: true }).order("id", { ascending: true }),
+      sb.from("department_form_values").select("*").eq("department_id", deptId),
+      sb.from("department_overview").select("*").eq("department_id", deptId).maybeSingle(),
+    ]);
 
     const valuesMap: Record<string, { value: string; status: string; updated_at: string; updated_by: string }> = {};
-    for (const v of valuesRes.rows) {
+    for (const v of valuesRows || []) {
       valuesMap[v.field_id] = {
-        value: v.text_value || (v.number_value !== null ? String(v.number_value) : ""),
+        value: v.text_value || (v.number_value !== null && v.number_value !== undefined ? String(v.number_value) : ""),
         status: v.status,
         updated_at: v.updated_at,
         updated_by: v.updated_by,
       };
     }
 
-    // 4. Fetch department overview status
-    const ovRes = await query("SELECT * FROM department_overview WHERE department_id = $1", [deptId]);
-    const overview = ovRes.rows[0] || {};
+    const overview = ovRow || {};
 
     return NextResponse.json({
       department_id: deptId,
-      sections: sectionsRes.rows,
-      fields: fieldsRes.rows,
+      sections: sectionsRows || [],
+      fields: fieldsRows || [],
       values: valuesMap,
       submission_status: overview.submission_status || "SUBMITTED",
       last_updated: overview.last_updated,
@@ -88,40 +81,46 @@ export async function PUT(req: Request, { params }: Params) {
       return NextResponse.json({ error: "Access Denied: You cannot update this department." }, { status: 403 });
     }
 
-    const deptRes = await query("SELECT name FROM departments WHERE id = $1", [deptId]);
-    if (deptRes.rows.length === 0) {
+    const sb = getSupabaseClient();
+    const { data: deptRow } = await sb.from("departments").select("name").eq("id", deptId).maybeSingle();
+    if (!deptRow) {
       return NextResponse.json({ error: "Department not found." }, { status: 404 });
     }
-    const deptName = deptRes.rows[0].name;
+    const deptName = deptRow.name;
 
     const body = await req.json();
-    const { values, status } = body; // status: 'DRAFT' or 'SUBMITTED'
+    const { values, status } = body;
     const submissionStatus = status === "DRAFT" ? "DRAFT" : "SUBMITTED";
 
-    let readinessScore: number | null = body.readiness_percentage !== undefined 
-      ? parseFloat(body.readiness_percentage) 
-      : body.readiness_score !== undefined 
-      ? parseFloat(body.readiness_score) 
-      : null;
+    let readinessScore: number | null =
+      body.readiness_percentage !== undefined
+        ? parseFloat(body.readiness_percentage)
+        : body.readiness_score !== undefined
+        ? parseFloat(body.readiness_score)
+        : null;
     let ragStatus: string | null = body.rag_status ? String(body.rag_status).toUpperCase() : null;
-    let vcDecisionFocus: string | null = body.key_focus !== undefined 
-      ? String(body.key_focus) 
-      : body.vc_focus_decision !== undefined 
-      ? String(body.vc_focus_decision) 
-      : null;
+    let vcDecisionFocus: string | null =
+      body.key_focus !== undefined
+        ? String(body.key_focus)
+        : body.vc_focus_decision !== undefined
+        ? String(body.vc_focus_decision)
+        : null;
 
-    // Save dynamic field values
     if (values && typeof values === "object") {
+      const { data: deptFields } = await sb.from("form_fields").select("id, field_key, field_type").eq("department_id", deptId);
+      const fieldMap = new Map<number, any>();
+      for (const f of deptFields || []) {
+        fieldMap.set(Number(f.id), f);
+      }
+
       for (const [fieldIdStr, val] of Object.entries(values)) {
         const fieldId = parseInt(fieldIdStr, 10);
         if (isNaN(fieldId)) continue;
 
         const stringVal = val !== null && val !== undefined ? String(val).trim() : "";
-
-        // Check field key to extract readiness and RAG for overview sync
-        const fInfo = await query("SELECT field_key, field_type FROM form_fields WHERE id = $1", [fieldId]);
-        if (fInfo.rows.length > 0) {
-          const { field_key } = fInfo.rows[0];
+        const fInfo = fieldMap.get(fieldId);
+        if (fInfo) {
+          const { field_key } = fInfo;
           if (field_key === "readiness_score") {
             const num = parseFloat(stringVal);
             if (!isNaN(num)) readinessScore = Math.max(0, Math.min(100, Math.round(num)));
@@ -137,41 +136,39 @@ export async function PUT(req: Request, { params }: Params) {
         const isNum = !isNaN(parseFloat(stringVal)) && isFinite(Number(stringVal));
         const numVal = isNum ? parseFloat(stringVal) : null;
 
-        await query(
-          `INSERT INTO department_form_values (department_id, field_id, text_value, number_value, status, updated_at, updated_by)
-           VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6)
-           ON CONFLICT (department_id, field_id)
-           DO UPDATE SET
-             text_value = EXCLUDED.text_value,
-             number_value = EXCLUDED.number_value,
-             status = EXCLUDED.status,
-             updated_at = CURRENT_TIMESTAMP,
-             updated_by = EXCLUDED.updated_by`,
-          [deptId, fieldId, stringVal, numVal, submissionStatus, user.name]
+        await sb.from("department_form_values").upsert(
+          {
+            department_id: deptId,
+            field_id: fieldId,
+            text_value: stringVal,
+            number_value: numVal,
+            status: submissionStatus,
+            updated_at: new Date().toISOString(),
+            updated_by: user.name,
+          },
+          { onConflict: "department_id,field_id" }
         );
       }
     }
 
-    // Sync to department_overview table so Executive Tower immediately reflects it
-    const existingOv = await query("SELECT * FROM department_overview WHERE department_id = $1", [deptId]);
-    const curr = existingOv.rows[0] || {};
+    const { data: existingOv } = await sb.from("department_overview").select("*").eq("department_id", deptId).maybeSingle();
+    const curr = existingOv || {};
 
     const finalReadiness = readinessScore !== null ? readinessScore : (curr.readiness_percentage ?? 0);
     const finalRag = ragStatus !== null ? ragStatus : (curr.rag_status ?? "NOT STARTED");
     const finalFocus = vcDecisionFocus !== null ? vcDecisionFocus : (curr.key_focus ?? "");
 
-    await query(
-      `INSERT INTO department_overview (department_id, readiness_percentage, rag_status, key_focus, submission_status, last_updated, updated_by)
-       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6)
-       ON CONFLICT (department_id)
-       DO UPDATE SET
-         readiness_percentage = EXCLUDED.readiness_percentage,
-         rag_status = EXCLUDED.rag_status,
-         key_focus = EXCLUDED.key_focus,
-         submission_status = EXCLUDED.submission_status,
-         last_updated = CURRENT_TIMESTAMP,
-         updated_by = EXCLUDED.updated_by`,
-      [deptId, finalReadiness, finalRag, finalFocus, submissionStatus, user.name]
+    await sb.from("department_overview").upsert(
+      {
+        department_id: deptId,
+        readiness_percentage: finalReadiness,
+        rag_status: finalRag,
+        key_focus: finalFocus,
+        submission_status: submissionStatus,
+        last_updated: new Date().toISOString(),
+        updated_by: user.name,
+      },
+      { onConflict: "department_id" }
     );
 
     await logAudit({

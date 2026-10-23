@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { query, logAudit } from "@/lib/db";
-import { getSessionUser, hasFullAccess, canManageForms } from "@/lib/auth";
+import { getSupabaseClient, logAudit } from "@/lib/db";
+import { getSessionUser, canManageForms } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -21,12 +21,13 @@ export async function GET(req: Request, { params }: Params) {
       return NextResponse.json({ error: "Invalid field ID" }, { status: 400 });
     }
 
-    const res = await query("SELECT * FROM form_fields WHERE id = $1", [fieldId]);
-    if (res.rows.length === 0) {
+    const sb = getSupabaseClient();
+    const { data: field } = await sb.from("form_fields").select("*").eq("id", fieldId).maybeSingle();
+    if (!field) {
       return NextResponse.json({ error: "Field not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ field: res.rows[0] });
+    return NextResponse.json({ field });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -47,35 +48,30 @@ export async function PUT(req: Request, { params }: Params) {
     const body = await req.json();
     const { label, field_type, required, active, display_order, help_text } = body;
 
-    const oldFieldRes = await query("SELECT * FROM form_fields WHERE id = $1", [fieldId]);
-    if (oldFieldRes.rows.length === 0) {
+    const sb = getSupabaseClient();
+    const { data: oldField } = await sb.from("form_fields").select("*").eq("id", fieldId).maybeSingle();
+    if (!oldField) {
       return NextResponse.json({ error: "Field not found." }, { status: 404 });
     }
-    const oldField = oldFieldRes.rows[0];
 
-    const updateRes = await query(
-      `UPDATE form_fields SET
-        label = COALESCE($1, label),
-        field_type = COALESCE($2, field_type),
-        required = COALESCE($3, required),
-        active = COALESCE($4, active),
-        display_order = COALESCE($5, display_order),
-        help_text = COALESCE($6, help_text),
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = $7
-      RETURNING *`,
-      [
-        label !== undefined ? label.trim() : null,
-        field_type !== undefined ? field_type : null,
-        required !== undefined ? Boolean(required) : null,
-        active !== undefined ? Boolean(active) : null,
-        display_order !== undefined ? parseInt(display_order, 10) : null,
-        help_text !== undefined ? help_text : null,
-        fieldId,
-      ]
-    );
+    const { data: updatedField, error: upError } = await sb
+      .from("form_fields")
+      .update({
+        label: label !== undefined ? label.trim() : oldField.label,
+        field_type: field_type !== undefined ? field_type : oldField.field_type,
+        required: required !== undefined ? Boolean(required) : oldField.required,
+        active: active !== undefined ? Boolean(active) : oldField.active,
+        display_order: display_order !== undefined ? parseInt(display_order, 10) : oldField.display_order,
+        help_text: help_text !== undefined ? help_text : oldField.help_text,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", fieldId)
+      .select("*")
+      .single();
 
-    const updatedField = updateRes.rows[0];
+    if (upError || !updatedField) {
+      return NextResponse.json({ error: upError?.message || "Failed to update field" }, { status: 500 });
+    }
 
     await logAudit({
       userId: user.id,
@@ -106,15 +102,15 @@ export async function DELETE(req: Request, { params }: Params) {
       return NextResponse.json({ error: "Invalid field ID" }, { status: 400 });
     }
 
-    const oldFieldRes = await query("SELECT * FROM form_fields WHERE id = $1", [fieldId]);
-    if (oldFieldRes.rows.length === 0) {
+    const sb = getSupabaseClient();
+    const { data: oldField } = await sb.from("form_fields").select("*").eq("id", fieldId).maybeSingle();
+    if (!oldField) {
       return NextResponse.json({ error: "Field not found." }, { status: 404 });
     }
-    const oldField = oldFieldRes.rows[0];
 
-    await query("DELETE FROM department_form_values WHERE field_id = $1", [fieldId]);
-    await query("DELETE FROM form_field_options WHERE field_id = $1", [fieldId]);
-    await query("DELETE FROM form_fields WHERE id = $1", [fieldId]);
+    await sb.from("department_form_values").delete().eq("field_id", fieldId);
+    await sb.from("form_field_options").delete().eq("field_id", fieldId);
+    await sb.from("form_fields").delete().eq("id", fieldId);
 
     await logAudit({
       userId: user.id,

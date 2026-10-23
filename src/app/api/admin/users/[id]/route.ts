@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { query, logAudit } from "@/lib/db";
-import { getSessionUser, hashPassword, hasFullAccess, canManageUsers } from "@/lib/auth";
-import { ROLES } from "@/lib/constants";
+import { getSupabaseClient, logAudit } from "@/lib/db";
+import { getSessionUser, hashPassword, canManageUsers } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -22,11 +21,11 @@ export async function PUT(req: Request, { params }: Params) {
       return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
     }
 
-    const userRes = await query("SELECT * FROM users WHERE id = $1", [userId]);
-    if (userRes.rows.length === 0) {
+    const sb = getSupabaseClient();
+    const { data: targetUser } = await sb.from("users").select("*").eq("id", userId).maybeSingle();
+    if (!targetUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
-    const targetUser = userRes.rows[0];
 
     const body = await req.json();
     const { name, email, mobile, designation, role, department_id, status, password } = body;
@@ -36,35 +35,33 @@ export async function PUT(req: Request, { params }: Params) {
       newHash = await hashPassword(password.trim());
     }
 
-    const deptId = department_id !== undefined ? (department_id ? parseInt(department_id, 10) : null) : targetUser.department_id;
+    const deptId =
+      department_id !== undefined ? (department_id ? parseInt(department_id, 10) : null) : targetUser.department_id;
 
-    const updateRes = await query(
-      `UPDATE users SET
-        name = COALESCE($1, name),
-        email = COALESCE($2, email),
-        mobile = COALESCE($3, mobile),
-        designation = COALESCE($4, designation),
-        role = COALESCE($5, role),
-        department_id = $6,
-        status = COALESCE($7, status),
-        password_hash = COALESCE($8, password_hash),
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = $9
-      RETURNING id, name, email, mobile, designation, role, department_id, status, updated_at`,
-      [
-        name,
-        email ? email.trim().toLowerCase() : undefined,
-        mobile,
-        designation,
-        role,
-        deptId,
-        status,
-        newHash,
-        userId,
-      ]
-    );
+    const updatePayload: Record<string, any> = {
+      name: name !== undefined ? name : targetUser.name,
+      email: email ? email.trim().toLowerCase() : targetUser.email,
+      mobile: mobile !== undefined ? mobile : targetUser.mobile,
+      designation: designation !== undefined ? designation : targetUser.designation,
+      role: role !== undefined ? role : targetUser.role,
+      department_id: deptId,
+      status: status !== undefined ? status : targetUser.status,
+      updated_at: new Date().toISOString(),
+    };
+    if (newHash) {
+      updatePayload.password_hash = newHash;
+    }
 
-    const updatedUser = updateRes.rows[0];
+    const { data: updatedUser, error: upError } = await sb
+      .from("users")
+      .update(updatePayload)
+      .eq("id", userId)
+      .select("id, name, email, mobile, designation, role, department_id, status, updated_at")
+      .single();
+
+    if (upError || !updatedUser) {
+      return NextResponse.json({ error: upError?.message || "Failed to update user" }, { status: 500 });
+    }
 
     let action = "UPDATE_USER";
     let detailMsg = `Admin updated user details for ${updatedUser.name}`;

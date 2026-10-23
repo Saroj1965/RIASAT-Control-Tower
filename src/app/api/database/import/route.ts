@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
-import { query, logAudit } from "@/lib/db";
+import { getSupabaseClient, logAudit } from "@/lib/db";
 import { getSessionUser, hasFullAccess } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
     const user = await getSessionUser();
     if (!user || !hasFullAccess(user)) {
-      return NextResponse.json({ error: "Access Denied: Admin or Vice Chairman privileges required to import database." }, { status: 403 });
+      return NextResponse.json(
+        { error: "Access Denied: Admin or Vice Chairman privileges required to import database." },
+        { status: 403 }
+      );
     }
 
     const payload = await req.json();
@@ -16,6 +19,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid backup format: 'data' property missing or malformed." }, { status: 400 });
     }
 
+    const sb = getSupabaseClient();
     const counts: Record<string, number> = {
       departments: 0,
       department_overview: 0,
@@ -27,343 +31,170 @@ export async function POST(req: Request) {
       recruitment: 0,
     };
 
-    // 1. Import departments
     if (Array.isArray(data.departments)) {
       for (const d of data.departments) {
         if (!d.name || !d.code) continue;
-        if (d.id) {
-          await query(
-            `INSERT INTO departments (id, name, code, active)
-             VALUES ($1, $2, $3, $4)
-             ON CONFLICT (id) DO UPDATE SET
-               name = EXCLUDED.name,
-               code = EXCLUDED.code,
-               active = EXCLUDED.active`,
-            [d.id, d.name, d.code, d.active ?? true]
-          );
-        } else {
-          await query(
-            `INSERT INTO departments (name, code, active)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (code) DO UPDATE SET
-               name = EXCLUDED.name,
-               active = EXCLUDED.active`,
-            [d.name, d.code, d.active ?? true]
-          );
-        }
+        await sb.from("departments").upsert(
+          {
+            ...(d.id ? { id: d.id } : {}),
+            name: d.name,
+            code: d.code,
+            active: d.active ?? true,
+          },
+          { onConflict: d.id ? "id" : "code" }
+        );
         counts.departments++;
       }
     }
 
-    // 2. Import form_sections
     if (Array.isArray(data.form_sections)) {
       for (const s of data.form_sections) {
         if (!s.department_id || !s.section_key) continue;
-        if (s.id) {
-          await query(
-            `INSERT INTO form_sections (id, department_id, section_key, title, display_order, active)
-             VALUES ($1, $2, $3, $4, $5, $6)
-             ON CONFLICT (id) DO UPDATE SET
-               department_id = EXCLUDED.department_id,
-               section_key = EXCLUDED.section_key,
-               title = EXCLUDED.title,
-               display_order = EXCLUDED.display_order,
-               active = EXCLUDED.active`,
-            [s.id, s.department_id, s.section_key, s.title || s.section_key, s.display_order || 1, s.active ?? true]
-          );
-        } else {
-          await query(
-            `INSERT INTO form_sections (department_id, section_key, title, display_order, active)
-             VALUES ($1, $2, $3, $4, $5)
-             ON CONFLICT (department_id, section_key) DO UPDATE SET
-               title = EXCLUDED.title,
-               display_order = EXCLUDED.display_order,
-               active = EXCLUDED.active`,
-            [s.department_id, s.section_key, s.title || s.section_key, s.display_order || 1, s.active ?? true]
-          );
-        }
+        await sb.from("form_sections").upsert(
+          {
+            ...(s.id ? { id: s.id } : {}),
+            department_id: s.department_id,
+            section_key: s.section_key,
+            title: s.title || s.section_key,
+            display_order: s.display_order || 1,
+            active: s.active ?? true,
+          },
+          { onConflict: s.id ? "id" : "department_id,section_key" }
+        );
         counts.form_sections++;
       }
     }
 
-    // 3. Import form_fields
     if (Array.isArray(data.form_fields)) {
       for (const f of data.form_fields) {
         if (!f.department_id || !f.field_key) continue;
-        if (f.id) {
-          await query(
-            `INSERT INTO form_fields (id, department_id, section_id, field_key, label, field_type, required, active, display_order, help_text, default_value)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-             ON CONFLICT (id) DO UPDATE SET
-               department_id = EXCLUDED.department_id,
-               section_id = EXCLUDED.section_id,
-               field_key = EXCLUDED.field_key,
-               label = EXCLUDED.label,
-               field_type = EXCLUDED.field_type,
-               required = EXCLUDED.required,
-               active = EXCLUDED.active,
-               display_order = EXCLUDED.display_order,
-               help_text = EXCLUDED.help_text,
-               default_value = EXCLUDED.default_value`,
-            [
-              f.id,
-              f.department_id,
-              f.section_id || 1,
-              f.field_key,
-              f.label || f.field_key,
-              f.field_type || "Short Text",
-              Boolean(f.required),
-              f.active ?? true,
-              f.display_order || 1,
-              f.help_text || "",
-              f.default_value || "",
-            ]
-          );
-        } else {
-          await query(
-            `INSERT INTO form_fields (department_id, section_id, field_key, label, field_type, required, active, display_order, help_text, default_value)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-             ON CONFLICT (department_id, field_key) DO UPDATE SET
-               section_id = EXCLUDED.section_id,
-               label = EXCLUDED.label,
-               field_type = EXCLUDED.field_type,
-               required = EXCLUDED.required,
-               active = EXCLUDED.active,
-               display_order = EXCLUDED.display_order,
-               help_text = EXCLUDED.help_text,
-               default_value = EXCLUDED.default_value`,
-            [
-              f.department_id,
-              f.section_id || 1,
-              f.field_key,
-              f.label || f.field_key,
-              f.field_type || "Short Text",
-              Boolean(f.required),
-              f.active ?? true,
-              f.display_order || 1,
-              f.help_text || "",
-              f.default_value || "",
-            ]
-          );
-        }
+        await sb.from("form_fields").upsert(
+          {
+            ...(f.id ? { id: f.id } : {}),
+            department_id: f.department_id,
+            section_id: f.section_id || 1,
+            field_key: f.field_key,
+            label: f.label || f.field_key,
+            field_type: f.field_type || "Short Text",
+            required: Boolean(f.required),
+            active: f.active ?? true,
+            display_order: f.display_order || 1,
+            help_text: f.help_text || "",
+            default_value: f.default_value || "",
+          },
+          { onConflict: f.id ? "id" : "department_id,field_key" }
+        );
         counts.form_fields++;
       }
     }
 
-    // 4. Import form_field_options
     if (Array.isArray(data.form_field_options)) {
       for (const opt of data.form_field_options) {
         if (!opt.field_id || !opt.label) continue;
-        if (opt.id) {
-          await query(
-            `INSERT INTO form_field_options (id, field_id, label, value, display_order, active)
-             VALUES ($1, $2, $3, $4, $5, $6)
-             ON CONFLICT (id) DO UPDATE SET
-               field_id = EXCLUDED.field_id,
-               label = EXCLUDED.label,
-               value = EXCLUDED.value,
-               display_order = EXCLUDED.display_order,
-               active = EXCLUDED.active`,
-            [opt.id, opt.field_id, opt.label, opt.value || opt.label, opt.display_order || 1, opt.active ?? true]
-          );
-        } else {
-          await query(
-            `INSERT INTO form_field_options (field_id, label, value, display_order, active)
-             VALUES ($1, $2, $3, $4, $5)`,
-            [opt.field_id, opt.label, opt.value || opt.label, opt.display_order || 1, opt.active ?? true]
-          );
-        }
+        await sb.from("form_field_options").upsert(
+          {
+            ...(opt.id ? { id: opt.id } : {}),
+            field_id: opt.field_id,
+            label: opt.label,
+            value: opt.value || opt.label,
+            display_order: opt.display_order || 1,
+            active: opt.active ?? true,
+          },
+          { onConflict: "id" }
+        );
         counts.form_field_options++;
       }
     }
 
-    // 5. Import department_form_values
     if (Array.isArray(data.department_form_values)) {
       for (const v of data.department_form_values) {
         if (!v.department_id || !v.field_id) continue;
-        await query(
-          `INSERT INTO department_form_values (department_id, field_id, text_value, number_value, status, updated_at, updated_by)
-           VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6)
-           ON CONFLICT (department_id, field_id) DO UPDATE SET
-             text_value = EXCLUDED.text_value,
-             number_value = EXCLUDED.number_value,
-             status = EXCLUDED.status,
-             updated_at = CURRENT_TIMESTAMP,
-             updated_by = EXCLUDED.updated_by`,
-          [v.department_id, v.field_id, v.text_value || "", v.number_value ?? null, v.status || "SUBMITTED", v.updated_by || user.name]
+        await sb.from("department_form_values").upsert(
+          {
+            department_id: v.department_id,
+            field_id: v.field_id,
+            text_value: v.text_value || "",
+            number_value: v.number_value ?? null,
+            status: v.status || "SUBMITTED",
+            updated_at: new Date().toISOString(),
+            updated_by: v.updated_by || user.name,
+          },
+          { onConflict: "department_id,field_id" }
         );
         counts.department_form_values++;
       }
     }
 
-    // 6. Import department_overview
     if (Array.isArray(data.department_overview)) {
       for (const ov of data.department_overview) {
         if (!ov.department_id) continue;
-        await query(
-          `INSERT INTO department_overview (department_id, readiness_percentage, rag_status, key_focus, submission_status, last_updated, updated_by)
-           VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6)
-           ON CONFLICT (department_id) DO UPDATE SET
-             readiness_percentage = EXCLUDED.readiness_percentage,
-             rag_status = EXCLUDED.rag_status,
-             key_focus = EXCLUDED.key_focus,
-             submission_status = EXCLUDED.submission_status,
-             last_updated = CURRENT_TIMESTAMP,
-             updated_by = EXCLUDED.updated_by`,
-          [
-            ov.department_id,
-            ov.readiness_percentage ?? 0,
-            ov.rag_status || "NOT STARTED",
-            ov.key_focus || "",
-            ov.submission_status || "SUBMITTED",
-            ov.updated_by || user.name,
-          ]
+        await sb.from("department_overview").upsert(
+          {
+            department_id: ov.department_id,
+            readiness_percentage: ov.readiness_percentage ?? 0,
+            rag_status: ov.rag_status || "NOT STARTED",
+            key_focus: ov.key_focus || "",
+            submission_status: ov.submission_status || "SUBMITTED",
+            last_updated: new Date().toISOString(),
+            updated_by: ov.updated_by || user.name,
+          },
+          { onConflict: "department_id" }
         );
         counts.department_overview++;
       }
     }
 
-    // 7. Import workstreams
     if (Array.isArray(data.workstreams)) {
       for (const ws of data.workstreams) {
         if (!ws.department_id || !ws.deliverable) continue;
-        if (ws.id) {
-          await query(
-            `INSERT INTO workstreams (id, department_id, category, deliverable, infrastructure_partnership, target_date, status, capex, revenue_pipeline, owner, risks_blockers, decision_action, updated_by)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-             ON CONFLICT (id) DO UPDATE SET
-               department_id = EXCLUDED.department_id,
-               category = EXCLUDED.category,
-               deliverable = EXCLUDED.deliverable,
-               infrastructure_partnership = EXCLUDED.infrastructure_partnership,
-               target_date = EXCLUDED.target_date,
-               status = EXCLUDED.status,
-               capex = EXCLUDED.capex,
-               revenue_pipeline = EXCLUDED.revenue_pipeline,
-               owner = EXCLUDED.owner,
-               risks_blockers = EXCLUDED.risks_blockers,
-               decision_action = EXCLUDED.decision_action,
-               updated_by = EXCLUDED.updated_by`,
-            [
-              ws.id,
-              ws.department_id,
-              ws.category || "General",
-              ws.deliverable,
-              ws.infrastructure_partnership || "",
-              ws.target_date || "",
-              ws.status || "Not Started",
-              ws.capex || "",
-              ws.revenue_pipeline || "",
-              ws.owner || "",
-              ws.risks_blockers || "",
-              ws.decision_action || "",
-              ws.updated_by || user.name,
-            ]
-          );
-        } else {
-          await query(
-            `INSERT INTO workstreams (department_id, category, deliverable, infrastructure_partnership, target_date, status, capex, revenue_pipeline, owner, risks_blockers, decision_action, updated_by)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-            [
-              ws.department_id,
-              ws.category || "General",
-              ws.deliverable,
-              ws.infrastructure_partnership || "",
-              ws.target_date || "",
-              ws.status || "Not Started",
-              ws.capex || "",
-              ws.revenue_pipeline || "",
-              ws.owner || "",
-              ws.risks_blockers || "",
-              ws.decision_action || "",
-              user.name,
-            ]
-          );
-        }
+        await sb.from("workstreams").upsert(
+          {
+            ...(ws.id ? { id: ws.id } : {}),
+            department_id: ws.department_id,
+            category: ws.category || "General",
+            deliverable: ws.deliverable,
+            infrastructure_partnership: ws.infrastructure_partnership || "",
+            target_date: ws.target_date || "",
+            status: ws.status || "Not Started",
+            capex: ws.capex || "",
+            revenue_pipeline: ws.revenue_pipeline || "",
+            owner: ws.owner || "",
+            risks_blockers: ws.risks_blockers || "",
+            decision_action: ws.decision_action || "",
+            updated_by: ws.updated_by || user.name,
+          },
+          { onConflict: "id" }
+        );
         counts.workstreams++;
       }
     }
 
-    // 8. Import recruitment
     if (Array.isArray(data.recruitment)) {
       for (const r of data.recruitment) {
         if (!r.position_title) continue;
-        if (r.id) {
-          await query(
-            `INSERT INTO recruitment (id, position_id, position_title, strategic_segment, priority, target_date, status, candidates_sourced, interviews, offers, ageing_days, target_ctc, budget, hiring_lead, next_action, vc_attention, updated_by)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-             ON CONFLICT (id) DO UPDATE SET
-               position_id = EXCLUDED.position_id,
-               position_title = EXCLUDED.position_title,
-               strategic_segment = EXCLUDED.strategic_segment,
-               priority = EXCLUDED.priority,
-               target_date = EXCLUDED.target_date,
-               status = EXCLUDED.status,
-               candidates_sourced = EXCLUDED.candidates_sourced,
-               interviews = EXCLUDED.interviews,
-               offers = EXCLUDED.offers,
-               ageing_days = EXCLUDED.ageing_days,
-               target_ctc = EXCLUDED.target_ctc,
-               budget = EXCLUDED.budget,
-               hiring_lead = EXCLUDED.hiring_lead,
-               next_action = EXCLUDED.next_action,
-               vc_attention = EXCLUDED.vc_attention,
-               updated_by = EXCLUDED.updated_by`,
-            [
-              r.id,
-              r.position_id || "",
-              r.position_title,
-              r.strategic_segment || "Semicon",
-              r.priority || "Medium",
-              r.target_date || "",
-              r.status || "Open",
-              r.candidates_sourced ?? 0,
-              r.interviews ?? 0,
-              r.offers ?? 0,
-              r.ageing_days ?? 0,
-              r.target_ctc || "",
-              r.budget || "",
-              r.hiring_lead || "",
-              r.next_action || "",
-              Boolean(r.vc_attention),
-              r.updated_by || user.name,
-            ]
-          );
-        } else {
-          await query(
-            `INSERT INTO recruitment (position_id, position_title, strategic_segment, priority, target_date, status, candidates_sourced, interviews, offers, ageing_days, target_ctc, budget, hiring_lead, next_action, vc_attention, updated_by)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
-            [
-              r.position_id || "",
-              r.position_title,
-              r.strategic_segment || "Semicon",
-              r.priority || "Medium",
-              r.target_date || "",
-              r.status || "Open",
-              r.candidates_sourced ?? 0,
-              r.interviews ?? 0,
-              r.offers ?? 0,
-              r.ageing_days ?? 0,
-              r.target_ctc || "",
-              r.budget || "",
-              r.hiring_lead || "",
-              r.next_action || "",
-              Boolean(r.vc_attention),
-              user.name,
-            ]
-          );
-        }
+        await sb.from("recruitment").upsert(
+          {
+            ...(r.id ? { id: r.id } : {}),
+            position_id: r.position_id || "",
+            position_title: r.position_title,
+            strategic_segment: r.strategic_segment || "Semicon",
+            priority: r.priority || "Medium",
+            target_date: r.target_date || "",
+            status: r.status || "Open",
+            candidates_sourced: r.candidates_sourced ?? 0,
+            interviews: r.interviews ?? 0,
+            offers: r.offers ?? 0,
+            ageing_days: r.ageing_days ?? 0,
+            target_ctc: r.target_ctc || "",
+            budget: r.budget || "",
+            hiring_lead: r.hiring_lead || "",
+            next_action: r.next_action || "",
+            vc_attention: Boolean(r.vc_attention),
+            updated_by: r.updated_by || user.name,
+          },
+          { onConflict: "id" }
+        );
         counts.recruitment++;
-      }
-    }
-
-    // Safely sync primary key sequences
-    const seqTables = ["departments", "form_sections", "form_fields", "form_field_options", "workstreams", "recruitment"];
-    for (const t of seqTables) {
-      try {
-        await query(`SELECT setval(pg_get_serial_sequence('${t}', 'id'), COALESCE(MAX(id), 1)) FROM ${t}`);
-      } catch {
-        // Ignore sequence sync if not applicable
       }
     }
 
@@ -373,12 +204,12 @@ export async function POST(req: Request) {
       userId: user.id,
       userName: user.name,
       action: "DATABASE_IMPORT",
-      details: `${user.name} (${user.role}) imported database backup: ${totalRecords} total records processed.`,
+      details: `${user.name} (${user.role}) imported Supabase backup: ${totalRecords} total records processed.`,
     });
 
     return NextResponse.json({
       success: true,
-      message: `Database imported successfully! Total ${totalRecords} records updated.`,
+      message: `Database imported into Supabase successfully! Total ${totalRecords} records updated.`,
       counts,
     });
   } catch (err: any) {

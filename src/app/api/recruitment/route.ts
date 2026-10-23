@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { query, logAudit } from "@/lib/db";
+import { getSupabaseClient, logAudit } from "@/lib/db";
 import { getSessionUser, canEditDepartment } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // HR department ID is 7
     if (!canEditDepartment(user, 7)) {
       return NextResponse.json(
         { error: "Access Denied: Only HR Department Head and Admin can manage recruitment positions." },
@@ -53,48 +52,43 @@ export async function POST(req: Request) {
     const finalVcAttention = finalVcReq === "Yes";
     const finalRag = (rag_status || (priority === "Critical" ? "RED" : "GREEN")).toUpperCase();
 
-    const insertRes = await query(
-      `INSERT INTO recruitment (
-        position_id, position_title, strategic_segment, priority, target_date, status,
-        candidates_sourced, candidates_shortlisted, interviews, offers, candidates_joined,
-        ageing_days, target_ctc, budget, hiring_lead, next_action, remarks, rag_status,
-        vc_attention, vc_decision_required, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
-      RETURNING *`,
-      [
-        posId,
-        position_title.trim(),
-        strategic_segment || "General",
-        priority || "Medium",
-        target_date || "",
-        status || "Open",
-        parseInt(candidates_sourced || "0", 10),
-        parseInt(candidates_shortlisted || "0", 10),
-        parseInt(interviews || "0", 10),
-        parseInt(offers || "0", 10),
-        parseInt(candidates_joined || "0", 10),
-        parseInt(ageing_days || "0", 10),
-        target_ctc || "",
-        budget || "",
-        hiring_lead || user.name,
-        next_action || "",
-        remarks || "",
-        finalRag,
-        finalVcAttention,
-        finalVcReq,
-        user.name,
-      ]
-    );
+    const sb = getSupabaseClient();
+    const { data: newRec, error: insError } = await sb
+      .from("recruitment")
+      .insert({
+        position_id: posId,
+        position_title: position_title.trim(),
+        strategic_segment: strategic_segment || "General",
+        priority: priority || "Medium",
+        target_date: target_date || "",
+        status: status || "Open",
+        candidates_sourced: parseInt(candidates_sourced || "0", 10),
+        candidates_shortlisted: parseInt(candidates_shortlisted || "0", 10),
+        interviews: parseInt(interviews || "0", 10),
+        offers: parseInt(offers || "0", 10),
+        candidates_joined: parseInt(candidates_joined || "0", 10),
+        ageing_days: parseInt(ageing_days || "0", 10),
+        target_ctc: target_ctc || "",
+        budget: budget || "",
+        hiring_lead: hiring_lead || user.name,
+        next_action: next_action || "",
+        remarks: remarks || "",
+        rag_status: finalRag,
+        vc_attention: finalVcAttention,
+        vc_decision_required: finalVcReq,
+        updated_by: user.name,
+      })
+      .select("*")
+      .single();
 
-    const newRec = insertRes.rows[0];
+    if (insError || !newRec) {
+      return NextResponse.json({ error: insError?.message || "Failed to create recruitment entry" }, { status: 500 });
+    }
 
-    // Update HR overview timestamp
-    await query(
-      `UPDATE department_overview 
-       SET last_updated = CURRENT_TIMESTAMP, updated_by = $1 
-       WHERE department_id = 7`,
-      [user.name]
-    );
+    await sb
+      .from("department_overview")
+      .update({ last_updated: new Date().toISOString(), updated_by: user.name })
+      .eq("department_id", 7);
 
     await logAudit({
       userId: user.id,
