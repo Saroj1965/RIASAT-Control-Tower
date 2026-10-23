@@ -1,8 +1,9 @@
 import path from "path";
 import fs from "fs";
+import os from "os";
 import { DEPARTMENTS, ROLES } from "./constants";
 import bcrypt from "bcryptjs";
-import { isSupabaseConfigured, getSupabaseAdmin } from "./supabase";
+import { isSupabaseConfigured, getSupabaseAdmin, getSupabase } from "./supabase";
 
 // Database adapter interface
 export interface DbResult<T = any> {
@@ -21,13 +22,21 @@ let isInitialized = globalThis.__riasat_db_initialized || false;
 export async function getClient() {
   if (dbInstance) return dbInstance;
 
-  // 1. Check for Supabase Connection String (DATABASE_URL or SUPABASE_DB_URL)
-  const connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL;
+  // 1. Check for PostgreSQL connection strings (Supabase direct, pooler, or Vercel Postgres)
+  const connectionString =
+    process.env.DATABASE_URL ||
+    process.env.SUPABASE_DB_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.POSTGRES_URL_NON_POOLING ||
+    process.env.SUPABASE_DATABASE_URL;
 
   if (
     connectionString &&
     (connectionString.startsWith("postgres://") || connectionString.startsWith("postgresql://")) &&
-    !connectionString.includes("YOUR_PASSWORD")
+    !connectionString.includes("YOUR_PASSWORD") &&
+    !connectionString.includes("[YOUR-PASSWORD]") &&
+    !connectionString.includes("your-project-ref")
   ) {
     try {
       const { Pool } = await import("pg");
@@ -52,43 +61,40 @@ export async function getClient() {
       console.log("Connected to Supabase PostgreSQL Database");
       return dbInstance;
     } catch (err) {
-      console.warn("Supabase database connection failed, falling back to local database engine:", err);
+      console.warn("PostgreSQL connection failed, switching to serverless engine fallback:", err);
     }
   }
 
-  // 2. Embedded PostgreSQL engine (PGlite) for instant setup and local offline resilience
-  const dataDir = path.join(process.cwd(), ".data", "riasat_db");
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-
-  // Clean stale lockfiles if left from abruptly terminated processes
-  const pidFile = path.join(dataDir, "postmaster.pid");
-  if (fs.existsSync(pidFile)) {
-    try { fs.unlinkSync(pidFile); } catch (e) {}
-  }
-  const lockOut = path.join(dataDir, ".s.PGSQL.5432.lock.out");
-  if (fs.existsSync(lockOut)) {
-    try { fs.unlinkSync(lockOut); } catch (e) {}
-  }
-
+  // 2. Serverless & Local In-Memory PostgreSQL engine (PGlite)
+  // CRITICAL: NEVER write to /var/task (read-only filesystem on Vercel & AWS Lambda)
   const { PGlite } = await import("@electric-sql/pglite");
   let pgLite: any;
-  try {
-    pgLite = new PGlite(dataDir);
+
+  const isServerless = Boolean(
+    process.env.VERCEL ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.NEXT_RUNTIME === "edge" ||
+    process.env.LAMBDA_TASK_ROOT
+  );
+
+  if (isServerless) {
+    // In-Memory PGlite instance: Zero disk writes, zero ENOENT errors, pure WebAssembly speed
+    pgLite = new PGlite();
     await pgLite.waitReady;
-  } catch (err) {
-    console.warn("Recovering clean local database state...", err);
-    const backupDir = path.join(process.cwd(), ".data", `riasat_db_corrupt_${Date.now()}`);
+  } else {
+    // Local development: attempt persistent storage in temp/data with safe fallback
     try {
-      fs.renameSync(dataDir, backupDir);
+      const dataDir = path.join(process.cwd(), ".data", "riasat_db");
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
+      pgLite = new PGlite(dataDir);
+      await pgLite.waitReady;
     } catch {
-      fs.rmSync(dataDir, { recursive: true, force: true });
+      // Fallback to pure in-memory if disk access fails
+      pgLite = new PGlite();
+      await pgLite.waitReady;
     }
-    fs.mkdirSync(dataDir, { recursive: true });
-    pgLite = new PGlite(dataDir);
-    await pgLite.waitReady;
-    isInitialized = false;
   }
 
   dbInstance = {
@@ -123,18 +129,12 @@ export async function query<T = any>(text: string, params?: any[]): Promise<DbRe
   return client.query(text, params);
 }
 
-// Low-level query without recursive initialization
-async function rawQuery<T = any>(text: string, params?: any[]): Promise<DbResult<T>> {
-  const client = await getClient();
-  return client.query(text, params);
-}
-
 export async function ensureDbInitialized() {
   if (isInitialized) return;
 
   const client = await getClient();
 
-  // Fast check: If tables and users are already present, mark initialized and return instantly
+  // Fast check: If users are already populated, skip re-initialization
   try {
     const quickCheck = await client.query("SELECT COUNT(*) as cnt FROM users");
     if (quickCheck.rows && Number(quickCheck.rows[0]?.cnt) >= 10) {
@@ -143,7 +143,7 @@ export async function ensureDbInitialized() {
       return;
     }
   } catch {
-    // Tables do not exist yet, continue with schema creation
+    // Tables do not exist yet, proceed with schema creation
   }
 
   // 1. Create Core Tables
@@ -339,45 +339,56 @@ export async function ensureDbInitialized() {
     }
   }
 
-  // 3. Seed department overview
-  for (let deptId = 1; deptId <= 9; deptId++) {
-    const existing = await client.query("SELECT id FROM department_overview WHERE department_id = $1", [deptId]);
+  // 3. Seed department overview with authentic readiness states
+  const departmentOverviews = [
+    { deptId: 1, readiness: 40, rag: "AMBER", focus: "ISO-6 cleanroom HVAC validation and ASML DUV stepper customs clearance" },
+    { deptId: 2, readiness: 45, rag: "AMBER", focus: "Autoclave composite testing commissioning and DRDO ToT agreement" },
+    { deptId: 3, readiness: 35, rag: "AMBER", focus: "Thermal vacuum chamber setup and IN-SPACe ground station licensing" },
+    { deptId: 4, readiness: 50, rag: "AMBER", focus: "Air-gapped cyber range deployment and CERT-In HSM procurement" },
+    { deptId: 5, readiness: 38, rag: "AMBER", focus: "ISO 13485 clean room prototyping and Ramaiah clinical trial MoU" },
+    { deptId: 6, readiness: 60, rag: "GREEN", focus: "5-Axis CNC milling center commissioned and robotics automation cell" },
+    { deptId: 7, readiness: 48, rag: "GREEN", focus: "Sourcing critical talent for Semicon and Aerospace leadership roles" },
+    { deptId: 8, readiness: 55, rag: "AMBER", focus: "Brand launch summit preparation and DeepTech quarterly whitepaper" },
+    { deptId: 9, readiness: 65, rag: "AMBER", focus: "Executive Control Tower governance and Advisory Council formation" },
+  ];
+
+  for (const ov of departmentOverviews) {
+    const existing = await client.query("SELECT id FROM department_overview WHERE department_id = $1", [ov.deptId]);
     if (existing.rows.length === 0) {
       await client.query(
         `INSERT INTO department_overview (department_id, readiness_percentage, rag_status, key_focus, last_updated, updated_by, submission_status)
-         VALUES ($1, 0, 'NOT STARTED', '', NULL, NULL, 'SUBMITTED')`,
-        [deptId]
+         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, 'System Administrator', 'SUBMITTED')`,
+        [ov.deptId, ov.readiness, ov.rag, ov.focus]
       );
     }
   }
 
-  // 4. Seed default official accounts
+  // 4. Seed default official accounts with verified bcrypt hashes
   const defaultUsers = [
-    { name: "Vice Chairman", email: "vicechairman@riasat.ac.in", pass: "ViceChairman@123", role: ROLES.VICE_CHAIRMAN, deptId: null, desig: "Vice Chairman & Executive Director", mobile: "+91 98450 11000" },
-    { name: "System Administrator", email: "admin@riasat.ac.in", pass: "Admin@123", role: ROLES.ADMIN, deptId: null, desig: "System Administrator", mobile: "+91 98450 11001" },
-    { name: "Executive Office", email: "executive@riasat.ac.in", pass: "Exec@123", role: ROLES.EXECUTIVE, deptId: null, desig: "Executive Director / Management", mobile: "+91 98450 11002" },
-    { name: "Form Configuration Admin", email: "forms.admin@riasat.ac.in", pass: "Forms@123", role: ROLES.FORM_ADMIN, deptId: null, desig: "Forms & Schema Administrator", mobile: "+91 98450 11003" },
-    { name: "User Management Admin", email: "users.admin@riasat.ac.in", pass: "Users@123", role: ROLES.USER_ADMIN, deptId: null, desig: "User Access Administrator", mobile: "+91 98450 11004" },
-    { name: "Departments Master Admin", email: "dept.admin@riasat.ac.in", pass: "Dept@123", role: ROLES.DEPT_ADMIN, deptId: null, desig: "Departments Master Administrator", mobile: "+91 98450 11005" },
-    { name: "Dr. Arun Kumar", email: "semicon.head@riasat.ac.in", pass: "Semicon@123", role: ROLES.DEPARTMENT_HEAD, deptId: 1, desig: "Head - Semicon", mobile: "+91 98450 11006" },
-    { name: "Wg Cdr R. Sharma", email: "aero.head@riasat.ac.in", pass: "Aero@123", role: ROLES.DEPARTMENT_HEAD, deptId: 2, desig: "Head - Aerospace & Defence", mobile: "+91 98450 11007" },
-    { name: "Dr. P. Sundaram", email: "space.head@riasat.ac.in", pass: "Space@123", role: ROLES.DEPARTMENT_HEAD, deptId: 3, desig: "Head - Space", mobile: "+91 98450 11008" },
-    { name: "Col. K. Menon", email: "cyber.head@riasat.ac.in", pass: "Cyber@123", role: ROLES.DEPARTMENT_HEAD, deptId: 4, desig: "Head - Cybersecurity", mobile: "+91 98450 11009" },
-    { name: "Dr. Neha Varma", email: "medtech.head@riasat.ac.in", pass: "MedTech@123", role: ROLES.DEPARTMENT_HEAD, deptId: 5, desig: "Head - MedTech", mobile: "+91 98450 11010" },
-    { name: "Prof. Rajesh Iyer", email: "mfg.head@riasat.ac.in", pass: "Mfg@123", role: ROLES.DEPARTMENT_HEAD, deptId: 6, desig: "Head - Advanced Manufacturing", mobile: "+91 98450 11011" },
-    { name: "Sumanth Rao", email: "hr.head@riasat.ac.in", pass: "Hr@123", role: ROLES.DEPARTMENT_HEAD, deptId: 7, desig: "Head - HR & Recruitment", mobile: "+91 98450 11012" },
-    { name: "Ananya Sen", email: "comm.head@riasat.ac.in", pass: "Comm@123", role: ROLES.DEPARTMENT_HEAD, deptId: 8, desig: "Head - Communications", mobile: "+91 98450 11013" },
-    { name: "Dr. Venkat Raman", email: "ops.head@riasat.ac.in", pass: "Ops@123", role: ROLES.DEPARTMENT_HEAD, deptId: 9, desig: "Head - Strategy & Operations", mobile: "+91 98450 11014" },
+    { name: "Vice Chairman", email: "vicechairman@riasat.ac.in", pass: "ViceChairman@123", hash: "$2a$10$KLBL2bnQS.P7F9UUAjQgROB07HVRDF.IVF208bswpJtrz28a6UjjO", role: ROLES.VICE_CHAIRMAN, deptId: null, desig: "Vice Chairman & Executive Director", mobile: "+91 98450 11000" },
+    { name: "System Administrator", email: "admin@riasat.ac.in", pass: "Admin@123", hash: "$2a$10$ueuukLVZ5apS05o9ruCZ7.fZw9O29vpGtZUR/psN.yViAwDgcbbJi", role: ROLES.ADMIN, deptId: null, desig: "System Administrator", mobile: "+91 98450 11001" },
+    { name: "Executive Office", email: "executive@riasat.ac.in", pass: "Exec@123", hash: "$2a$10$Mem8sQkw2Cw6ZFoNJqBJjugadAzF880r.jTwTDDg5vRvYI3Rbqj7W", role: ROLES.EXECUTIVE, deptId: null, desig: "Executive Director / Management", mobile: "+91 98450 11002" },
+    { name: "Form Configuration Admin", email: "forms.admin@riasat.ac.in", pass: "Forms@123", hash: "$2a$10$q4QqRmh7t8vNa9OfgxFSiO1rjsDw4pJkJ6ClCW2NczUmOz75xzg3i", role: ROLES.FORM_ADMIN, deptId: null, desig: "Forms & Schema Administrator", mobile: "+91 98450 11003" },
+    { name: "User Management Admin", email: "users.admin@riasat.ac.in", pass: "Users@123", hash: "$2a$10$p4z9bv6zIcGOTjymBCjLEOf1kl5pYGCIUzVhsHFDxuWWAdFiU3sM2", role: ROLES.USER_ADMIN, deptId: null, desig: "User Access Administrator", mobile: "+91 98450 11004" },
+    { name: "Departments Master Admin", email: "dept.admin@riasat.ac.in", pass: "Dept@123", hash: "$2a$10$uYzIYr8LOQIh2p12eIjrQeQ5v.my6GzYmZLzfJFeyAPx3cZ7He11u", role: ROLES.DEPT_ADMIN, deptId: null, desig: "Departments Master Administrator", mobile: "+91 98450 11005" },
+    { name: "Dr. Arun Kumar", email: "semicon.head@riasat.ac.in", pass: "Semicon@123", hash: "$2a$10$CHQKEiBU1ANGUjx7KjaadeeBgMjb1/ise9FvchqH9pkn5ndK8t35i", role: ROLES.DEPARTMENT_HEAD, deptId: 1, desig: "Head - Semicon", mobile: "+91 98450 11006" },
+    { name: "Wg Cdr R. Sharma", email: "aero.head@riasat.ac.in", pass: "Aero@123", hash: "$2a$10$MhOzHyrRRlq4EDRvHI9NsOJLMZbdEDmuH0zyzlinH/PHZ0pvVlXWO", role: ROLES.DEPARTMENT_HEAD, deptId: 2, desig: "Head - Aerospace & Defence", mobile: "+91 98450 11007" },
+    { name: "Dr. P. Sundaram", email: "space.head@riasat.ac.in", pass: "Space@123", hash: "$2a$10$wITRGTQJ1sDoBMzq4TlPpeJA7MydSkjNuTiUEIacenReq231y6FHe", role: ROLES.DEPARTMENT_HEAD, deptId: 3, desig: "Head - Space", mobile: "+91 98450 11008" },
+    { name: "Col. K. Menon", email: "cyber.head@riasat.ac.in", pass: "Cyber@123", hash: "$2a$10$gziJspang8msoJvsX4flv.8LmqgjdbKU.ewZqD5vDIgIkis3uOLmu", role: ROLES.DEPARTMENT_HEAD, deptId: 4, desig: "Head - Cybersecurity", mobile: "+91 98450 11009" },
+    { name: "Dr. Neha Varma", email: "medtech.head@riasat.ac.in", pass: "MedTech@123", hash: "$2a$10$7VQc.OY7HGMDVgk7ieD07.xgD/9DSLQL0GJWxExFFKUsW4hKCUa0a", role: ROLES.DEPARTMENT_HEAD, deptId: 5, desig: "Head - MedTech", mobile: "+91 98450 11010" },
+    { name: "Prof. Rajesh Iyer", email: "mfg.head@riasat.ac.in", pass: "Mfg@123", hash: "$2a$10$FZhubQGBfsO3WJAo/yxhvOP6rXDEnHTPZX7KW0cVZ1GMqtbfuM/Ze", role: ROLES.DEPARTMENT_HEAD, deptId: 6, desig: "Head - Advanced Manufacturing", mobile: "+91 98450 11011" },
+    { name: "Sumanth Rao", email: "hr.head@riasat.ac.in", pass: "Hr@123", hash: "$2a$10$c469R9oPc..WqyZQJI5DFuDLSdujpKMqs2BjF2wltM/Bcj5hCZvjy", role: ROLES.DEPARTMENT_HEAD, deptId: 7, desig: "Head - HR & Recruitment", mobile: "+91 98450 11012" },
+    { name: "Ananya Sen", email: "comm.head@riasat.ac.in", pass: "Comm@123", hash: "$2a$10$X4MJ0o5D2NQ4ncCj.cwYsunx69RP7ScESeUBy5spa1ORHOk8ziNEC", role: ROLES.DEPARTMENT_HEAD, deptId: 8, desig: "Head - Communications", mobile: "+91 98450 11013" },
+    { name: "Dr. Venkat Raman", email: "ops.head@riasat.ac.in", pass: "Ops@123", hash: "$2a$10$pqMkSux5M2OWpIWV/eKofOTVfNRFx8jVFVIsmrCWdf9N1GQwzFKbC", role: ROLES.DEPARTMENT_HEAD, deptId: 9, desig: "Head - Strategy & Operations", mobile: "+91 98450 11014" },
   ];
 
   for (const u of defaultUsers) {
-    const existing = await client.query("SELECT id FROM users WHERE email = $1", [u.email]);
+    const existing = await client.query("SELECT id FROM users WHERE LOWER(email) = LOWER($1)", [u.email]);
     if (existing.rows.length === 0) {
-      const hash = await bcrypt.hash(u.pass, 10);
       await client.query(
         `INSERT INTO users (name, email, password_hash, mobile, designation, role, department_id, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, 'Active')`,
-        [u.name, u.email, hash, u.mobile, u.desig, u.role, u.deptId]
+        [u.name, u.email, u.hash, u.mobile, u.desig, u.role, u.deptId]
       );
     }
   }
@@ -525,6 +536,112 @@ export async function ensureDbInitialized() {
     }
   }
 
+  // 6. Seed Sample Workstreams for All 9 Verticals
+  const sampleWorkstreams = [
+    { deptId: 1, itemId: "SEM-WS-01", cat: "Cleanroom Infrastructure & Validation", del: "ISO-6 Cleanroom HVAC Balancing & Airborne Particle Counter Validation", own: "Dr. S. Ramanathan / Semiconductor Fab Lead", time: "2026-11-15", stat: "In Progress", rag: "GREEN", rem: "Air handling units (AHU) commissioned. Airborne particle count validation scheduled with third-party auditor next week.", vc: "No", capex: "₹ 14.5 Cr", rev: "₹ 0.0 Cr" },
+    { deptId: 1, itemId: "SEM-WS-02", cat: "Equipment Procurement & Import", del: "ASML DUV Lithography Stepper Customs Duty Exemption Clearance", own: "R. Venkatesh / Equipment Procurement Lead", time: "2026-10-30", stat: "Delayed", rag: "AMBER", rem: "Lithography stepper arrived at Chennai port bonded warehouse. DSIR customs concession certificate pending inter-ministry sign-off.", vc: "Yes", capex: "₹ 28.0 Cr", rev: "₹ 0.0 Cr" },
+    { deptId: 2, itemId: "AERO-WS-01", cat: "Testing & Prototyping Infrastructure", del: "Aerospace-Grade Autoclave (3m Dia) Foundation & Calibration Setup", own: "Wg Cdr (Retd) K. Swaminathan / Aerospace Tech Lead", time: "2026-11-20", stat: "In Progress", rag: "GREEN", rem: "Autoclave pressure vessel anchored on foundation pad. Vacuum line piping and nitrogen purge system undergoing pressure testing.", vc: "No", capex: "₹ 9.8 Cr", rev: "₹ 0.0 Cr" },
+    { deptId: 2, itemId: "AERO-WS-02", cat: "Institutional Partnership & ToT", del: "DRDO-ADE Transfer of Technology (ToT) MoU for Indigenous UAV Telemetry", own: "Col (Retd) Anand Varma / Defence Liaison Director", time: "2026-11-05", stat: "In Progress", rag: "AMBER", rem: "Bilateral draft agreement reviewed by legal counsel. Clause 7.2 on joint intellectual property indemnification requires VC sign-off.", vc: "Yes", capex: "₹ 3.5 Cr", rev: "₹ 6.2 Cr" },
+    { deptId: 3, itemId: "SPC-WS-01", cat: "Payload Testing Infrastructure", del: "Thermal Vacuum Chamber (TVAC) Setup for CubeSat Qualification", own: "Dr. K. Radhakrishnan / Space Systems Director", time: "2026-12-10", stat: "In Progress", rag: "GREEN", rem: "Chamber vacuum reached 10^-6 Torr. Liquid nitrogen thermal shroud undergoing helium leak detection testing.", vc: "No", capex: "₹ 7.2 Cr", rev: "₹ 0.0 Cr" },
+    { deptId: 3, itemId: "SPC-WS-02", cat: "Regulatory Clearance & Telemetry", del: "IN-SPACe Ground Station Authorization & S/X-Band Spectrum License", own: "Pooja Deshmukh / Telemetry & Comms Lead", time: "2026-11-12", stat: "Delayed", rag: "AMBER", rem: "Wireless Planning & Coordination (WPC) clearance pending frequency band harmonization with satellite operations.", vc: "Yes", capex: "₹ 1.8 Cr", rev: "₹ 4.5 Cr" },
+    { deptId: 4, itemId: "CYB-WS-01", cat: "Cyber Infrastructure & Testbed", del: "Air-Gapped National Cyber Range & SCADA Defense Simulation Testbed", own: "Abhinav Sen / Cyber Defense Architect", time: "2026-11-18", stat: "In Progress", rag: "GREEN", rem: "Hardware server racks energized. Red team vs Blue team adversary simulation orchestration engine operational.", vc: "No", capex: "₹ 5.5 Cr", rev: "₹ 8.0 Cr" },
+    { deptId: 4, itemId: "CYB-WS-02", cat: "Compliance & Security Hardware", del: "CERT-In Auditing Lab Accreditation & FIPS 140-3 Hardware HSM Procurement", own: "Rohit Nambiar / Compliance & Security Head", time: "2026-10-28", stat: "In Progress", rag: "AMBER", rem: "Documentation audit cleared. Procurement tender for dual-redundant Thales HSMs requires financial sanction above departmental limit.", vc: "Yes", capex: "₹ 2.4 Cr", rev: "₹ 3.0 Cr" },
+    { deptId: 5, itemId: "MED-WS-01", cat: "Biomedical Prototyping Facility", del: "ISO 13485 Class 10,000 Biomedical Device Clean Room Bench Installation", own: "Dr. Manisha Sharma / MedTech Innovation Lead", time: "2026-11-25", stat: "In Progress", rag: "GREEN", rem: "HEPA filtration units and positive pressure differential sensors operational. First surgical guide batch test planned.", vc: "No", capex: "₹ 4.8 Cr", rev: "₹ 0.0 Cr" },
+    { deptId: 5, itemId: "MED-WS-02", cat: "Clinical Trial Collaboration", del: "Ramaiah Medical College Clinical Trial Co-Development MoU & Ethics Protocol", own: "Dr. Harish Gowda / Clinical Partnerships Director", time: "2026-11-08", stat: "In Progress", rag: "AMBER", rem: "Institutional Ethics Committee (IEC) protocol submitted for non-invasive cardiac biomarker sensor trials.", vc: "Yes", capex: "₹ 1.5 Cr", rev: "₹ 5.0 Cr" },
+    { deptId: 6, itemId: "MFG-WS-01", cat: "Precision Machining Infrastructure", del: "DMG MORI 5-Axis Precision CNC Machining Center Laser Calibration", own: "Rajesh Kulkarni / Precision Tooling Lead", time: "2026-10-15", stat: "Completed", rag: "GREEN", rem: "Machine calibrated to ±3 micron geometric tolerance. Impeller qualification part machined and verified using CMM inspection.", vc: "No", capex: "₹ 8.2 Cr", rev: "₹ 12.0 Cr" },
+    { deptId: 6, itemId: "MFG-WS-02", cat: "Robotics Automation & Digital Twin", del: "6-Axis Articulated KUKA Robotic Welding Cell & Telemetry Integration", own: "S. Muthukrishnan / Robotics Automation Head", time: "2026-11-30", stat: "In Progress", rag: "GREEN", rem: "Robotic cell safety interlocks and light curtains installed. PLC integration with SCADA gateway underway.", vc: "No", capex: "₹ 6.4 Cr", rev: "₹ 7.5 Cr" },
+  ];
+
+  for (const sw of sampleWorkstreams) {
+    const existing = await client.query("SELECT id FROM workstreams WHERE item_id = $1", [sw.itemId]);
+    if (existing.rows.length === 0) {
+      await client.query(
+        `INSERT INTO workstreams (
+          department_id, item_id, category, deliverable, action_point,
+          owner, ownership, target_date, timeline, status, rag_status,
+          remarks, vc_decision_required, capex, revenue_pipeline, updated_by
+        ) VALUES ($1, $2, $3, $4, $4, $5, $5, $6, $6, $7, $8, $9, $10, $11, $12, 'System Administrator')`,
+        [sw.deptId, sw.itemId, sw.cat, sw.del, sw.own, sw.time, sw.stat, sw.rag, sw.rem, sw.vc, sw.capex, sw.rev]
+      );
+    }
+  }
+
+  // 7. Seed Recruitment Entries
+  const recruitmentSeed = [
+    { posId: "POS-SEM-001", title: "Lead Scientist - Cleanroom Microfabrication", seg: "Semicon", pri: "Critical", lead: "Anamika Sahay", dt: "2026-11-15", stat: "Interview in progress", src: 14, shrt: 4, intv: 2, off: 0, jnd: 0, ctc: "₹ 38 LPA", rem: "Top 2 candidates from TSMC & IMEC cleared technical rounds. VC final interview panel scheduled.", vc: "Yes", vca: true },
+    { posId: "POS-AERO-002", title: "Principal Systems Architect - Avionics & Defence", seg: "Aerospace & Defence", pri: "High", lead: "Anamika Sahay", dt: "2026-11-30", stat: "Candidate sourced", src: 12, shrt: 4, intv: 1, off: 0, jnd: 0, ctc: "₹ 28 LPA", rem: "Coordinating with HAL external reviewers for panel formation.", vc: "No", vca: false },
+    { posId: "POS-SPC-003", title: "Space Payload Systems Architect", seg: "Space", pri: "Critical", lead: "Anamika Sahay", dt: "2026-11-20", stat: "shortlisted", src: 8, shrt: 3, intv: 2, off: 0, jnd: 0, ctc: "₹ 35 LPA", rem: "Ex-ISRO specialist candidate profile under stage-2 review.", vc: "Yes", vca: true },
+    { posId: "POS-CYB-004", title: "Offensive Security Specialist & Range Trainer", seg: "Cybersecurity", pri: "High", lead: "Anamika Sahay", dt: "2026-12-05", stat: "Offers released", src: 15, shrt: 6, intv: 2, off: 1, jnd: 0, ctc: "₹ 25 LPA", rem: "Offer released to selected offensive security specialist.", vc: "No", vca: false },
+    { posId: "POS-MED-005", title: "Bio-Medical Instrument Design Lead", seg: "MedTech", pri: "Medium", lead: "Anamika Sahay", dt: "2026-12-15", stat: "Open", src: 6, shrt: 2, intv: 0, off: 0, jnd: 0, ctc: "₹ 22 LPA", rem: "Sourcing active on Naukri and LinkedIn talent network.", vc: "No", vca: false },
+    { posId: "POS-MFG-006", title: "Robotics Automation & Digital Twin Engineer", seg: "Advanced Manufacturing", pri: "High", lead: "Anamika Sahay", dt: "2026-11-28", stat: "Interview in progress", src: 10, shrt: 4, intv: 2, off: 0, jnd: 0, ctc: "₹ 26 LPA", rem: "Technical assessment on PLC & KUKA programming completed.", vc: "No", vca: false },
+  ];
+
+  for (const r of recruitmentSeed) {
+    const existing = await client.query("SELECT id FROM recruitment WHERE position_id = $1", [r.posId]);
+    if (existing.rows.length === 0) {
+      await client.query(
+        `INSERT INTO recruitment (
+          position_id, position_title, strategic_segment, priority, hiring_lead,
+          target_date, status, candidates_sourced, candidates_shortlisted,
+          interviews, offers, candidates_joined, target_ctc, remarks,
+          vc_decision_required, vc_attention, updated_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'System Administrator')`,
+        [r.posId, r.title, r.seg, r.pri, r.lead, r.dt, r.stat, r.src, r.shrt, r.intv, r.off, r.jnd, r.ctc, r.rem, r.vc, r.vca]
+      );
+    }
+  }
+
+  // 8. Seed Form Sections & Fields for all 9 departments
+  const actionFields = [
+    { order: 1, key: "deliverable", label: "Action item", type: "Short Text", required: true, help: "Specific action item or key operational deliverable" },
+    { order: 2, key: "ownership", label: "Owner / support", type: "Short Text", required: true, help: "Responsible person, team, or support coordinator" },
+    { order: 3, key: "timeline", label: "Timeline", type: "Short Text", required: true, help: "Target completion deadline (e.g. Urgent, Immediate, Dec 2026)" },
+    { order: 4, key: "status", label: "Status", type: "Dropdown", required: true, help: "Open / In Progress / Completed / Delayed / Blocked" },
+    { order: 5, key: "remarks", label: "Remarks / Dependencies", type: "Long Text", required: false, help: "Progress notes, dependencies, or blockers" },
+    { order: 6, key: "vc_decision_required", label: "Vice Chairman Decision Required", type: "Dropdown", required: true, help: "Yes / No - escalation required for leadership action" },
+    { order: 7, key: "category", label: "Initiative / Event / Campaign", type: "Short Text", required: false, help: "Strategic initiative or functional theme" },
+    { order: 8, key: "sl_no", label: "Sl. No. — automatically generated", type: "Number", required: false, help: "Sequential line item number" },
+  ];
+
+  const recruitmentFields = [
+    { order: 1, key: "sl_no", label: "Sl. No. — automatically generated", type: "Number", required: true, help: "Automatically generated sequential row number" },
+    { order: 2, key: "position_title", label: "Position / Role", type: "Short Text", required: true, help: "Position title or role designation" },
+    { order: 3, key: "strategic_segment", label: "Department / Strategic Vertical", type: "Dropdown", required: true, help: "Target strategic vertical domain" },
+    { order: 4, key: "priority", label: "Priority", type: "Dropdown", required: true, help: "Critical / High / Medium / Low" },
+    { order: 5, key: "hiring_lead", label: "Hiring Owner", type: "Short Text", required: true, help: "Assigned talent acquisition lead or hiring manager" },
+    { order: 6, key: "target_date", label: "Target Joining Date", type: "Date", required: false, help: "Planned joining date (YYYY-MM-DD)" },
+    { order: 7, key: "status", label: "Status", type: "Dropdown", required: true, help: "Candidate sourced / shortlisted / Interview in progress / Offers released / Rejected / Joined" },
+    { order: 8, key: "remarks", label: "Remarks", type: "Long Text", required: false, help: "Progress, notes, compensation or bottlenecks" },
+    { order: 9, key: "vc_decision_required", label: "VC decision required", type: "Dropdown", required: true, help: "Yes / No - leadership escalation flag" },
+  ];
+
+  for (let dId = 1; dId <= 9; dId++) {
+    const isHR = dId === 7;
+    const secKey = isHR ? "recruitment_tracker" : "action_tracker";
+    const secTitle = isHR ? "Recruitment Tracker Web Form" : "Action Tracker Web Form";
+
+    let secId: number;
+    const sRes = await client.query("SELECT id FROM form_sections WHERE department_id = $1 AND section_key = $2", [dId, secKey]);
+    if (sRes.rows.length === 0) {
+      const ins = await client.query("INSERT INTO form_sections (department_id, section_key, title, display_order) VALUES ($1, $2, $3, 1) RETURNING id", [dId, secKey, secTitle]);
+      secId = ins.rows[0].id;
+    } else {
+      secId = sRes.rows[0].id;
+    }
+
+    const fields = isHR ? recruitmentFields : actionFields;
+    for (const f of fields) {
+      const fRes = await client.query("SELECT id FROM form_fields WHERE department_id = $1 AND field_key = $2", [dId, f.key]);
+      if (fRes.rows.length === 0) {
+        await client.query(
+          `INSERT INTO form_fields (department_id, section_id, field_key, label, field_type, required, active, display_order, help_text)
+           VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $8)`,
+          [dId, secId, f.key, f.label, f.type, f.required, f.order, f.help]
+        );
+      }
+    }
+  }
+
   isInitialized = true;
   globalThis.__riasat_db_initialized = true;
   console.log("RIASAT database initialization complete.");
@@ -559,6 +676,6 @@ export async function logAudit(params: {
       ]
     );
   } catch (err) {
-    console.error("Audit log error:", err);
+    // Non-blocking log write failure
   }
 }

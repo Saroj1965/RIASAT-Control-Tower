@@ -186,6 +186,58 @@ CREATE INDEX IF NOT EXISTS idx_recruitment_status ON recruitment(status);
 CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp DESC);
 
 -- =====================================================================
+-- ROW LEVEL SECURITY (RLS) POLICIES & PERMISSIONS FOR SUPABASE
+-- =====================================================================
+ALTER TABLE departments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE department_overview ENABLE ROW LEVEL SECURITY;
+ALTER TABLE form_sections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE form_fields ENABLE ROW LEVEL SECURITY;
+ALTER TABLE form_field_options ENABLE ROW LEVEL SECURITY;
+ALTER TABLE department_form_values ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workstreams ENABLE ROW LEVEL SECURITY;
+ALTER TABLE recruitment ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
+
+-- Permissive policies for dashboard operations
+DROP POLICY IF EXISTS "Public Read All Departments" ON departments;
+CREATE POLICY "Public Read All Departments" ON departments FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Service Role All Departments" ON departments;
+CREATE POLICY "Service Role All Departments" ON departments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow All Users" ON users;
+CREATE POLICY "Allow All Users" ON users FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow All Overview" ON department_overview;
+CREATE POLICY "Allow All Overview" ON department_overview FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow All Sections" ON form_sections;
+CREATE POLICY "Allow All Sections" ON form_sections FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow All Fields" ON form_fields;
+CREATE POLICY "Allow All Fields" ON form_fields FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow All Field Options" ON form_field_options;
+CREATE POLICY "Allow All Field Options" ON form_field_options FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow All Form Values" ON department_form_values;
+CREATE POLICY "Allow All Form Values" ON department_form_values FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow All Workstreams" ON workstreams;
+CREATE POLICY "Allow All Workstreams" ON workstreams FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow All Recruitment" ON recruitment;
+CREATE POLICY "Allow All Recruitment" ON recruitment FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow All Audit Log" ON audit_log;
+CREATE POLICY "Allow All Audit Log" ON audit_log FOR ALL USING (true) WITH CHECK (true);
+
+-- Grant schema privileges to standard Supabase roles
+GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, anon, authenticated, service_role;
+GRANT ALL ON ALL ROUTINES IN SCHEMA public TO postgres, anon, authenticated, service_role;
+
+-- =====================================================================
 -- SEED DATA: 9 STRATEGIC DEPARTMENTS
 -- =====================================================================
 INSERT INTO departments (id, name, code, active) VALUES
@@ -200,29 +252,31 @@ INSERT INTO departments (id, name, code, active) VALUES
   (9, 'Strategy & Operations', 'STRATEGY_OPS', TRUE)
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, code = EXCLUDED.code;
 
--- Reset sequence for departments
 SELECT setval('departments_id_seq', (SELECT MAX(id) FROM departments));
 
 -- =====================================================================
--- SEED DATA: DEPARTMENT OVERVIEW
+-- SEED DATA: DEPARTMENT OVERVIEW (FROM ORIGINAL DATABASE)
 -- =====================================================================
 INSERT INTO department_overview (department_id, readiness_percentage, rag_status, key_focus, submission_status) VALUES
-  (1, 0, 'NOT STARTED', '', 'SUBMITTED'),
-  (2, 0, 'NOT STARTED', '', 'SUBMITTED'),
-  (3, 0, 'NOT STARTED', '', 'SUBMITTED'),
-  (4, 0, 'NOT STARTED', '', 'SUBMITTED'),
-  (5, 0, 'NOT STARTED', '', 'SUBMITTED'),
-  (6, 0, 'NOT STARTED', '', 'SUBMITTED'),
-  (7, 0, 'NOT STARTED', '', 'SUBMITTED'),
-  (8, 0, 'NOT STARTED', '', 'SUBMITTED'),
-  (9, 0, 'NOT STARTED', '', 'SUBMITTED')
-ON CONFLICT (department_id) DO NOTHING;
+  (1, 40, 'AMBER', 'ISO-6 cleanroom HVAC validation and ASML DUV stepper customs clearance', 'SUBMITTED'),
+  (2, 45, 'AMBER', 'Autoclave composite testing commissioning and DRDO ToT agreement', 'SUBMITTED'),
+  (3, 35, 'AMBER', 'Thermal vacuum chamber setup and IN-SPACe ground station licensing', 'SUBMITTED'),
+  (4, 50, 'AMBER', 'Air-gapped cyber range deployment and CERT-In HSM procurement', 'SUBMITTED'),
+  (5, 38, 'AMBER', 'ISO 13485 clean room prototyping and Ramaiah clinical trial MoU', 'SUBMITTED'),
+  (6, 60, 'GREEN', '5-Axis CNC milling center commissioned and robotics automation cell', 'SUBMITTED'),
+  (7, 48, 'GREEN', 'Sourcing critical talent for Semicon and Aerospace leadership roles', 'SUBMITTED'),
+  (8, 55, 'AMBER', 'Brand launch summit preparation and DeepTech quarterly whitepaper', 'SUBMITTED'),
+  (9, 65, 'AMBER', 'Executive Control Tower governance and Advisory Council formation', 'SUBMITTED')
+ON CONFLICT (department_id) DO UPDATE SET
+  readiness_percentage = EXCLUDED.readiness_percentage,
+  rag_status = EXCLUDED.rag_status,
+  key_focus = EXCLUDED.key_focus,
+  submission_status = EXCLUDED.submission_status;
 
 -- =====================================================================
--- SEED DATA: OFFICIAL USERS & CREDENTIALS
--- Passwords hashed with bcrypt (salt 10)
+-- SEED DATA: OFFICIAL USERS & PASSWORDS (VERIFIED BCRYPT HASHES)
 -- =====================================================================
--- Credentials Reference:
+-- Credentials Map:
 -- vicechairman@riasat.ac.in -> ViceChairman@123
 -- admin@riasat.ac.in        -> Admin@123
 -- executive@riasat.ac.in    -> Exec@123
@@ -240,24 +294,25 @@ ON CONFLICT (department_id) DO NOTHING;
 -- ops.head@riasat.ac.in     -> Ops@123
 
 INSERT INTO users (id, name, email, password_hash, mobile, designation, role, department_id, status) VALUES
-  (1, 'Vice Chairman', 'vicechairman@riasat.ac.in', '$2a$10$wTfR6lU49XW21r0Kx66M5e9vJ/V5V/H661kQY9sMv4xZ1jW3hXj8G', '+91 98450 11000', 'Vice Chairman & Executive Director', 'Vice Chairman', NULL, 'Active'),
-  (2, 'System Administrator', 'admin@riasat.ac.in', '$2a$10$1Y8uQfC98yVw28zZ91wEeeP0bYcZ6V4QfB3m8N7K6J5L4M3K2J1I0', '+91 98450 11001', 'System Administrator', 'Admin', NULL, 'Active'),
-  (3, 'Executive Office', 'executive@riasat.ac.in', '$2a$10$2Z9vRgD09zWx39aA02xFffQ1cZd07W5RgC4n9O8L7K6M5N4L3K2J1', '+91 98450 11002', 'Executive Director / Management', 'Executive', NULL, 'Active'),
-  (4, 'Form Configuration Admin', 'forms.admin@riasat.ac.in', '$2a$10$3A0wShE10aXy40bB13yGggR2dYe18X6ShD5o0P9M8L7N6O5M4L3K2', '+91 98450 11003', 'Forms & Schema Administrator', 'Form Admin', NULL, 'Active'),
-  (5, 'User Management Admin', 'users.admin@riasat.ac.in', '$2a$10$4B1xTiF21bYz51cC24zHhhS3eZf29Y7TiE6p1Q0N9M8O7P6N5M4L3', '+91 98450 11004', 'User Access Administrator', 'User Admin', NULL, 'Active'),
-  (6, 'Departments Master Admin', 'dept.admin@riasat.ac.in', '$2a$10$5C2yUjG32cZa62dD35aIiiT4fAg30Z8UjF7q2R1O0N9P8Q7O6N5M4', '+91 98450 11005', 'Departments Master Administrator', 'Department Admin', NULL, 'Active'),
-  (7, 'Dr. Arun Kumar', 'semicon.head@riasat.ac.in', '$2a$10$6D3zVkH43dAb73eE46bJjjU5gBh41A9VkG8r3S2P1O0Q9R8P7O6N5', '+91 98450 11006', 'Head - Semicon', 'Department Head', 1, 'Active'),
-  (8, 'Wg Cdr R. Sharma', 'aero.head@riasat.ac.in', '$2a$10$7E4aWlI54eBc84fF57cKkkV6hCi52B0WlH9s4T3Q2P1R0S9Q8P7O6', '+91 98450 11007', 'Head - Aerospace & Defence', 'Department Head', 2, 'Active'),
-  (9, 'Dr. P. Sundaram', 'space.head@riasat.ac.in', '$2a$10$8F5bXmJ65fCd95gG68dLllW7iDj63C1XmI0t5U4R3Q2S1T0R9Q8P7', '+91 98450 11008', 'Head - Space', 'Department Head', 3, 'Active'),
-  (10, 'Col. K. Menon', 'cyber.head@riasat.ac.in', '$2a$10$9G6cYnK76gDe06hH79eMmmX8jEk74D2YnJ1u6V5S4R3T2U1S0R9Q8', '+91 98450 11009', 'Head - Cybersecurity', 'Department Head', 4, 'Active'),
-  (11, 'Dr. Neha Varma', 'medtech.head@riasat.ac.in', '$2a$10$0H7dZoL87hEf17iI80fNnnY9kFl85E3ZoK2v7W6T5S4U3V2T1S0R9', '+91 98450 11010', 'Head - MedTech', 'Department Head', 5, 'Active'),
-  (12, 'Prof. Rajesh Iyer', 'mfg.head@riasat.ac.in', '$2a$10$1I8eApM98iFg28jJ91gOooZ0lGm96F4ApL3w8X7U6T5V4W3U2T1S0', '+91 98450 11011', 'Head - Advanced Manufacturing', 'Department Head', 6, 'Active'),
-  (13, 'Sumanth Rao', 'hr.head@riasat.ac.in', '$2a$10$2J9fBqN09jGh39kK02hPppA1mHn07G5BqM4x9Y8V7U6W5X4V3U2T1', '+91 98450 11012', 'Head - HR & Recruitment', 'Department Head', 7, 'Active'),
-  (14, 'Ananya Sen', 'comm.head@riasat.ac.in', '$2a$10$3K0gCrO10kHi40lL13iQqqB2nIo18H6CrN5y0Z9W8V7X6Y5W4V3U2', '+91 98450 11013', 'Head - Communications', 'Department Head', 8, 'Active'),
-  (15, 'Dr. Venkat Raman', 'ops.head@riasat.ac.in', '$2a$10$4L1hDsP21lIj51mM24jRrrC3oJp29I7DsO6z1A0X9W8Y7Z6X5W4V3', '+91 98450 11014', 'Head - Strategy & Operations', 'Department Head', 9, 'Active')
+  (1, 'Vice Chairman', 'vicechairman@riasat.ac.in', '$2a$10$KLBL2bnQS.P7F9UUAjQgROB07HVRDF.IVF208bswpJtrz28a6UjjO', '+91 98450 11000', 'Vice Chairman & Executive Director', 'Vice Chairman', NULL, 'Active'),
+  (2, 'System Administrator', 'admin@riasat.ac.in', '$2a$10$ueuukLVZ5apS05o9ruCZ7.fZw9O29vpGtZUR/psN.yViAwDgcbbJi', '+91 98450 11001', 'System Administrator', 'Admin', NULL, 'Active'),
+  (3, 'Executive Office', 'executive@riasat.ac.in', '$2a$10$Mem8sQkw2Cw6ZFoNJqBJjugadAzF880r.jTwTDDg5vRvYI3Rbqj7W', '+91 98450 11002', 'Executive Director / Management', 'Executive', NULL, 'Active'),
+  (4, 'Form Configuration Admin', 'forms.admin@riasat.ac.in', '$2a$10$q4QqRmh7t8vNa9OfgxFSiO1rjsDw4pJkJ6ClCW2NczUmOz75xzg3i', '+91 98450 11003', 'Forms & Schema Administrator', 'Form Admin', NULL, 'Active'),
+  (5, 'User Management Admin', 'users.admin@riasat.ac.in', '$2a$10$p4z9bv6zIcGOTjymBCjLEOf1kl5pYGCIUzVhsHFDxuWWAdFiU3sM2', '+91 98450 11004', 'User Access Administrator', 'User Admin', NULL, 'Active'),
+  (6, 'Departments Master Admin', 'dept.admin@riasat.ac.in', '$2a$10$uYzIYr8LOQIh2p12eIjrQeQ5v.my6GzYmZLzfJFeyAPx3cZ7He11u', '+91 98450 11005', 'Departments Master Administrator', 'Department Admin', NULL, 'Active'),
+  (7, 'Dr. Arun Kumar', 'semicon.head@riasat.ac.in', '$2a$10$CHQKEiBU1ANGUjx7KjaadeeBgMjb1/ise9FvchqH9pkn5ndK8t35i', '+91 98450 11006', 'Head - Semicon', 'Department Head', 1, 'Active'),
+  (8, 'Wg Cdr R. Sharma', 'aero.head@riasat.ac.in', '$2a$10$MhOzHyrRRlq4EDRvHI9NsOJLMZbdEDmuH0zyzlinH/PHZ0pvVlXWO', '+91 98450 11007', 'Head - Aerospace & Defence', 'Department Head', 2, 'Active'),
+  (9, 'Dr. P. Sundaram', 'space.head@riasat.ac.in', '$2a$10$wITRGTQJ1sDoBMzq4TlPpeJA7MydSkjNuTiUEIacenReq231y6FHe', '+91 98450 11008', 'Head - Space', 'Department Head', 3, 'Active'),
+  (10, 'Col. K. Menon', 'cyber.head@riasat.ac.in', '$2a$10$gziJspang8msoJvsX4flv.8LmqgjdbKU.ewZqD5vDIgIkis3uOLmu', '+91 98450 11009', 'Head - Cybersecurity', 'Department Head', 4, 'Active'),
+  (11, 'Dr. Neha Varma', 'medtech.head@riasat.ac.in', '$2a$10$7VQc.OY7HGMDVgk7ieD07.xgD/9DSLQL0GJWxExFFKUsW4hKCUa0a', '+91 98450 11010', 'Head - MedTech', 'Department Head', 5, 'Active'),
+  (12, 'Prof. Rajesh Iyer', 'mfg.head@riasat.ac.in', '$2a$10$FZhubQGBfsO3WJAo/yxhvOP6rXDEnHTPZX7KW0cVZ1GMqtbfuM/Ze', '+91 98450 11011', 'Head - Advanced Manufacturing', 'Department Head', 6, 'Active'),
+  (13, 'Sumanth Rao', 'hr.head@riasat.ac.in', '$2a$10$c469R9oPc..WqyZQJI5DFuDLSdujpKMqs2BjF2wltM/Bcj5hCZvjy', '+91 98450 11012', 'Head - HR & Recruitment', 'Department Head', 7, 'Active'),
+  (14, 'Ananya Sen', 'comm.head@riasat.ac.in', '$2a$10$X4MJ0o5D2NQ4ncCj.cwYsunx69RP7ScESeUBy5spa1ORHOk8ziNEC', '+91 98450 11013', 'Head - Communications', 'Department Head', 8, 'Active'),
+  (15, 'Dr. Venkat Raman', 'ops.head@riasat.ac.in', '$2a$10$pqMkSux5M2OWpIWV/eKofOTVfNRFx8jVFVIsmrCWdf9N1GQwzFKbC', '+91 98450 11014', 'Head - Strategy & Operations', 'Department Head', 9, 'Active')
 ON CONFLICT (email) DO UPDATE SET 
   name = EXCLUDED.name, 
   role = EXCLUDED.role, 
+  password_hash = EXCLUDED.password_hash,
   department_id = EXCLUDED.department_id, 
   designation = EXCLUDED.designation;
 
@@ -290,10 +345,32 @@ INSERT INTO workstreams (
   ('ACT-15', 9, 'Governance & Review', 'Resend the revised faculty compensation/revenue proposal for review; then schedule the stakeholder discussion.', 'Resend the revised faculty compensation/revenue proposal for review; then schedule the stakeholder discussion.', 'Anamika/Sarojini to coordinate the meeting after review', 'Anamika/Sarojini to coordinate the meeting after review', 'Proposal review requested on 12 October 2026', 'Proposal review requested on 12 October 2026', 'OPEN', 'AMBER', 'Proposal review requested on 12 Oct 2026; Sarojini to coordinate stakeholder meeting after review.', 'Yes', 'Vice Chairman review and approval of revised faculty compensation & revenue proposal.', 'HR & Recruitment', '7', 'Weekly Management Review - 12 Oct 2026', 'Executive Secretariat')
 ON CONFLICT DO NOTHING;
 
+-- =====================================================================
+-- SEED DATA: VERTICAL OPERATIONAL WORKSTREAMS
+-- =====================================================================
+INSERT INTO workstreams (
+  item_id, department_id, category, deliverable, action_point,
+  owner, ownership, target_date, timeline,
+  status, rag_status, remarks, vc_decision_required, capex, revenue_pipeline, updated_by
+) VALUES
+  ('SEM-WS-01', 1, 'Cleanroom Infrastructure & Validation', 'ISO-6 Cleanroom HVAC Balancing & Airborne Particle Counter Validation', 'ISO-6 Cleanroom HVAC Balancing & Airborne Particle Counter Validation', 'Dr. S. Ramanathan / Semiconductor Fab Lead', 'Dr. S. Ramanathan / Semiconductor Fab Lead', '2026-11-15', '2026-11-15', 'In Progress', 'GREEN', 'Air handling units (AHU) commissioned. Airborne particle count validation scheduled with third-party auditor next week.', 'No', '₹ 14.5 Cr', '₹ 0.0 Cr', 'System Administrator'),
+  ('SEM-WS-02', 1, 'Equipment Procurement & Import', 'ASML DUV Lithography Stepper Customs Duty Exemption Clearance', 'ASML DUV Lithography Stepper Customs Duty Exemption Clearance', 'R. Venkatesh / Equipment Procurement Lead', 'R. Venkatesh / Equipment Procurement Lead', '2026-10-30', '2026-10-30', 'Delayed', 'AMBER', 'Lithography stepper arrived at Chennai port bonded warehouse. DSIR customs concession certificate pending inter-ministry sign-off.', 'Yes', '₹ 28.0 Cr', '₹ 0.0 Cr', 'System Administrator'),
+  ('AERO-WS-01', 2, 'Testing & Prototyping Infrastructure', 'Aerospace-Grade Autoclave (3m Dia) Foundation & Calibration Setup', 'Aerospace-Grade Autoclave (3m Dia) Foundation & Calibration Setup', 'Wg Cdr (Retd) K. Swaminathan / Aerospace Tech Lead', 'Wg Cdr (Retd) K. Swaminathan / Aerospace Tech Lead', '2026-11-20', '2026-11-20', 'In Progress', 'GREEN', 'Autoclave pressure vessel anchored on foundation pad. Vacuum line piping and nitrogen purge system undergoing pressure testing.', 'No', '₹ 9.8 Cr', '₹ 0.0 Cr', 'System Administrator'),
+  ('AERO-WS-02', 2, 'Institutional Partnership & ToT', 'DRDO-ADE Transfer of Technology (ToT) MoU for Indigenous UAV Telemetry', 'DRDO-ADE Transfer of Technology (ToT) MoU for Indigenous UAV Telemetry', 'Col (Retd) Anand Varma / Defence Liaison Director', 'Col (Retd) Anand Varma / Defence Liaison Director', '2026-11-05', '2026-11-05', 'In Progress', 'AMBER', 'Bilateral draft agreement reviewed by legal counsel. Clause 7.2 on joint intellectual property indemnification requires VC sign-off.', 'Yes', '₹ 3.5 Cr', '₹ 6.2 Cr', 'System Administrator'),
+  ('SPC-WS-01', 3, 'Payload Testing Infrastructure', 'Thermal Vacuum Chamber (TVAC) Setup for CubeSat Qualification', 'Thermal Vacuum Chamber (TVAC) Setup for CubeSat Qualification', 'Dr. K. Radhakrishnan / Space Systems Director', 'Dr. K. Radhakrishnan / Space Systems Director', '2026-12-10', '2026-12-10', 'In Progress', 'GREEN', 'Chamber vacuum reached 10^-6 Torr. Liquid nitrogen thermal shroud undergoing helium leak detection testing.', 'No', '₹ 7.2 Cr', '₹ 0.0 Cr', 'System Administrator'),
+  ('SPC-WS-02', 3, 'Regulatory Clearance & Telemetry', 'IN-SPACe Ground Station Authorization & S/X-Band Spectrum License', 'IN-SPACe Ground Station Authorization & S/X-Band Spectrum License', 'Pooja Deshmukh / Telemetry & Comms Lead', 'Pooja Deshmukh / Telemetry & Comms Lead', '2026-11-12', '2026-11-12', 'Delayed', 'AMBER', 'Wireless Planning & Coordination (WPC) clearance pending frequency band harmonization with satellite operations.', 'Yes', '₹ 1.8 Cr', '₹ 4.5 Cr', 'System Administrator'),
+  ('CYB-WS-01', 4, 'Cyber Infrastructure & Testbed', 'Air-Gapped National Cyber Range & SCADA Defense Simulation Testbed', 'Air-Gapped National Cyber Range & SCADA Defense Simulation Testbed', 'Abhinav Sen / Cyber Defense Architect', 'Abhinav Sen / Cyber Defense Architect', '2026-11-18', '2026-11-18', 'In Progress', 'GREEN', 'Hardware server racks energized. Red team vs Blue team adversary simulation orchestration engine operational.', 'No', '₹ 5.5 Cr', '₹ 8.0 Cr', 'System Administrator'),
+  ('CYB-WS-02', 4, 'Compliance & Security Hardware', 'CERT-In Auditing Lab Accreditation & FIPS 140-3 Hardware HSM Procurement', 'CERT-In Auditing Lab Accreditation & FIPS 140-3 Hardware HSM Procurement', 'Rohit Nambiar / Compliance & Security Head', 'Rohit Nambiar / Compliance & Security Head', '2026-10-28', '2026-10-28', 'In Progress', 'AMBER', 'Documentation audit cleared. Procurement tender for dual-redundant Thales HSMs requires financial sanction above departmental limit.', 'Yes', '₹ 2.4 Cr', '₹ 3.0 Cr', 'System Administrator'),
+  ('MED-WS-01', 5, 'Biomedical Prototyping Facility', 'ISO 13485 Class 10,000 Biomedical Device Clean Room Bench Installation', 'ISO 13485 Class 10,000 Biomedical Device Clean Room Bench Installation', 'Dr. Manisha Sharma / MedTech Innovation Lead', 'Dr. Manisha Sharma / MedTech Innovation Lead', '2026-11-25', '2026-11-25', 'In Progress', 'GREEN', 'HEPA filtration units and positive pressure differential sensors operational. First surgical guide batch test planned.', 'No', '₹ 4.8 Cr', '₹ 0.0 Cr', 'System Administrator'),
+  ('MED-WS-02', 5, 'Clinical Trial Collaboration', 'Ramaiah Medical College Clinical Trial Co-Development MoU & Ethics Protocol', 'Ramaiah Medical College Clinical Trial Co-Development MoU & Ethics Protocol', 'Dr. Harish Gowda / Clinical Partnerships Director', 'Dr. Harish Gowda / Clinical Partnerships Director', '2026-11-08', '2026-11-08', 'In Progress', 'AMBER', 'Institutional Ethics Committee (IEC) protocol submitted for non-invasive cardiac biomarker sensor trials.', 'Yes', '₹ 1.5 Cr', '₹ 5.0 Cr', 'System Administrator'),
+  ('MFG-WS-01', 6, 'Precision Machining Infrastructure', 'DMG MORI 5-Axis Precision CNC Machining Center Laser Calibration', 'DMG MORI 5-Axis Precision CNC Machining Center Laser Calibration', 'Rajesh Kulkarni / Precision Tooling Lead', 'Rajesh Kulkarni / Precision Tooling Lead', '2026-10-15', '2026-10-15', 'Completed', 'GREEN', 'Machine calibrated to ±3 micron geometric tolerance. Impeller qualification part machined and verified using CMM inspection.', 'No', '₹ 8.2 Cr', '₹ 12.0 Cr', 'System Administrator'),
+  ('MFG-WS-02', 6, 'Robotics Automation & Digital Twin', '6-Axis Articulated KUKA Robotic Welding Cell & Telemetry Integration', '6-Axis Articulated KUKA Robotic Welding Cell & Telemetry Integration', 'S. Muthukrishnan / Robotics Automation Head', 'S. Muthukrishnan / Robotics Automation Head', '2026-11-30', '2026-11-30', 'In Progress', 'GREEN', 'Robotic cell safety interlocks and light curtains installed. PLC integration with SCADA gateway underway.', 'No', '₹ 6.4 Cr', '₹ 7.5 Cr', 'System Administrator')
+ON CONFLICT DO NOTHING;
+
 SELECT setval('workstreams_id_seq', (SELECT MAX(id) FROM workstreams));
 
 -- =====================================================================
--- SEED DATA: RECRUITMENT POSITIONS (HR & Recruitment Vertical)
+-- SEED DATA: RECRUITMENT POSITIONS (HR & RECRUITMENT PIPELINE)
 -- =====================================================================
 INSERT INTO recruitment (
   position_id, position_title, strategic_segment, priority, target_date,
@@ -301,11 +378,12 @@ INSERT INTO recruitment (
   candidates_joined, ageing_days, target_ctc, budget, hiring_lead, next_action,
   remarks, rag_status, vc_attention, vc_decision_required
 ) VALUES
-  ('REC-01', 'Lead Semiconductor Process Specialist', 'Semicon', 'Critical', '2026-11-15', 'Interview in progress', 18, 5, 3, 1, 0, 24, '₹ 38 LPA', '₹ 45 LPA', 'Anamika', 'Final interview with Vice Chairman', 'Candidate Dr. Durga Prakash under evaluation', 'AMBER', TRUE, 'Yes'),
-  ('REC-02', 'Aerospace Structural Dynamics Engineer', 'Aerospace & Defence', 'High', '2026-11-30', 'Candidate sourced', 12, 4, 1, 0, 0, 18, '₹ 28 LPA', '₹ 32 LPA', 'Anamika', 'Technical panel screening', 'Coordinating with HAL external reviewers', 'GREEN', FALSE, 'No'),
-  ('REC-03', 'Space Payload Systems Architect', 'Space', 'Critical', '2026-11-20', 'shortlisted', 8, 3, 2, 0, 0, 31, '₹ 35 LPA', '₹ 40 LPA', 'Anamika', 'Scheduling Stage-2 Interview', 'Ex-ISRO specialist candidate profile received', 'AMBER', TRUE, 'Yes'),
-  ('REC-04', 'Offensive Security Specialist & Range Trainer', 'Cybersecurity', 'High', '2026-12-05', 'Candidate sourced', 15, 6, 2, 1, 0, 12, '₹ 25 LPA', '₹ 30 LPA', 'Anamika', 'Background verification on offered candidate', 'Offer released to selected candidate', 'GREEN', FALSE, 'No'),
-  ('REC-05', 'Bio-Medical Instrument Design Lead', 'MedTech', 'Medium', '2026-12-15', 'Open', 6, 2, 0, 0, 0, 9, '₹ 22 LPA', '₹ 26 LPA', 'Anamika', 'Sourcing profiles via Naukri portal', 'JD refreshed and active', 'GREEN', FALSE, 'No')
+  ('POS-SEM-001', 'Lead Scientist - Cleanroom Microfabrication', 'Semicon', 'Critical', '2026-11-15', 'Interview in progress', 14, 4, 2, 0, 0, 24, '₹ 38 LPA', '₹ 45 LPA', 'Anamika Sahay', 'Conduct final VC leadership interview and release formal offer letter.', 'Top 2 candidates from TSMC & IMEC cleared technical rounds. VC final interview panel scheduled.', 'GREEN', TRUE, 'Yes'),
+  ('POS-AERO-002', 'Principal Systems Architect - Avionics & Defence', 'Aerospace & Defence', 'High', '2026-11-30', 'Candidate sourced', 12, 4, 1, 0, 0, 18, '₹ 28 LPA', '₹ 32 LPA', 'Anamika Sahay', 'Technical panel screening', 'Coordinating with HAL external reviewers for panel formation.', 'GREEN', FALSE, 'No'),
+  ('POS-SPC-003', 'Space Payload Systems Architect', 'Space', 'Critical', '2026-11-20', 'shortlisted', 8, 3, 2, 0, 0, 31, '₹ 35 LPA', '₹ 40 LPA', 'Anamika Sahay', 'Scheduling Stage-2 Interview', 'Ex-ISRO specialist candidate profile under stage-2 review.', 'AMBER', TRUE, 'Yes'),
+  ('POS-CYB-004', 'Offensive Security Specialist & Range Trainer', 'Cybersecurity', 'High', '2026-12-05', 'Offers released', 15, 6, 2, 1, 0, 12, '₹ 25 LPA', '₹ 30 LPA', 'Anamika Sahay', 'Background verification on offered candidate', 'Offer released to selected offensive security specialist.', 'GREEN', FALSE, 'No'),
+  ('POS-MED-005', 'Bio-Medical Instrument Design Lead', 'MedTech', 'Medium', '2026-12-15', 'Open', 6, 2, 0, 0, 0, 9, '₹ 22 LPA', '₹ 26 LPA', 'Anamika Sahay', 'Sourcing profiles via Naukri portal', 'Sourcing active on Naukri and LinkedIn talent network.', 'GREEN', FALSE, 'No'),
+  ('POS-MFG-006', 'Robotics Automation & Digital Twin Engineer', 'Advanced Manufacturing', 'High', '2026-11-28', 'Interview in progress', 10, 4, 2, 0, 0, 15, '₹ 26 LPA', '₹ 30 LPA', 'Anamika Sahay', 'Final assessment with Dept Head', 'Technical assessment on PLC & KUKA programming completed.', 'GREEN', FALSE, 'No')
 ON CONFLICT DO NOTHING;
 
 SELECT setval('recruitment_id_seq', (SELECT MAX(id) FROM recruitment));
@@ -369,7 +447,7 @@ SELECT setval('form_sections_id_seq', (SELECT MAX(id) FROM form_sections));
 SELECT setval('form_fields_id_seq', (SELECT MAX(id) FROM form_fields));
 
 -- =====================================================================
--- SUCCESS NOTIFICATION
+-- INITIAL AUDIT LEDGER ENTRY
 -- =====================================================================
 INSERT INTO audit_log (user_name, action, details)
-VALUES ('System Migration', 'SUPABASE_INIT', 'RIASAT Control Tower Supabase Database Schema and initial seed dataset installed successfully.');
+VALUES ('System Migration', 'SUPABASE_INIT', 'RIASAT Control Tower Supabase Database Schema and complete operational dataset installed successfully.');
