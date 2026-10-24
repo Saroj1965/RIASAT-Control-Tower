@@ -482,6 +482,12 @@ SELECT setval('form_fields_id_seq', (SELECT MAX(id) FROM form_fields));
 DROP POLICY IF EXISTS "Allow All Login Logs" ON login_logs;
 CREATE POLICY "Allow All Login Logs" ON login_logs FOR ALL USING (true) WITH CHECK (true);
 
+-- Drop any previous versions of views to allow column additions and modifications without 42P16 error
+DROP VIEW IF EXISTS v_pending_actions_register CASCADE;
+DROP VIEW IF EXISTS v_all_actions_register CASCADE;
+DROP VIEW IF EXISTS v_departments_hod_directory CASCADE;
+DROP VIEW IF EXISTS v_vertical_readiness_analytics CASCADE;
+
 -- View 1: Pending Items Only (Sorted with Newly Added & Red Alerts on Top)
 CREATE OR REPLACE VIEW v_pending_actions_register AS
 SELECT
@@ -551,6 +557,12 @@ LEFT JOIN workstreams w ON w.department_id = d.id
 WHERE d.active = TRUE
 GROUP BY d.id, d.name, d.code, d.head_of_department, ov.updated_by, ov.readiness_percentage, ov.rag_status, ov.key_focus
 ORDER BY d.id ASC;
+
+-- Grant permissions on views to Supabase roles
+GRANT SELECT ON v_pending_actions_register TO postgres, anon, authenticated, service_role;
+GRANT SELECT ON v_all_actions_register TO postgres, anon, authenticated, service_role;
+GRANT SELECT ON v_departments_hod_directory TO postgres, anon, authenticated, service_role;
+GRANT SELECT ON v_vertical_readiness_analytics TO postgres, anon, authenticated, service_role;
 
 -- Backfill datewise action_history (latest update on top) for any workstreams with empty history
 UPDATE workstreams
