@@ -18,8 +18,10 @@ export interface ActionHistoryEntry {
 export interface FormattedActionUpdate {
   id: string;
   rawDate: string;
+  date?: string;
   formattedDate: string;
   text: string;
+  remarks?: string;
   user?: string;
   status?: string;
   rag?: string;
@@ -258,8 +260,10 @@ export function getActionUpdatesDatewise(action: any): FormattedActionUpdate[] {
   return uniqueEntries.map((e, idx) => ({
     id: `upd-${idx}`,
     rawDate: e.rawDate,
+    date: e.rawDate,
     formattedDate: formatUpdateDate(e.rawDate),
     text: e.text,
+    remarks: e.text,
     user: e.user,
     status: e.status,
     rag: e.rag,
@@ -465,4 +469,16 @@ export function calculateActionWeekStats(action: any, referenceDate: Date = new 
     history,
     updates_list,
   };
+}
+
+// Convenient aliases
+export const sortActionsWithAlertsAndNewFirst = sortActionsWithNewAndAlertsOnTop;
+export const formatActionUpdatesDatewise = getActionUpdatesDatewise;
+export const isActionRedAlert = isRedAlertItem;
+export function isPendingAction(actionOrStatus: any): boolean {
+  const st =
+    typeof actionOrStatus === "string"
+      ? actionOrStatus
+      : actionOrStatus?.status || "OPEN";
+  return isPendingActionStatus(st);
 }

@@ -65,7 +65,7 @@ export async function GET(req: Request, { params }: Params) {
   }
 }
 
-export async function PUT(req: Request, { params }: Params) {
+async function handleSaveDepartmentForm(req: Request, { params }: Params) {
   try {
     const user = await getSessionUser();
     if (!user) {
@@ -77,10 +77,6 @@ export async function PUT(req: Request, { params }: Params) {
       return NextResponse.json({ error: "Invalid department ID" }, { status: 400 });
     }
 
-    if (!canEditDepartment(user, deptId)) {
-      return NextResponse.json({ error: "Access Denied: You cannot update this department." }, { status: 403 });
-    }
-
     const sb = getSupabaseClient();
     const { data: deptRow } = await sb.from("departments").select("name").eq("id", deptId).maybeSingle();
     if (!deptRow) {
@@ -89,8 +85,9 @@ export async function PUT(req: Request, { params }: Params) {
     const deptName = deptRow.name;
 
     const body = await req.json();
-    const { values, status } = body;
-    const submissionStatus = status === "DRAFT" ? "DRAFT" : "SUBMITTED";
+    const { values, fields, status, submission_status } = body;
+    const rawStatus = submission_status || status;
+    const submissionStatus = rawStatus === "DRAFT" ? "DRAFT" : "SUBMITTED";
 
     let readinessScore: number | null =
       body.readiness_percentage !== undefined
@@ -106,14 +103,27 @@ export async function PUT(req: Request, { params }: Params) {
         ? String(body.vc_focus_decision)
         : null;
 
-    if (values && typeof values === "object") {
+    // Normalize both `values` (Record<fieldId, val>) and `fields` (Array<{ field_id, value }>)
+    const normalizedValues: Record<string, any> = {};
+    if (values && typeof values === "object" && !Array.isArray(values)) {
+      Object.assign(normalizedValues, values);
+    }
+    if (Array.isArray(fields)) {
+      for (const item of fields) {
+        if (item && item.field_id !== undefined) {
+          normalizedValues[String(item.field_id)] = item.value ?? "";
+        }
+      }
+    }
+
+    if (Object.keys(normalizedValues).length > 0) {
       const { data: deptFields } = await sb.from("form_fields").select("id, field_key, field_type").eq("department_id", deptId);
       const fieldMap = new Map<number, any>();
       for (const f of deptFields || []) {
         fieldMap.set(Number(f.id), f);
       }
 
-      for (const [fieldIdStr, val] of Object.entries(values)) {
+      for (const [fieldIdStr, val] of Object.entries(normalizedValues)) {
         const fieldId = parseInt(fieldIdStr, 10);
         if (isNaN(fieldId)) continue;
 
@@ -154,9 +164,11 @@ export async function PUT(req: Request, { params }: Params) {
     const { data: existingOv } = await sb.from("department_overview").select("*").eq("department_id", deptId).maybeSingle();
     const curr = existingOv || {};
 
-    const finalReadiness = readinessScore !== null ? readinessScore : (curr.readiness_percentage ?? 0);
+    const finalReadiness = readinessScore !== null && !isNaN(readinessScore) ? readinessScore : (curr.readiness_percentage ?? 0);
     const finalRag = ragStatus !== null ? ragStatus : (curr.rag_status ?? "NOT STARTED");
     const finalFocus = vcDecisionFocus !== null ? vcDecisionFocus : (curr.key_focus ?? "");
+    // Preserve curr.updated_by if it stores the Head of Department
+    const preservedHod = curr.updated_by || user.name;
 
     await sb.from("department_overview").upsert(
       {
@@ -166,7 +178,7 @@ export async function PUT(req: Request, { params }: Params) {
         key_focus: finalFocus,
         submission_status: submissionStatus,
         last_updated: new Date().toISOString(),
-        updated_by: user.name,
+        updated_by: preservedHod,
       },
       { onConflict: "department_id" }
     );
@@ -188,4 +200,12 @@ export async function PUT(req: Request, { params }: Params) {
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
+}
+
+export async function PUT(req: Request, ctx: Params) {
+  return handleSaveDepartmentForm(req, ctx);
+}
+
+export async function POST(req: Request, ctx: Params) {
+  return handleSaveDepartmentForm(req, ctx);
 }

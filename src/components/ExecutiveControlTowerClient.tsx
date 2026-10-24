@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -23,8 +23,11 @@ import {
   LayoutDashboard,
   FileBarChart,
   BookOpen,
+  UserCheck,
+  RefreshCw,
 } from "lucide-react";
 import { ActionFormModal, ActionHistorySheet } from "@/components/ActionFormModal";
+import DepartmentsHodManager from "@/components/DepartmentsHodManager";
 
 const BRAND = {
   blue: "#003B71",
@@ -132,14 +135,41 @@ export default function ExecutiveControlTowerClient({
     department_id: number | null;
   };
 }) {
-  const data = propData || initialData;
+  const [liveData, setLiveData] = useState<any>(propData || initialData || {});
+  const [refreshing, setRefreshing] = useState<boolean>(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const refreshLiveSummary = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/executive/summary", { cache: "no-store" });
+      if (res.ok) {
+        const fresh = await res.json();
+        if (fresh && (Array.isArray(fresh.departments) || Array.isArray(fresh.allActions))) {
+          setLiveData(fresh);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch live executive summary:", e);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshLiveSummary();
+  }, [refreshLiveSummary]);
+
+  const data = liveData?.allActions?.length ? liveData : propData || initialData || liveData;
 
   // Active sub-page route controlled by ?view= query parameter
   const currentView = searchParams?.get("view") || "actions";
 
   const setView = (viewName: string) => {
+    if (viewName === "all_actions") {
+      setActionTab("ALL");
+    }
     router.push(`/executive?view=${viewName}`);
   };
 
@@ -213,12 +243,19 @@ export default function ExecutiveControlTowerClient({
     });
   }, [allActionsRaw]);
 
+  useEffect(() => {
+    if (currentView === "all_actions") {
+      setActionTab("ALL");
+    }
+  }, [currentView]);
+
   // Filtered actions for table display
   const displayedActions = useMemo(() => {
+    const effectiveTab = currentView === "all_actions" ? "ALL" : actionTab;
     const sourceList =
-      actionTab === "PENDING"
+      effectiveTab === "PENDING"
         ? pendingActionsAll
-        : actionTab === "CLOSED"
+        : effectiveTab === "CLOSED"
           ? closedActionsAll
           : allActionsRaw;
 
@@ -442,6 +479,7 @@ export default function ExecutiveControlTowerClient({
         id: d.id,
         department: d.name,
         code: d.code,
+        head_of_department: d.head_of_department || "To be hired",
         total: deptItems.length,
         open: deptPending.length,
         inProgress: deptInProg,
@@ -644,13 +682,36 @@ export default function ExecutiveControlTowerClient({
                 RIASAT Executive Dashboard
               </h1>
               <p className="text-xs text-slate-500 font-medium truncate">
-                Single ongoing action register across all 9 verticals — every action editable with full audit history
+                Single ongoing action register across all {departments.length || 11} departments — linked with Heads of Department (HOD)
               </p>
             </div>
           </div>
 
           {/* Primary Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <Link
+              href="/actions"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#003B71] border border-blue-200 text-xs font-black transition cursor-pointer"
+            >
+              <ListChecks className="w-3.5 h-3.5 text-[#D81B60]" />
+              All Actions Page ({allActionsRaw.length})
+            </Link>
+            <Link
+              href="/departments-master"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-800 border border-orange-200 text-xs font-black transition cursor-pointer"
+            >
+              <UserCheck className="w-3.5 h-3.5 text-[#F37021]" />
+              Edit Depts &amp; HODs
+            </Link>
+            <button
+              type="button"
+              onClick={refreshLiveSummary}
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
+              title="Refresh Real-Time Supabase Data"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin text-[#003B71]" : ""}`} />
+              Sync
+            </button>
             <button
               type="button"
               onClick={openCreateModal}
@@ -675,8 +736,13 @@ export default function ExecutiveControlTowerClient({
           {[
             {
               id: "actions",
-              label: "Action Register (Summary Sheet)",
+              label: `Action Register (${pendingActionsAll.length} Pending)`,
               icon: <ListChecks className="w-3.5 h-3.5" />,
+            },
+            {
+              id: "all_actions",
+              label: `All Actions & History (${allActionsRaw.length})`,
+              icon: <FileBarChart className="w-3.5 h-3.5" />,
             },
             {
               id: "executive_dashboard",
@@ -684,8 +750,13 @@ export default function ExecutiveControlTowerClient({
               icon: <LayoutDashboard className="w-3.5 h-3.5" />,
             },
             {
+              id: "departments_hod",
+              label: `Departments & HODs (${departments.length})`,
+              icon: <UserCheck className="w-3.5 h-3.5" />,
+            },
+            {
               id: "verticals",
-              label: "9 Strategic Verticals",
+              label: "Strategic Verticals",
               icon: <Building2 className="w-3.5 h-3.5" />,
             },
             {
@@ -727,9 +798,9 @@ export default function ExecutiveControlTowerClient({
       </div>
 
       {/* =================================================================== */}
-      {/* SUB-PAGE 1: WEEKLY DEPARTMENTAL ACTION REGISTER                     */}
+      {/* SUB-PAGE 1: WEEKLY DEPARTMENTAL ACTION REGISTER & ALL ACTIONS       */}
       {/* =================================================================== */}
-      {currentView === "actions" && (
+      {(currentView === "actions" || currentView === "all_actions") && (
         <div className="space-y-4">
           {/* 5 Summary Cards matching Riasat Executive Dashboard */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -1099,7 +1170,7 @@ export default function ExecutiveControlTowerClient({
                             </div>
                           </td>
 
-                          {/* Department */}
+                          {/* Department & HOD */}
                           <td className="py-3.5 px-3.5">
                             <Link
                               href={`/department/${item.department_id}`}
@@ -1108,6 +1179,11 @@ export default function ExecutiveControlTowerClient({
                               <span>{item.department_name}</span>
                               <ArrowUpRight className="w-3 h-3 shrink-0" />
                             </Link>
+                            {item.head_of_department && (
+                              <div className="text-[11px] font-bold text-orange-700 bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5 mt-1 w-fit">
+                                HOD: {item.head_of_department}
+                              </div>
+                            )}
                             {item.category && (
                               <div className="text-[11px] text-slate-500 mt-0.5">
                                 {item.category}
@@ -1403,6 +1479,14 @@ export default function ExecutiveControlTowerClient({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  onClick={() => setView("departments_hod")}
+                  className="inline-flex items-center gap-1 rounded-md bg-[#F37021] px-3 py-1.5 text-xs font-bold text-white hover:opacity-90 cursor-pointer"
+                >
+                  <Edit3 className="h-3.5 w-3.5" />
+                  Edit Departments &amp; HODs
+                </button>
+                <button
+                  type="button"
                   onClick={openCreateModal}
                   className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 cursor-pointer"
                 >
@@ -1417,6 +1501,7 @@ export default function ExecutiveControlTowerClient({
                   <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
                     <th className="px-3 py-2.5">S.No.</th>
                     <th className="px-3 py-2.5">Department</th>
+                    <th className="px-3 py-2.5">Head of Department (HOD)</th>
                     <th className="px-3 py-2.5 text-right">Total</th>
                     <th className="px-3 py-2.5 text-right">Pending</th>
                     <th className="px-3 py-2.5 text-right">In Progress</th>
@@ -1442,6 +1527,18 @@ export default function ExecutiveControlTowerClient({
                         >
                           {d.department}
                         </Link>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${
+                            String(d.head_of_department || "").toLowerCase() === "to be hired"
+                              ? "bg-orange-50 text-orange-700 border-orange-200"
+                              : "bg-blue-50 text-blue-800 border-blue-200"
+                          }`}
+                        >
+                          <UserCheck className="w-3 h-3" />
+                          {d.head_of_department || "To be hired"}
+                        </span>
                       </td>
                       <td className="px-3 py-2.5 text-right font-mono text-slate-700">
                         {d.total}
@@ -1500,6 +1597,13 @@ export default function ExecutiveControlTowerClient({
                       </td>
                       <td className="px-3 py-2.5 text-right whitespace-nowrap">
                         <div className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setView("departments_hod")}
+                            className="rounded border border-orange-200 bg-orange-50 px-2 py-0.5 text-[11px] font-bold text-orange-700 hover:bg-orange-100 cursor-pointer"
+                          >
+                            Edit Dept / HOD
+                          </button>
                           <button
                             type="button"
                             onClick={() => {
@@ -1660,19 +1764,40 @@ export default function ExecutiveControlTowerClient({
       )}
 
       {/* =================================================================== */}
-      {/* SUB-PAGE 3: 9 STRATEGIC VERTICALS READINESS                         */}
+      {/* SUB-PAGE: DEPARTMENTS & HEADS OF DEPARTMENT (EDIT / ADD / DELETE)   */}
+      {/* =================================================================== */}
+      {currentView === "departments_hod" && (
+        <DepartmentsHodManager
+          initialDepartments={departments}
+          onChanged={() => {
+            refreshLiveSummary();
+            router.refresh();
+          }}
+        />
+      )}
+
+      {/* =================================================================== */}
+      {/* SUB-PAGE 3: STRATEGIC VERTICALS READINESS                           */}
       {/* =================================================================== */}
       {currentView === "verticals" && (
         <div className="space-y-4">
           <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-black text-slate-950">
-                9 Strategic Verticals — Operational Readiness &amp; Registers
+                Strategic Verticals &amp; Departments ({departments.length}) — Operational Readiness &amp; HODs
               </h2>
               <p className="text-xs text-slate-500">
                 Click any vertical card to open its dedicated Department Action Register &amp; Unified Form
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() => setView("departments_hod")}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#F37021] hover:opacity-90 text-white text-xs font-black transition cursor-pointer shrink-0"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              Edit Departments &amp; HODs
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -1692,7 +1817,7 @@ export default function ExecutiveControlTowerClient({
                   className="group bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:shadow-md hover:border-[#003B71]/40 transition flex flex-col justify-between"
                 >
                   <div>
-                    <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-start justify-between gap-3 mb-2">
                       <div>
                         <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">
                           S.No. {idx + 1} &bull; {d.code}
@@ -1706,6 +1831,11 @@ export default function ExecutiveControlTowerClient({
                       >
                         {rag}
                       </span>
+                    </div>
+
+                    <div className="mb-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-[11px] font-bold text-[#003B71]">
+                      <UserCheck className="w-3.5 h-3.5 text-[#F37021]" />
+                      <span>HOD: {d.head_of_department || "To be hired"}</span>
                     </div>
 
                     <p className="text-xs text-slate-600 line-clamp-2 mb-4 min-h-[2.25rem]">
@@ -1948,7 +2078,10 @@ export default function ExecutiveControlTowerClient({
         currentUserName={currentUser?.name || "Executive Secretariat"}
         nextCodePreview={nextCodePreview}
         onClose={() => setModalOpen(false)}
-        onSaved={() => router.refresh()}
+        onSaved={() => {
+          refreshLiveSummary();
+          router.refresh();
+        }}
       />
 
       <ActionHistorySheet

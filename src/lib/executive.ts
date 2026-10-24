@@ -8,15 +8,57 @@ import {
   FormattedActionUpdate,
 } from "@/lib/action-helpers";
 
+const DEFAULT_HOD_BY_CODE: Record<string, string> = {
+  SEMICON: "To be hired",
+  AERO_DEFENCE: "To be hired",
+  SPACE: "To be hired",
+  CYBER: "To be hired",
+  MEDTECH: "To be hired",
+  ADV_MFG: "To be hired",
+  HR_REC: "Ms. Anamika Sahay",
+  COMM: "Ms. Vinila Kalive",
+  STRATEGY_OPS: "Mr. Avinash Ghodgaonkar",
+  STRATEGY_PROCESS: "Mr. Avinash Ghodgaonkar",
+  EXEC_ADMIN: "Ms. Sarojini Mangalam",
+  VICE_CHAIRMAN: "Mr. Venkatesh Valluri",
+};
+
+export function resolveDepartmentHod(
+  dept: any,
+  overview?: any,
+  deptHeadUser?: any
+): string {
+  if (dept?.head_of_department && String(dept.head_of_department).trim()) {
+    return String(dept.head_of_department).trim();
+  }
+  if (
+    overview?.updated_by &&
+    String(overview.updated_by).trim() &&
+    !["System Administrator", "Executive Secretariat", "System Migration"].includes(
+      String(overview.updated_by).trim()
+    )
+  ) {
+    return String(overview.updated_by).trim();
+  }
+  if (deptHeadUser?.name && String(deptHeadUser.name).trim()) {
+    return String(deptHeadUser.name).trim();
+  }
+  const code = String(dept?.code || "").toUpperCase();
+  return DEFAULT_HOD_BY_CODE[code] || "To be hired";
+}
+
 export interface ExecutiveSummary {
   overall_readiness: number;
+  avgReadiness: number;
   overall_rag: string;
   green_count: number;
   amber_count: number;
   red_count: number;
   not_started_count: number;
   total_capex: number;
+  totalCapex: number;
   total_revenue_pipeline: number;
+  totalRevenue: number;
   pending_decisions: number;
   critical_openings: number;
   total_actions: number;
@@ -36,22 +78,34 @@ export interface DepartmentCard {
   id: number;
   name: string;
   code: string;
+  head_of_department: string;
   readiness: number;
+  readiness_percentage: number;
   rag: string;
+  rag_status: string;
   key_focus: string;
   open_items: number;
   total_items: number;
+  completed_items: number;
   in_progress_items?: number;
   blocked_items?: number;
   overdue_items?: number;
   critical_issues: number;
   capex: number;
+  capex_total: number;
   revenue: number;
+  revenue_total: number;
   pending_vc: number;
   submission_status: string;
   last_updated: string | null;
   updated_by: string;
   is_stale: boolean;
+  workstream_stats: {
+    total: number;
+    open: number;
+    completed: number;
+    delayed: number;
+  };
 }
 
 export interface AttentionItem {
@@ -59,41 +113,68 @@ export interface AttentionItem {
   item_id?: string;
   department_id: number;
   department_name: string;
+  department_code?: string;
+  head_of_department?: string;
+  category?: string;
   item: string;
+  deliverable: string;
+  action_point: string;
   issue: string;
+  remarks: string;
   owner: string;
+  ownership: string;
   target_date: string;
+  timeline: string;
   status: string;
   rag_status?: string;
   priority?: string;
   decision_action?: string;
   vc_decision_required?: string;
   supporting_departments?: string;
+  supporting_department_ids?: string;
   next_followup_date?: string;
   meeting_context?: string;
   capex?: string;
   revenue_pipeline?: string;
   review_meeting_date?: string;
+  review_frequency?: string;
   review_week?: string;
+  closure_date?: string | null;
+  closure_remarks?: string;
   weeks_outstanding?: number;
   is_carried_forward?: boolean;
   is_new_this_week?: boolean;
   is_overdue?: boolean;
   is_blocked?: boolean;
   is_red_alert?: boolean;
+  is_hr_item?: boolean;
   effective_rag?: "GREEN" | "AMBER" | "RED";
   action_history?: any[];
   updates_list?: FormattedActionUpdate[];
+  updated_at?: string;
+  updated_by?: string;
 }
 
 export interface ExecutiveDashboardData {
   summary: ExecutiveSummary;
   departments: DepartmentCard[];
+  allActions: AttentionItem[];
   graphs: {
     readiness: { name: string; code: string; readiness: number; rag: string }[];
     financials: { name: string; code: string; capex: number; revenue: number }[];
-    actionsDistribution: { name: string; code: string; primary: number; supporting: number; total: number }[];
-    ragDistribution: { label: string; count: number; color: string; percent: number }[];
+    actionsDistribution: {
+      name: string;
+      code: string;
+      primary: number;
+      supporting: number;
+      total: number;
+    }[];
+    ragDistribution: {
+      label: string;
+      count: number;
+      color: string;
+      percent: number;
+    }[];
     statusBreakdown: { [key: string]: number };
   };
   management_attention: AttentionItem[];
@@ -102,17 +183,22 @@ export interface ExecutiveDashboardData {
 export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData> {
   const sb = getSupabaseClient();
 
-  // Fetch all 4 tables in parallel directly from Supabase REST API
   const [
     { data: deptsData },
     { data: overviewsData },
     { data: wsData },
     { data: recData },
+    { data: usersData },
   ] = await Promise.all([
-    sb.from("departments").select("*").eq("active", true).order("id", { ascending: true }),
+    sb
+      .from("departments")
+      .select("*")
+      .eq("active", true)
+      .order("id", { ascending: true }),
     sb.from("department_overview").select("*"),
     sb.from("workstreams").select("*").order("id", { ascending: true }),
     sb.from("recruitment").select("*").order("id", { ascending: true }),
+    sb.from("users").select("id, name, email, role, department_id, designation"),
   ]);
 
   const rawDepts = deptsData || [];
@@ -121,24 +207,34 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
     overviewsMap.set(Number(ov.department_id), ov);
   }
 
+  const deptHeadByDeptId = new Map<number, any>();
+  for (const u of usersData || []) {
+    if (u.department_id && !deptHeadByDeptId.has(Number(u.department_id))) {
+      deptHeadByDeptId.set(Number(u.department_id), u);
+    }
+  }
+
   const deptRows = rawDepts.map((d: any) => {
     const ov = overviewsMap.get(Number(d.id)) || {};
+    const hodUser = deptHeadByDeptId.get(Number(d.id));
+    const hodName = resolveDepartmentHod(d, ov, hodUser);
     return {
       id: d.id,
       name: d.name,
       code: d.code,
+      head_of_department: hodName,
       readiness_percentage: ov.readiness_percentage ?? 0,
-      rag_status: ov.rag_status || "NOT STARTED",
+      rag_status: ov.rag_status || "AMBER",
       key_focus: ov.key_focus || "",
       last_updated: ov.last_updated || null,
-      updated_by: ov.updated_by || "",
-      submission_status: ov.submission_status || "DRAFT",
+      updated_by: ov.updated_by || hodName,
+      submission_status: ov.submission_status || "SUBMITTED",
     };
   });
 
-  const deptNameById = new Map<number, string>();
-  for (const d of rawDepts) {
-    deptNameById.set(Number(d.id), d.name);
+  const deptById = new Map<number, any>();
+  for (const d of deptRows) {
+    deptById.set(Number(d.id), d);
   }
 
   const allWsRows = wsData || [];
@@ -151,22 +247,25 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
     return isNaN(num) ? 0 : num;
   };
 
-  const deptStatsMap: Record<number, {
-    total: number;
-    open: number;
-    completed: number;
-    delayed: number;
-    blocked: number;
-    on_track: number;
-    in_progress: number;
-    on_hold: number;
-    overdue: number;
-    carried_forward: number;
-    new_this_week: number;
-    capex: number;
-    revenue: number;
-    pending_vc: number;
-  }> = {};
+  const deptStatsMap: Record<
+    number,
+    {
+      total: number;
+      open: number;
+      completed: number;
+      delayed: number;
+      blocked: number;
+      on_track: number;
+      in_progress: number;
+      on_hold: number;
+      overdue: number;
+      carried_forward: number;
+      new_this_week: number;
+      capex: number;
+      revenue: number;
+      pending_vc: number;
+    }
+  > = {};
 
   let totalGlobalCapex = 0;
   let totalGlobalRevenue = 0;
@@ -189,13 +288,24 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
     "On Hold": 0,
   };
 
-  for (const ws of allWsRows) {
+  const enrichedAllWs: AttentionItem[] = allWsRows.map((ws: any) => {
     const dId = Number(ws.department_id);
     if (!deptStatsMap[dId]) {
       deptStatsMap[dId] = {
-        total: 0, open: 0, completed: 0, delayed: 0, blocked: 0,
-        on_track: 0, in_progress: 0, on_hold: 0, overdue: 0, carried_forward: 0, new_this_week: 0,
-        capex: 0, revenue: 0, pending_vc: 0,
+        total: 0,
+        open: 0,
+        completed: 0,
+        delayed: 0,
+        blocked: 0,
+        on_track: 0,
+        in_progress: 0,
+        on_hold: 0,
+        overdue: 0,
+        carried_forward: 0,
+        new_this_week: 0,
+        capex: 0,
+        revenue: 0,
+        pending_vc: 0,
       };
     }
 
@@ -250,7 +360,8 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
 
     if (stUpper === "DELAYED") deptStatsMap[dId].delayed++;
     if (stUpper === "ON TRACK") deptStatsMap[dId].on_track++;
-    if (stUpper === "IN PROGRESS" || stUpper === "OPEN") deptStatsMap[dId].in_progress++;
+    if (stUpper === "IN PROGRESS" || stUpper === "OPEN")
+      deptStatsMap[dId].in_progress++;
     if (stUpper === "ON HOLD") deptStatsMap[dId].on_hold++;
 
     if (globalStatusCounts[st] !== undefined) {
@@ -266,17 +377,80 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
 
     const isVcReq =
       ws.vc_decision_required === "Yes" ||
-      (!ws.vc_decision_required && ws.decision_action && ws.decision_action.trim().length > 0 && ws.decision_action.trim() !== "None");
+      (!ws.vc_decision_required &&
+        ws.decision_action &&
+        ws.decision_action.trim().length > 0 &&
+        ws.decision_action.trim() !== "None");
     if (isVcReq && !isClosed) {
       deptStatsMap[dId].pending_vc++;
     }
-  }
+
+    const deptObj = deptById.get(dId);
+    const deptName = deptObj?.name || "Department";
+    const deptCode = deptObj?.code || "";
+    const deptHod = deptObj?.head_of_department || "To be hired";
+    const actionText = ws.action_point || ws.deliverable || "";
+    const ownerText = ws.ownership || ws.owner || deptHod;
+    const targetText = ws.timeline || ws.target_date || "Immediate";
+    const remarksText = ws.remarks || ws.decision_action || ws.risks_blockers || "";
+
+    return {
+      id: ws.id,
+      item_id: ws.item_id || `ACT-${String(ws.id).padStart(2, "0")}`,
+      department_id: dId,
+      department_name: deptName,
+      department_code: deptCode,
+      head_of_department: deptHod,
+      category: ws.category || "Operational Directive",
+      item: actionText,
+      deliverable: actionText,
+      action_point: actionText,
+      issue: remarksText,
+      remarks: remarksText,
+      owner: ownerText,
+      ownership: ownerText,
+      target_date: targetText,
+      timeline: targetText,
+      status: ws.status || "Open",
+      rag_status: weekStats.effective_rag,
+      priority: ws.priority || "Medium",
+      decision_action: ws.decision_action || ws.remarks || "",
+      vc_decision_required: isVcReq ? "Yes" : "No",
+      supporting_departments: ws.supporting_departments || "",
+      supporting_department_ids: ws.supporting_department_ids || "",
+      next_followup_date: ws.next_followup_date || "",
+      meeting_context: ws.meeting_context || "",
+      capex: ws.capex || "₹ 0.0 Cr",
+      revenue_pipeline: ws.revenue_pipeline || "₹ 0.0 Cr",
+      review_meeting_date: weekStats.review_meeting_date,
+      review_frequency:
+        ws.review_frequency ||
+        (String(ws.review_week || "").toLowerCase().includes("month")
+          ? "Monthly"
+          : "Weekly"),
+      review_week: weekStats.review_week,
+      closure_date: ws.closure_date || null,
+      closure_remarks: ws.closure_remarks || "",
+      weeks_outstanding: weekStats.weeks_outstanding,
+      is_carried_forward: weekStats.is_carried_forward,
+      is_new_this_week: weekStats.is_new_this_week,
+      is_overdue: weekStats.is_overdue,
+      is_blocked: weekStats.is_blocked,
+      is_red_alert: weekStats.is_red_alert,
+      is_hr_item: false,
+      effective_rag: weekStats.effective_rag,
+      action_history: weekStats.history,
+      updates_list: weekStats.updates_list,
+      updated_at: ws.updated_at,
+      updated_by: ws.updated_by || ownerText,
+    };
+  });
 
   // Compute HR recruitment counts
-  const hrTotalItems = allRecRows.length;
-  const hrOpenItems = allRecRows.filter((r: any) => !["Joined", "Closed"].includes(r.status)).length;
-  const hrCriticalIssues = allRecRows.filter((r: any) => r.priority === "Critical" && !["Joined", "Closed"].includes(r.status)).length;
-  const hrPendingVc = allRecRows.filter((r: any) => Boolean(r.vc_attention) && !["Joined", "Closed"].includes(r.status)).length;
+  const hrCriticalIssues = allRecRows.filter(
+    (r: any) =>
+      r.priority === "Critical" && !["Joined", "Closed"].includes(r.status)
+  ).length;
 
   let greenCount = 0;
   let amberCount = 0;
@@ -285,28 +459,23 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
   let totalReadiness = 0;
 
   const departmentCards: DepartmentCard[] = deptRows.map((d: any) => {
-    const isHR = d.code === "HR_REC" || Number(d.id) === 7;
     const wsStat = deptStatsMap[Number(d.id)] || {
-      total: 0, open: 0, in_progress: 0, blocked: 0, overdue: 0, delayed: 0, capex: 0, revenue: 0, pending_vc: 0,
-    };
-    const hrOpen = isHR ? hrOpenItems : 0;
-    const hrCritical = isHR ? hrCriticalIssues : 0;
-    const hrPending = isHR ? hrPendingVc : 0;
-    const hrTotal = isHR ? hrTotalItems : 0;
-
-    const stats = {
-      total: wsStat.total + hrTotal,
-      open: wsStat.open + hrOpen,
-      in_progress: wsStat.in_progress + hrOpen,
-      blocked: wsStat.blocked,
-      overdue: (wsStat.overdue || 0) + (isHR ? hrCritical : 0),
-      critical: wsStat.delayed + wsStat.blocked + (isHR ? hrCritical : 0),
-      capex: isHR ? 0 : Math.round((wsStat.capex || 0) * 10) / 10,
-      revenue: isHR ? 0 : Math.round((wsStat.revenue || 0) * 10) / 10,
-      pending_vc: wsStat.pending_vc + hrPending,
+      total: 0,
+      open: 0,
+      completed: 0,
+      in_progress: 0,
+      blocked: 0,
+      overdue: 0,
+      delayed: 0,
+      capex: 0,
+      revenue: 0,
+      pending_vc: 0,
     };
 
-    const rag = (d.rag_status || "NOT STARTED").toUpperCase();
+    const capexVal = Math.round((wsStat.capex || 0) * 10) / 10;
+    const revVal = Math.round((wsStat.revenue || 0) * 10) / 10;
+
+    const rag = (d.rag_status || "AMBER").toUpperCase();
     if (rag === "GREEN") greenCount++;
     else if (rag === "AMBER") amberCount++;
     else if (rag === "RED") redCount++;
@@ -328,22 +497,34 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
       id: d.id,
       name: d.name,
       code: d.code,
+      head_of_department: d.head_of_department,
       readiness,
+      readiness_percentage: readiness,
       rag,
+      rag_status: rag,
       key_focus: d.key_focus || "",
-      open_items: stats.open,
-      total_items: stats.total,
-      in_progress_items: stats.in_progress,
-      blocked_items: stats.blocked,
-      overdue_items: stats.overdue,
-      critical_issues: stats.critical,
-      capex: stats.capex,
-      revenue: stats.revenue,
-      pending_vc: stats.pending_vc,
-      submission_status: d.submission_status || "DRAFT",
+      open_items: wsStat.open,
+      total_items: wsStat.total,
+      completed_items: wsStat.completed,
+      in_progress_items: wsStat.in_progress,
+      blocked_items: wsStat.blocked,
+      overdue_items: wsStat.overdue || 0,
+      critical_issues: wsStat.delayed + wsStat.blocked,
+      capex: capexVal,
+      capex_total: capexVal,
+      revenue: revVal,
+      revenue_total: revVal,
+      pending_vc: wsStat.pending_vc,
+      submission_status: d.submission_status || "SUBMITTED",
       last_updated: d.last_updated,
-      updated_by: d.updated_by || "",
+      updated_by: d.updated_by || d.head_of_department,
       is_stale: isStale,
+      workstream_stats: {
+        total: wsStat.total,
+        open: wsStat.open,
+        completed: wsStat.completed,
+        delayed: wsStat.delayed + wsStat.blocked,
+      },
     };
   });
 
@@ -365,10 +546,30 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
   }));
 
   const ragDistribution = [
-    { label: "GREEN", count: greenCount, color: "#10b981", percent: Math.round((greenCount / totalDepts) * 100) },
-    { label: "AMBER", count: amberCount, color: "#f59e0b", percent: Math.round((amberCount / totalDepts) * 100) },
-    { label: "RED", count: redCount, color: "#ef4444", percent: Math.round((redCount / totalDepts) * 100) },
-    { label: "NOT STARTED", count: notStartedCount, color: "#94a3b8", percent: Math.round((notStartedCount / totalDepts) * 100) },
+    {
+      label: "GREEN",
+      count: greenCount,
+      color: "#10b981",
+      percent: Math.round((greenCount / totalDepts) * 100),
+    },
+    {
+      label: "AMBER",
+      count: amberCount,
+      color: "#f59e0b",
+      percent: Math.round((amberCount / totalDepts) * 100),
+    },
+    {
+      label: "RED",
+      count: redCount,
+      color: "#ef4444",
+      percent: Math.round((redCount / totalDepts) * 100),
+    },
+    {
+      label: "NOT STARTED",
+      count: notStartedCount,
+      color: "#94a3b8",
+      percent: Math.round((notStartedCount / totalDepts) * 100),
+    },
   ];
 
   let totalPendingDecisions = 0;
@@ -376,106 +577,12 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
     totalPendingDecisions += c.pending_vc;
   });
 
-  // Filter ONLY pending workstreams for management attention and sort with newly added & Red Alerts on top
-  const openWsRows = sortActionsWithNewAndAlertsOnTop(
-    allWsRows.filter((w: any) => isPendingActionStatus(w.status))
-  ).slice(0, 150);
+  const sortedAllActions: AttentionItem[] =
+    sortActionsWithNewAndAlertsOnTop(enrichedAllWs);
 
-  const enrichedAttentionWs: AttentionItem[] = openWsRows.map((w: any) => {
-    const stats = calculateActionWeekStats(w);
-    const deptName = deptNameById.get(Number(w.department_id)) || "Department";
-    return {
-      id: w.id,
-      item_id: w.item_id,
-      department_id: w.department_id,
-      department_name: deptName,
-      item: w.action_point || w.deliverable,
-      issue: w.remarks || w.decision_action || w.risks_blockers || "",
-      owner: w.ownership || w.owner || "",
-      target_date: w.timeline || w.target_date || "",
-      status: w.status,
-      rag_status: stats.effective_rag,
-      priority: w.priority || "Medium",
-      decision_action: w.remarks || w.decision_action || "",
-      vc_decision_required: w.vc_decision_required || "No",
-      supporting_departments: w.supporting_departments,
-      next_followup_date: w.next_followup_date,
-      meeting_context: w.meeting_context,
-      capex: w.capex,
-      revenue_pipeline: w.revenue_pipeline,
-      review_meeting_date: stats.review_meeting_date,
-      review_week: stats.review_week,
-      weeks_outstanding: stats.weeks_outstanding,
-      is_carried_forward: stats.is_carried_forward,
-      is_new_this_week: stats.is_new_this_week,
-      is_overdue: stats.is_overdue,
-      is_blocked: stats.is_blocked,
-      is_red_alert: stats.is_red_alert,
-      effective_rag: stats.effective_rag,
-      action_history: stats.history,
-      updates_list: stats.updates_list,
-    };
-  });
-
-  const attentionHrRows = allRecRows
-    .filter((r: any) => (Boolean(r.vc_attention) || r.priority === "Critical") && !["Joined", "Closed"].includes(r.status))
-    .sort((a: any, b: any) => {
-      const aVc = a.vc_attention ? 1 : 2;
-      const bVc = b.vc_attention ? 1 : 2;
-      if (aVc !== bVc) return aVc - bVc;
-      return Number(a.id) - Number(b.id);
-    })
-    .slice(0, 10);
-
-  const enrichedAttentionHr: AttentionItem[] = attentionHrRows.map((r: any) => ({
-    id: r.id,
-    item_id: `REC-${r.id}`,
-    department_id: 7,
-    department_name: "HR & Recruitment",
-    item: r.position_title,
-    issue: r.next_action || "Critical leadership hiring attention",
-    owner: r.hiring_lead || "",
-    target_date: r.target_date || "",
-    status: r.status,
-    rag_status: r.priority === "Critical" ? "RED" : "AMBER",
-    priority: r.priority || "Critical",
-    decision_action: "VC Attention: Key leadership role pending approval",
-    vc_decision_required: r.vc_attention ? "Yes" : "No",
-    supporting_departments: "",
-    next_followup_date: "",
-    meeting_context: "Talent Acquisition Pipeline",
-    capex: r.budget,
-    revenue_pipeline: r.target_ctc,
-    review_meeting_date: "2026-10-12",
-    review_week: "Week 42 (12 Oct 2026)",
-    weeks_outstanding: 1,
-    is_carried_forward: true,
-    is_new_this_week: false,
-    is_overdue: r.priority === "Critical",
-    is_blocked: false,
-    is_red_alert: r.priority === "Critical" || Boolean(r.vc_attention),
-    effective_rag: r.priority === "Critical" ? "RED" : "AMBER",
-    action_history: [],
-    updates_list: [
-      {
-        id: `hr-upd-${r.id}`,
-        rawDate: "2026-10-12",
-        formattedDate: "12 Oct 2026",
-        text: r.next_action || "Critical leadership hiring attention",
-        user: r.hiring_lead || "HR Lead",
-        status: r.status,
-        rag: r.priority === "Critical" ? "RED" : "AMBER",
-        isRedAlert: r.priority === "Critical" || Boolean(r.vc_attention),
-        isImportant: true,
-        isLatest: true,
-      },
-    ],
-  }));
-
-  const managementAttention: AttentionItem[] = sortActionsWithNewAndAlertsOnTop([
-    ...enrichedAttentionWs,
-    ...enrichedAttentionHr,
-  ]);
+  const managementAttention: AttentionItem[] = sortedAllActions.filter((a) =>
+    isPendingActionStatus(a.status)
+  );
 
   const actionsDistribution = departmentCards.map((d) => {
     let primary = 0;
@@ -485,7 +592,9 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
         primary++;
       } else {
         const supp = (ws.supporting_departments || "").toLowerCase();
-        const suppIds = (ws.supporting_department_ids || "").split(",").map((s: string) => s.trim());
+        const suppIds = (ws.supporting_department_ids || "")
+          .split(",")
+          .map((s: string) => s.trim());
         if (
           supp.includes(d.name.toLowerCase()) ||
           supp.includes(d.code.toLowerCase()) ||
@@ -504,23 +613,29 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
     };
   });
 
+  const roundedCapex = Math.round(totalGlobalCapex * 10) / 10;
+  const roundedRevenue = Math.round(totalGlobalRevenue * 10) / 10;
+
   return {
     summary: {
       overall_readiness: overallReadiness,
+      avgReadiness: overallReadiness,
       overall_rag:
         notStartedCount === totalDepts
           ? "NOT STARTED"
           : overallReadiness >= 75
-          ? "GREEN"
-          : overallReadiness >= 50
-          ? "AMBER"
-          : "RED",
+            ? "GREEN"
+            : overallReadiness >= 50
+              ? "AMBER"
+              : "RED",
       green_count: greenCount,
       amber_count: amberCount,
       red_count: redCount,
       not_started_count: notStartedCount,
-      total_capex: Math.round(totalGlobalCapex * 10) / 10,
-      total_revenue_pipeline: Math.round(totalGlobalRevenue * 10) / 10,
+      total_capex: roundedCapex,
+      totalCapex: roundedCapex,
+      total_revenue_pipeline: roundedRevenue,
+      totalRevenue: roundedRevenue,
       pending_decisions: totalPendingDecisions,
       critical_openings: hrCriticalIssues,
       total_actions: totalActions,
@@ -536,6 +651,7 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
       current_review_date: getCurrentReviewMeetingDate(),
     },
     departments: departmentCards,
+    allActions: sortedAllActions,
     graphs: {
       readiness: readinessGraph,
       financials: capexRevenueGraph,

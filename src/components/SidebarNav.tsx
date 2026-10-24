@@ -24,6 +24,7 @@ import {
   ListChecks,
   Menu,
   X,
+  UserCheck,
 } from "lucide-react";
 import { SessionUser } from "@/lib/auth";
 import { ROLES, DEPARTMENTS } from "@/lib/constants";
@@ -31,6 +32,7 @@ import { ROLES, DEPARTMENTS } from "@/lib/constants";
 const deptIcons: Record<string, React.ReactNode> = {
   SEMICON: <Cpu className="w-4 h-4" />,
   AERO_DEF: <Plane className="w-4 h-4" />,
+  AERO_DEFENCE: <Plane className="w-4 h-4" />,
   SPACE: <Orbit className="w-4 h-4" />,
   CYBER: <ShieldAlert className="w-4 h-4" />,
   MEDTECH: <HeartPulse className="w-4 h-4" />,
@@ -38,13 +40,16 @@ const deptIcons: Record<string, React.ReactNode> = {
   HR_REC: <Users className="w-4 h-4" />,
   COMM: <Megaphone className="w-4 h-4" />,
   STRATEGY_OPS: <Briefcase className="w-4 h-4" />,
+  STRATEGY_PROCESS: <Briefcase className="w-4 h-4" />,
+  EXEC_ADMIN: <Building2 className="w-4 h-4" />,
+  VICE_CHAIRMAN: <UserCheck className="w-4 h-4" />,
 };
 
 function SidebarNavContent({ user }: { user: SessionUser }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [departmentsList, setDepartmentsList] = useState<
-    { id: number; name: string; code: string }[]
+    { id: number; name: string; code: string; head_of_department?: string }[]
   >([...DEPARTMENTS]);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -141,6 +146,20 @@ function SidebarNavContent({ user }: { user: SessionUser }) {
                     (!currentView || currentView === "actions"),
                 },
                 {
+                  href: "/actions",
+                  label: "All Actions Directory",
+                  icon: <ListChecks className="w-4 h-4" />,
+                  active: pathname.startsWith("/actions"),
+                },
+                {
+                  href: "/departments-master",
+                  label: "Departments & HODs (Edit)",
+                  icon: <UserCheck className="w-4 h-4" />,
+                  active:
+                    pathname.startsWith("/departments-master") ||
+                    (pathname === "/executive" && currentView === "departments_hod"),
+                },
+                {
                   href: "/executive?view=executive_dashboard",
                   label: "Executive Action Dashboard",
                   icon: <LayoutDashboard className="w-4 h-4" />,
@@ -150,7 +169,7 @@ function SidebarNavContent({ user }: { user: SessionUser }) {
                 },
                 {
                   href: "/executive?view=verticals",
-                  label: "9 Strategic Verticals",
+                  label: "Strategic Verticals",
                   icon: <Building2 className="w-4 h-4" />,
                   active:
                     pathname === "/executive" && currentView === "verticals",
@@ -199,12 +218,20 @@ function SidebarNavContent({ user }: { user: SessionUser }) {
           </div>
         )}
 
-        {/* 9 Strategic Verticals (Available to all users) */}
+        {/* Strategic Verticals & Departments (Available to all users) */}
         {!isAnySpecializedAdmin && (
           <div>
-            <p className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-              9 Strategic Verticals
-            </p>
+            <div className="px-3 flex items-center justify-between mb-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Departments &amp; HODs ({departmentsList.length})
+              </p>
+              <Link
+                href="/departments-master"
+                className="text-[10px] font-black text-[#F37021] hover:underline"
+              >
+                Edit
+              </Link>
+            </div>
             <div className="space-y-1">
               {departmentsList.map((dept) => {
                 const active = pathname === `/department/${dept.id}`;
@@ -221,7 +248,18 @@ function SidebarNavContent({ user }: { user: SessionUser }) {
                     <span className={active ? "text-white" : "text-slate-400"}>
                       {deptIcons[dept.code] || <Building2 className="w-4 h-4" />}
                     </span>
-                    <span className="truncate">{dept.name}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate">{dept.name}</div>
+                      {dept.head_of_department && (
+                        <div
+                          className={`text-[10px] font-medium truncate ${
+                            active ? "text-orange-200" : "text-slate-400"
+                          }`}
+                        >
+                          HOD: {dept.head_of_department}
+                        </div>
+                      )}
+                    </div>
                   </Link>
                 );
               })}
@@ -284,33 +322,29 @@ function SidebarNavContent({ user }: { user: SessionUser }) {
                 </Link>
               )}
 
-              {(isViceChairmanOrAdmin || isDeptAdmin) && (
-                <Link
-                  href="/admin?tab=departments"
-                  className={`flex items-center gap-2.5 px-3 py-2 rounded-xl font-bold transition-all ${
-                    pathname === "/admin" && currentTab === "departments"
-                      ? "bg-[#003B71] text-white shadow-xs"
-                      : "text-slate-600 hover:text-[#003B71] hover:bg-slate-50"
-                  }`}
-                >
-                  <Building2 className="w-4 h-4 text-[#D81B60]" />
-                  <span>Departments Master</span>
-                </Link>
-              )}
+              <Link
+                href="/admin?tab=departments"
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl font-bold transition-all ${
+                  pathname === "/admin" && currentTab === "departments"
+                    ? "bg-[#003B71] text-white shadow-xs"
+                    : "text-slate-600 hover:text-[#003B71] hover:bg-slate-50"
+                }`}
+              >
+                <Building2 className="w-4 h-4 text-[#D81B60]" />
+                <span>Departments &amp; HODs Master</span>
+              </Link>
 
-              {(isViceChairmanOrAdmin || isFormAdmin) && (
-                <Link
-                  href="/admin?tab=form_config"
-                  className={`flex items-center gap-2.5 px-3 py-2 rounded-xl font-bold transition-all ${
-                    pathname === "/admin" && currentTab === "form_config"
-                      ? "bg-[#003B71] text-white shadow-xs"
-                      : "text-slate-600 hover:text-[#003B71] hover:bg-slate-50"
-                  }`}
-                >
-                  <SlidersHorizontal className="w-4 h-4 text-[#003B71]" />
-                  <span>Form Configuration</span>
-                </Link>
-              )}
+              <Link
+                href="/admin?tab=form_config"
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl font-bold transition-all ${
+                  pathname === "/admin" && currentTab === "form_config"
+                    ? "bg-[#003B71] text-white shadow-xs"
+                    : "text-slate-600 hover:text-[#003B71] hover:bg-slate-50"
+                }`}
+              >
+                <SlidersHorizontal className="w-4 h-4 text-[#003B71]" />
+                <span>Form Configuration</span>
+              </Link>
 
               {isViceChairmanOrAdmin && (
                 <>

@@ -4,14 +4,19 @@
 -- Unified Action Register, Edit Action Form & Departmental Report Schema
 -- =====================================================================
 
--- 1. DEPARTMENTS TABLE
+-- 1. DEPARTMENTS TABLE (With Head of Department / HOD Support)
 CREATE TABLE IF NOT EXISTS departments (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   code TEXT UNIQUE NOT NULL,
+  head_of_department TEXT NOT NULL DEFAULT 'To be hired',
+  display_order INTEGER NOT NULL DEFAULT 1,
   active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS head_of_department TEXT NOT NULL DEFAULT 'To be hired';
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS display_order INTEGER NOT NULL DEFAULT 1;
 
 -- 2. USERS TABLE
 CREATE TABLE IF NOT EXISTS users (
@@ -261,40 +266,49 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, anon, authenticated, se
 GRANT ALL ON ALL ROUTINES IN SCHEMA public TO postgres, anon, authenticated, service_role;
 
 -- =====================================================================
--- SEED DATA: 9 STRATEGIC DEPARTMENTS
+-- SEED DATA: 11 DEPARTMENTS & HEADS OF DEPARTMENT (HOD)
 -- =====================================================================
-INSERT INTO departments (id, name, code, active) VALUES
-  (1, 'Semicon', 'SEMICON', TRUE),
-  (2, 'Aerospace & Defence', 'AERO_DEFENCE', TRUE),
-  (3, 'Space', 'SPACE', TRUE),
-  (4, 'Cybersecurity', 'CYBER', TRUE),
-  (5, 'MedTech', 'MEDTECH', TRUE),
-  (6, 'Advanced Manufacturing', 'ADV_MFG', TRUE),
-  (7, 'HR & Recruitment', 'HR_REC', TRUE),
-  (8, 'Communications', 'COMM', TRUE),
-  (9, 'Strategy & Operations', 'STRATEGY_OPS', TRUE)
-ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, code = EXCLUDED.code;
+INSERT INTO departments (id, name, code, head_of_department, display_order, active) VALUES
+  (1, 'Semicon', 'SEMICON', 'To be hired', 1, TRUE),
+  (2, 'Aerospace & Defence', 'AERO_DEFENCE', 'To be hired', 2, TRUE),
+  (3, 'Space', 'SPACE', 'To be hired', 3, TRUE),
+  (4, 'Cybersecurity', 'CYBER', 'To be hired', 4, TRUE),
+  (5, 'MedTech', 'MEDTECH', 'To be hired', 5, TRUE),
+  (6, 'Advanced Manufacturing', 'ADV_MFG', 'To be hired', 6, TRUE),
+  (7, 'HR & Recruitment', 'HR_REC', 'Ms. Anamika Sahay', 7, TRUE),
+  (8, 'Communications', 'COMM', 'Ms. Vinila Kalive', 8, TRUE),
+  (9, 'Strategy & Process', 'STRATEGY_PROCESS', 'Mr. Avinash Ghodgaonkar', 9, TRUE),
+  (10, 'Executive Administration', 'EXEC_ADMIN', 'Ms. Sarojini Mangalam', 10, TRUE),
+  (11, 'Vice Chairman', 'VICE_CHAIRMAN', 'Mr. Venkatesh Valluri', 11, TRUE)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  code = EXCLUDED.code,
+  head_of_department = EXCLUDED.head_of_department,
+  display_order = EXCLUDED.display_order;
 
 SELECT setval('departments_id_seq', (SELECT MAX(id) FROM departments));
 
 -- =====================================================================
--- SEED DATA: DEPARTMENT OVERVIEW (FROM ORIGINAL DATABASE)
+-- SEED DATA: DEPARTMENT OVERVIEW (WITH HEAD OF DEPARTMENT MAPPING)
 -- =====================================================================
-INSERT INTO department_overview (department_id, readiness_percentage, rag_status, key_focus, submission_status) VALUES
-  (1, 40, 'AMBER', 'ISO-6 cleanroom HVAC validation and ASML DUV stepper customs clearance', 'SUBMITTED'),
-  (2, 45, 'AMBER', 'Autoclave composite testing commissioning and DRDO ToT agreement', 'SUBMITTED'),
-  (3, 35, 'AMBER', 'Thermal vacuum chamber setup and IN-SPACe ground station licensing', 'SUBMITTED'),
-  (4, 50, 'AMBER', 'Air-gapped cyber range deployment and CERT-In HSM procurement', 'SUBMITTED'),
-  (5, 38, 'AMBER', 'ISO 13485 clean room prototyping and Ramaiah clinical trial MoU', 'SUBMITTED'),
-  (6, 60, 'GREEN', '5-Axis CNC milling center commissioned and robotics automation cell', 'SUBMITTED'),
-  (7, 48, 'GREEN', 'Sourcing critical talent for Semicon and Aerospace leadership roles', 'SUBMITTED'),
-  (8, 55, 'AMBER', 'Brand launch summit preparation and DeepTech quarterly whitepaper', 'SUBMITTED'),
-  (9, 65, 'AMBER', 'Executive Control Tower governance and Advisory Council formation', 'SUBMITTED')
+INSERT INTO department_overview (department_id, readiness_percentage, rag_status, key_focus, submission_status, updated_by) VALUES
+  (1, 40, 'AMBER', 'ISO-6 cleanroom HVAC validation and ASML DUV stepper customs clearance', 'SUBMITTED', 'To be hired'),
+  (2, 45, 'AMBER', 'Autoclave composite testing commissioning and DRDO ToT agreement', 'SUBMITTED', 'To be hired'),
+  (3, 35, 'AMBER', 'Thermal vacuum chamber setup and IN-SPACe ground station licensing', 'SUBMITTED', 'To be hired'),
+  (4, 50, 'AMBER', 'Air-gapped cyber range deployment and CERT-In HSM procurement', 'SUBMITTED', 'To be hired'),
+  (5, 38, 'AMBER', 'ISO 13485 clean room prototyping and Ramaiah clinical trial MoU', 'SUBMITTED', 'To be hired'),
+  (6, 60, 'GREEN', '5-Axis CNC milling center commissioned and robotics automation cell', 'SUBMITTED', 'To be hired'),
+  (7, 48, 'GREEN', 'Sourcing critical talent for Semicon and Aerospace leadership roles', 'SUBMITTED', 'Ms. Anamika Sahay'),
+  (8, 55, 'AMBER', 'Brand launch summit preparation and DeepTech quarterly whitepaper', 'SUBMITTED', 'Ms. Vinila Kalive'),
+  (9, 65, 'AMBER', 'Strategy & Process governance and Advisory Council formation', 'SUBMITTED', 'Mr. Avinash Ghodgaonkar'),
+  (10, 75, 'GREEN', 'Executive Administration, institutional coordination, and review governance', 'SUBMITTED', 'Ms. Sarojini Mangalam'),
+  (11, 85, 'GREEN', 'Vice Chairman strategic directives, policy approvals, and executive oversight', 'SUBMITTED', 'Mr. Venkatesh Valluri')
 ON CONFLICT (department_id) DO UPDATE SET
   readiness_percentage = EXCLUDED.readiness_percentage,
   rag_status = EXCLUDED.rag_status,
   key_focus = EXCLUDED.key_focus,
-  submission_status = EXCLUDED.submission_status;
+  submission_status = EXCLUDED.submission_status,
+  updated_by = EXCLUDED.updated_by;
 
 -- =====================================================================
 -- SEED DATA: OFFICIAL USERS & PASSWORDS (VERIFIED BCRYPT HASHES)
@@ -317,21 +331,21 @@ ON CONFLICT (department_id) DO UPDATE SET
 -- ops.head@riasat.ac.in     -> Ops@123
 
 INSERT INTO users (id, name, email, password_hash, mobile, designation, role, department_id, status) VALUES
-  (1, 'Vice Chairman', 'vicechairman@riasat.ac.in', '$2a$10$KLBL2bnQS.P7F9UUAjQgROB07HVRDF.IVF208bswpJtrz28a6UjjO', '+91 98450 11000', 'Vice Chairman & Executive Director', 'Vice Chairman', NULL, 'Active'),
+  (1, 'Mr. Venkatesh Valluri', 'vicechairman@riasat.ac.in', '$2a$10$KLBL2bnQS.P7F9UUAjQgROB07HVRDF.IVF208bswpJtrz28a6UjjO', '+91 98450 11000', 'Vice Chairman & Executive Director', 'Vice Chairman', 11, 'Active'),
   (2, 'System Administrator', 'admin@riasat.ac.in', '$2a$10$ueuukLVZ5apS05o9ruCZ7.fZw9O29vpGtZUR/psN.yViAwDgcbbJi', '+91 98450 11001', 'System Administrator', 'Admin', NULL, 'Active'),
-  (3, 'Executive Office', 'executive@riasat.ac.in', '$2a$10$Mem8sQkw2Cw6ZFoNJqBJjugadAzF880r.jTwTDDg5vRvYI3Rbqj7W', '+91 98450 11002', 'Executive Director / Management', 'Executive', NULL, 'Active'),
+  (3, 'Ms. Sarojini Mangalam', 'executive@riasat.ac.in', '$2a$10$Mem8sQkw2Cw6ZFoNJqBJjugadAzF880r.jTwTDDg5vRvYI3Rbqj7W', '+91 98450 11002', 'Head - Executive Administration', 'Executive', 10, 'Active'),
   (4, 'Form Configuration Admin', 'forms.admin@riasat.ac.in', '$2a$10$q4QqRmh7t8vNa9OfgxFSiO1rjsDw4pJkJ6ClCW2NczUmOz75xzg3i', '+91 98450 11003', 'Forms & Schema Administrator', 'Form Admin', NULL, 'Active'),
   (5, 'User Management Admin', 'users.admin@riasat.ac.in', '$2a$10$p4z9bv6zIcGOTjymBCjLEOf1kl5pYGCIUzVhsHFDxuWWAdFiU3sM2', '+91 98450 11004', 'User Access Administrator', 'User Admin', NULL, 'Active'),
   (6, 'Departments Master Admin', 'dept.admin@riasat.ac.in', '$2a$10$uYzIYr8LOQIh2p12eIjrQeQ5v.my6GzYmZLzfJFeyAPx3cZ7He11u', '+91 98450 11005', 'Departments Master Administrator', 'Department Admin', NULL, 'Active'),
-  (7, 'Dr. Arun Kumar', 'semicon.head@riasat.ac.in', '$2a$10$CHQKEiBU1ANGUjx7KjaadeeBgMjb1/ise9FvchqH9pkn5ndK8t35i', '+91 98450 11006', 'Head - Semicon', 'Department Head', 1, 'Active'),
-  (8, 'Wg Cdr R. Sharma', 'aero.head@riasat.ac.in', '$2a$10$MhOzHyrRRlq4EDRvHI9NsOJLMZbdEDmuH0zyzlinH/PHZ0pvVlXWO', '+91 98450 11007', 'Head - Aerospace & Defence', 'Department Head', 2, 'Active'),
-  (9, 'Dr. P. Sundaram', 'space.head@riasat.ac.in', '$2a$10$wITRGTQJ1sDoBMzq4TlPpeJA7MydSkjNuTiUEIacenReq231y6FHe', '+91 98450 11008', 'Head - Space', 'Department Head', 3, 'Active'),
-  (10, 'Col. K. Menon', 'cyber.head@riasat.ac.in', '$2a$10$gziJspang8msoJvsX4flv.8LmqgjdbKU.ewZqD5vDIgIkis3uOLmu', '+91 98450 11009', 'Head - Cybersecurity', 'Department Head', 4, 'Active'),
-  (11, 'Dr. Neha Varma', 'medtech.head@riasat.ac.in', '$2a$10$7VQc.OY7HGMDVgk7ieD07.xgD/9DSLQL0GJWxExFFKUsW4hKCUa0a', '+91 98450 11010', 'Head - MedTech', 'Department Head', 5, 'Active'),
-  (12, 'Prof. Rajesh Iyer', 'mfg.head@riasat.ac.in', '$2a$10$FZhubQGBfsO3WJAo/yxhvOP6rXDEnHTPZX7KW0cVZ1GMqtbfuM/Ze', '+91 98450 11011', 'Head - Advanced Manufacturing', 'Department Head', 6, 'Active'),
-  (13, 'Sumanth Rao', 'hr.head@riasat.ac.in', '$2a$10$c469R9oPc..WqyZQJI5DFuDLSdujpKMqs2BjF2wltM/Bcj5hCZvjy', '+91 98450 11012', 'Head - HR & Recruitment', 'Department Head', 7, 'Active'),
-  (14, 'Ananya Sen', 'comm.head@riasat.ac.in', '$2a$10$X4MJ0o5D2NQ4ncCj.cwYsunx69RP7ScESeUBy5spa1ORHOk8ziNEC', '+91 98450 11013', 'Head - Communications', 'Department Head', 8, 'Active'),
-  (15, 'Dr. Venkat Raman', 'ops.head@riasat.ac.in', '$2a$10$pqMkSux5M2OWpIWV/eKofOTVfNRFx8jVFVIsmrCWdf9N1GQwzFKbC', '+91 98450 11014', 'Head - Strategy & Operations', 'Department Head', 9, 'Active')
+  (7, 'To be hired', 'semicon.head@riasat.ac.in', '$2a$10$CHQKEiBU1ANGUjx7KjaadeeBgMjb1/ise9FvchqH9pkn5ndK8t35i', '+91 98450 11006', 'Head - Semicon', 'Department Head', 1, 'Active'),
+  (8, 'To be hired', 'aero.head@riasat.ac.in', '$2a$10$MhOzHyrRRlq4EDRvHI9NsOJLMZbdEDmuH0zyzlinH/PHZ0pvVlXWO', '+91 98450 11007', 'Head - Aerospace & Defence', 'Department Head', 2, 'Active'),
+  (9, 'To be hired', 'space.head@riasat.ac.in', '$2a$10$wITRGTQJ1sDoBMzq4TlPpeJA7MydSkjNuTiUEIacenReq231y6FHe', '+91 98450 11008', 'Head - Space', 'Department Head', 3, 'Active'),
+  (10, 'To be hired', 'cyber.head@riasat.ac.in', '$2a$10$gziJspang8msoJvsX4flv.8LmqgjdbKU.ewZqD5vDIgIkis3uOLmu', '+91 98450 11009', 'Head - Cybersecurity', 'Department Head', 4, 'Active'),
+  (11, 'To be hired', 'medtech.head@riasat.ac.in', '$2a$10$7VQc.OY7HGMDVgk7ieD07.xgD/9DSLQL0GJWxExFFKUsW4hKCUa0a', '+91 98450 11010', 'Head - MedTech', 'Department Head', 5, 'Active'),
+  (12, 'To be hired', 'mfg.head@riasat.ac.in', '$2a$10$FZhubQGBfsO3WJAo/yxhvOP6rXDEnHTPZX7KW0cVZ1GMqtbfuM/Ze', '+91 98450 11011', 'Head - Advanced Manufacturing', 'Department Head', 6, 'Active'),
+  (13, 'Ms. Anamika Sahay', 'hr.head@riasat.ac.in', '$2a$10$c469R9oPc..WqyZQJI5DFuDLSdujpKMqs2BjF2wltM/Bcj5hCZvjy', '+91 98450 11012', 'Head - HR & Recruitment', 'Department Head', 7, 'Active'),
+  (14, 'Ms. Vinila Kalive', 'comm.head@riasat.ac.in', '$2a$10$X4MJ0o5D2NQ4ncCj.cwYsunx69RP7ScESeUBy5spa1ORHOk8ziNEC', '+91 98450 11013', 'Head - Communications', 'Department Head', 8, 'Active'),
+  (15, 'Mr. Avinash Ghodgaonkar', 'ops.head@riasat.ac.in', '$2a$10$pqMkSux5M2OWpIWV/eKofOTVfNRFx8jVFVIsmrCWdf9N1GQwzFKbC', '+91 98450 11014', 'Head - Strategy & Process', 'Department Head', 9, 'Active')
 ON CONFLICT (email) DO UPDATE SET 
   name = EXCLUDED.name, 
   role = EXCLUDED.role, 
@@ -473,21 +487,59 @@ CREATE OR REPLACE VIEW v_pending_actions_register AS
 SELECT
   w.*,
   d.name AS department_name,
-  d.code AS department_code
+  d.code AS department_code,
+  COALESCE(d.head_of_department, ov.updated_by, 'To be hired') AS head_of_department
 FROM workstreams w
 LEFT JOIN departments d ON d.id = w.department_id
+LEFT JOIN department_overview ov ON ov.department_id = w.department_id
 WHERE UPPER(TRIM(COALESCE(w.status, 'OPEN'))) NOT IN ('CLOSED', 'COMPLETED')
 ORDER BY
   CASE WHEN w.id > 15 THEN 0 ELSE 1 END ASC,
   CASE WHEN UPPER(COALESCE(w.rag_status, '')) = 'RED' OR UPPER(COALESCE(w.status, '')) IN ('BLOCKED', 'DELAYED') OR UPPER(COALESCE(w.priority, '')) = 'CRITICAL' OR w.vc_decision_required = 'Yes' THEN 0 ELSE 1 END ASC,
   w.id DESC;
 
--- View 2: Vertical Readiness & RAG Analytics
+-- View 2: All Actions & History Register (For Dedicated /actions Page)
+CREATE OR REPLACE VIEW v_all_actions_register AS
+SELECT
+  w.*,
+  d.name AS department_name,
+  d.code AS department_code,
+  COALESCE(d.head_of_department, ov.updated_by, 'To be hired') AS head_of_department
+FROM workstreams w
+LEFT JOIN departments d ON d.id = w.department_id
+LEFT JOIN department_overview ov ON ov.department_id = w.department_id
+ORDER BY
+  CASE WHEN w.id > 15 THEN 0 ELSE 1 END ASC,
+  CASE WHEN UPPER(COALESCE(w.rag_status, '')) = 'RED' OR UPPER(COALESCE(w.status, '')) IN ('BLOCKED', 'DELAYED') OR UPPER(COALESCE(w.priority, '')) = 'CRITICAL' OR w.vc_decision_required = 'Yes' THEN 0 ELSE 1 END ASC,
+  w.id DESC;
+
+-- View 3: Departments & Heads of Department (HOD) Master Directory (For /departments-master Page)
+CREATE OR REPLACE VIEW v_departments_hod_directory AS
+SELECT
+  d.id AS department_id,
+  d.name AS department_name,
+  d.code AS department_code,
+  COALESCE(d.head_of_department, ov.updated_by, 'To be hired') AS head_of_department,
+  COALESCE(ov.readiness_percentage, 0) AS readiness_percentage,
+  COALESCE(ov.rag_status, 'NOT STARTED') AS rag_status,
+  COALESCE(ov.key_focus, '') AS key_focus,
+  COUNT(w.id) AS total_actions_count,
+  COUNT(w.id) FILTER (WHERE UPPER(TRIM(COALESCE(w.status, 'OPEN'))) NOT IN ('CLOSED', 'COMPLETED')) AS pending_actions_count,
+  COUNT(w.id) FILTER (WHERE UPPER(TRIM(COALESCE(w.status, 'OPEN'))) IN ('CLOSED', 'COMPLETED')) AS closed_actions_count
+FROM departments d
+LEFT JOIN department_overview ov ON ov.department_id = d.id
+LEFT JOIN workstreams w ON w.department_id = d.id
+WHERE d.active = TRUE
+GROUP BY d.id, d.name, d.code, d.head_of_department, ov.updated_by, ov.readiness_percentage, ov.rag_status, ov.key_focus
+ORDER BY d.id ASC;
+
+-- View 4: Vertical Readiness & RAG Analytics
 CREATE OR REPLACE VIEW v_vertical_readiness_analytics AS
 SELECT
   d.id AS department_id,
   d.name AS department_name,
   d.code AS department_code,
+  COALESCE(d.head_of_department, ov.updated_by, 'To be hired') AS head_of_department,
   COALESCE(ov.readiness_percentage, 0) AS readiness_percentage,
   COALESCE(ov.rag_status, 'NOT STARTED') AS rag_status,
   COALESCE(ov.key_focus, '') AS key_focus,
@@ -497,7 +549,7 @@ FROM departments d
 LEFT JOIN department_overview ov ON ov.department_id = d.id
 LEFT JOIN workstreams w ON w.department_id = d.id
 WHERE d.active = TRUE
-GROUP BY d.id, d.name, d.code, ov.readiness_percentage, ov.rag_status, ov.key_focus
+GROUP BY d.id, d.name, d.code, d.head_of_department, ov.updated_by, ov.readiness_percentage, ov.rag_status, ov.key_focus
 ORDER BY d.id ASC;
 
 -- Backfill datewise action_history (latest update on top) for any workstreams with empty history

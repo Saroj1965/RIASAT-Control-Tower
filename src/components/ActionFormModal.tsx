@@ -13,6 +13,11 @@ export const SUPPORT_OPTIONS = [
 ] as const;
 
 export const STAFF_DIRECTORY = [
+  "Mr. Venkatesh Valluri",
+  "Mr. Avinash Ghodgaonkar",
+  "Ms. Anamika Sahay",
+  "Ms. Vinila Kalive",
+  "Ms. Sarojini Mangalam",
   "Venkatesh Valluri",
   "Avinash Ghodgaonkar",
   "Anamika Sahay",
@@ -46,6 +51,7 @@ export interface DepartmentOption {
   id: number;
   name: string;
   code?: string;
+  head_of_department?: string;
 }
 
 export interface ActionFormModalProps {
@@ -600,16 +606,48 @@ export function ActionFormModal({
               <label className="block text-xs font-medium text-slate-700">Department *</label>
               <select
                 value={departmentId}
-                onChange={(e) => setDepartmentId(Number(e.target.value))}
+                onChange={(e) => {
+                  const newDeptId = Number(e.target.value);
+                  setDepartmentId(newDeptId);
+                  const matchedDept = departments.find((d) => Number(d.id) === newDeptId);
+                  if (
+                    mode === "create" &&
+                    matchedDept?.head_of_department &&
+                    matchedDept.head_of_department.toLowerCase() !== "to be hired"
+                  ) {
+                    setOwner(matchedDept.head_of_department);
+                  }
+                }}
                 required
                 className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none"
               >
                 {departments.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.name}
+                    {d.name} {d.head_of_department ? `— HOD: ${d.head_of_department}` : ""}
                   </option>
                 ))}
               </select>
+              {(() => {
+                const selectedDeptObj = departments.find((d) => Number(d.id) === Number(departmentId));
+                const deptHod = selectedDeptObj?.head_of_department;
+                if (!deptHod) return null;
+                return (
+                  <div className="mt-1 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-600">
+                      HOD: <strong className="text-blue-700">{deptHod}</strong>
+                    </span>
+                    {deptHod.toLowerCase() !== "to be hired" && owner !== deptHod && (
+                      <button
+                        type="button"
+                        onClick={() => setOwner(deptHod)}
+                        className="font-bold text-orange-600 hover:text-blue-700 underline"
+                      >
+                        Assign to HOD
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             <div>
@@ -619,16 +657,23 @@ export function ActionFormModal({
                 value={owner}
                 onChange={(e) => setOwner(e.target.value)}
                 required
-                placeholder="Select or type owner name(s)"
+                placeholder="Select HOD or type owner name(s)"
                 className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none"
               />
               <datalist id="owner-options">
-                {STAFF_DIRECTORY.map((p) => (
+                {Array.from(
+                  new Set([
+                    ...departments
+                      .map((d) => d.head_of_department)
+                      .filter((h): h is string => Boolean(h && h.toLowerCase() !== "to be hired")),
+                    ...STAFF_DIRECTORY,
+                  ])
+                ).map((p) => (
                   <option key={p} value={p} />
                 ))}
               </datalist>
               <span className="mt-1 block text-[11px] text-slate-500">
-                Pick from the staff list or type a name.
+                Linked to Department HOD & staff list, or type any name.
               </span>
             </div>
 

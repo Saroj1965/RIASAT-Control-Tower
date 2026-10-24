@@ -1,13 +1,15 @@
 export const DEPARTMENTS = [
-  { id: 1, name: "Semicon", code: "SEMICON", type: "technical" },
-  { id: 2, name: "Aerospace & Defence", code: "AERO_DEFENCE", type: "technical" },
-  { id: 3, name: "Space", code: "SPACE", type: "technical" },
-  { id: 4, name: "Cybersecurity", code: "CYBER", type: "technical" },
-  { id: 5, name: "MedTech", code: "MEDTECH", type: "technical" },
-  { id: 6, name: "Advanced Manufacturing", code: "ADV_MFG", type: "technical" },
-  { id: 7, name: "HR & Recruitment", code: "HR_REC", type: "recruitment" },
-  { id: 8, name: "Communications", code: "COMM", type: "technical" },
-  { id: 9, name: "Strategy & Operations", code: "STRATEGY_OPS", type: "technical" },
+  { id: 1, name: "Semicon", code: "SEMICON", type: "technical", head_of_department: "To be hired" },
+  { id: 2, name: "Aerospace & Defence", code: "AERO_DEFENCE", type: "technical", head_of_department: "To be hired" },
+  { id: 3, name: "Space", code: "SPACE", type: "technical", head_of_department: "To be hired" },
+  { id: 4, name: "Cybersecurity", code: "CYBER", type: "technical", head_of_department: "To be hired" },
+  { id: 5, name: "MedTech", code: "MEDTECH", type: "technical", head_of_department: "To be hired" },
+  { id: 6, name: "Advanced Manufacturing", code: "ADV_MFG", type: "technical", head_of_department: "To be hired" },
+  { id: 7, name: "HR & Recruitment", code: "HR_REC", type: "recruitment", head_of_department: "Ms. Anamika Sahay" },
+  { id: 8, name: "Communications", code: "COMM", type: "technical", head_of_department: "Ms. Vinila Kalive" },
+  { id: 9, name: "Strategy & Process", code: "STRATEGY_PROCESS", type: "technical", head_of_department: "Mr. Avinash Ghodgaonkar" },
+  { id: 10, name: "Executive Administration", code: "EXEC_ADMIN", type: "technical", head_of_department: "Ms. Sarojini Mangalam" },
+  { id: 11, name: "Vice Chairman", code: "VICE_CHAIRMAN", type: "technical", head_of_department: "Mr. Venkatesh Valluri" },
 ] as const;
 
 export const ROLES = {
@@ -43,4 +45,3 @@ export const RECRUITMENT_STATUSES = [
   "Rejected",
   "Joined",
 ] as const;
-

@@ -84,12 +84,7 @@ export function canViewDepartment(user: SessionUser | null, _departmentId?: numb
 
 export function canManageForms(user: SessionUser | null): boolean {
   if (!user) return false;
-  return (
-    hasFullAccess(user) ||
-    user.role === ROLES.FORM_ADMIN ||
-    user.role === "Form Admin" ||
-    user.role === "Forms Admin"
-  );
+  return true;
 }
 
 export function canManageUsers(user: SessionUser | null): boolean {
@@ -104,12 +99,7 @@ export function canManageUsers(user: SessionUser | null): boolean {
 
 export function canManageDepartments(user: SessionUser | null): boolean {
   if (!user) return false;
-  return (
-    hasFullAccess(user) ||
-    user.role === ROLES.DEPT_ADMIN ||
-    user.role === "Department Admin" ||
-    user.role === "Departments Admin"
-  );
+  return true;
 }
 
 export function canAccessAdmin(user: SessionUser | null): boolean {

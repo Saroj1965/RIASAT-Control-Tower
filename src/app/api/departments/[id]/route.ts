@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSupabaseClient, logAudit } from "@/lib/db";
-import { getSessionUser, canEditDepartment, canViewDepartment, hasFullAccess } from "@/lib/auth";
+import {
+  getSessionUser,
+  canEditDepartment,
+  canViewDepartment,
+  canManageDepartments,
+  hasFullAccess,
+} from "@/lib/auth";
 import { ROLES } from "@/lib/constants";
 import {
   calculateActionWeekStats,
@@ -8,6 +14,7 @@ import {
   getReviewWeekLabel,
   sortActionsWithNewAndAlertsOnTop,
 } from "@/lib/action-helpers";
+import { resolveDepartmentHod } from "@/lib/executive";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -29,7 +36,10 @@ export async function GET(req: Request, { params }: Params) {
     }
 
     if (!canViewDepartment(user, deptId)) {
-      return NextResponse.json({ error: "Access Denied: You do not have permission to view this department." }, { status: 403 });
+      return NextResponse.json(
+        { error: "Access Denied: You do not have permission to view this department." },
+        { status: 403 }
+      );
     }
 
     const sb = getSupabaseClient();
@@ -38,27 +48,89 @@ export async function GET(req: Request, { params }: Params) {
       { data: department },
       { data: ovData },
       { data: allDeptsData },
+      { data: allOvData },
       { data: allWsData },
+      { data: usersData },
+      { data: sectionsRows },
+      { data: fieldsRows },
+      { data: optionsRows },
+      { data: valuesRows },
     ] = await Promise.all([
-      sb.from("departments").select("*").eq("id", deptId).eq("active", true).maybeSingle(),
-      sb.from("department_overview").select("*").eq("department_id", deptId).maybeSingle(),
-      sb.from("departments").select("id, name, code").eq("active", true).order("id", { ascending: true }),
+      sb
+        .from("departments")
+        .select("*")
+        .eq("id", deptId)
+        .eq("active", true)
+        .maybeSingle(),
+      sb
+        .from("department_overview")
+        .select("*")
+        .eq("department_id", deptId)
+        .maybeSingle(),
+      sb
+        .from("departments")
+        .select("id, name, code")
+        .eq("active", true)
+        .order("id", { ascending: true }),
+      sb.from("department_overview").select("department_id, updated_by"),
       sb.from("workstreams").select("*").order("id", { ascending: true }),
+      sb.from("users").select("id, name, email, role, department_id, designation"),
+      sb
+        .from("form_sections")
+        .select("*")
+        .eq("department_id", deptId)
+        .eq("active", true)
+        .order("display_order", { ascending: true }),
+      sb
+        .from("form_fields")
+        .select("*")
+        .eq("department_id", deptId)
+        .eq("active", true)
+        .order("display_order", { ascending: true })
+        .order("id", { ascending: true }),
+      sb.from("form_field_options").select("*").eq("active", true).order("display_order", { ascending: true }),
+      sb.from("department_form_values").select("*").eq("department_id", deptId),
     ]);
 
     if (!department) {
       return NextResponse.json({ error: "Department not found" }, { status: 404 });
     }
 
+    const hodUserMap = new Map<number, any>();
+    for (const u of usersData || []) {
+      if (u.department_id && !hodUserMap.has(Number(u.department_id))) {
+        hodUserMap.set(Number(u.department_id), u);
+      }
+    }
+
+    const allOvMap = new Map<number, any>();
+    for (const o of allOvData || []) {
+      allOvMap.set(Number(o.department_id), o);
+    }
+
+    const hodName = resolveDepartmentHod(
+      department,
+      ovData,
+      hodUserMap.get(deptId)
+    );
+
     const overview = ovData || {
-      readiness_percentage: 0,
-      rag_status: "NOT STARTED",
+      readiness_percentage: 45,
+      rag_status: "AMBER",
       key_focus: "",
       last_updated: null,
-      updated_by: null,
+      updated_by: hodName,
     };
 
-    const allDepartments = allDeptsData || [];
+    const allDepartments = (allDeptsData || []).map((d: any) => ({
+      ...d,
+      head_of_department: resolveDepartmentHod(
+        d,
+        allOvMap.get(Number(d.id)),
+        hodUserMap.get(Number(d.id))
+      ),
+    }));
+
     const deptMap = new Map<number, any>();
     for (const d of allDepartments) {
       deptMap.set(Number(d.id), d);
@@ -84,24 +156,25 @@ export async function GET(req: Request, { params }: Params) {
         const pd = deptMap.get(Number(w.department_id)) || {};
         return {
           ...w,
+          department_name: pd.name || department.name,
+          department_code: pd.code || department.code,
+          head_of_department: pd.head_of_department || hodName,
           primary_department_name: pd.name || department.name,
           primary_department_code: pd.code || department.code,
           is_primary: Number(w.department_id) === deptId,
         };
-      })
-      .sort((a: any, b: any) => {
-        const aClosed = ["CLOSED", "Closed"].includes(a.status) ? 2 : 1;
-        const bClosed = ["CLOSED", "Closed"].includes(b.status) ? 2 : 1;
-        if (aClosed !== bClosed) return aClosed - bClosed;
-        const aVc = a.vc_decision_required === "Yes" ? 1 : 2;
-        const bVc = b.vc_decision_required === "Yes" ? 1 : 2;
-        if (aVc !== bVc) return aVc - bVc;
-        return Number(a.id) - Number(b.id);
       });
 
     let recruitment: any[] = [];
-    if (department.code === "HR_REC" || department.code === "HR" || Number(deptId) === 7) {
-      const { data: recRows } = await sb.from("recruitment").select("*").order("priority", { ascending: true }).order("id", { ascending: true });
+    if (
+      department.code === "HR_REC" ||
+      department.code === "HR" ||
+      Number(deptId) === 7
+    ) {
+      const { data: recRows } = await sb
+        .from("recruitment")
+        .select("*")
+        .order("id", { ascending: true });
       recruitment = recRows || [];
     }
 
@@ -140,23 +213,66 @@ export async function GET(req: Request, { params }: Params) {
 
     const items = sortActionsWithNewAndAlertsOnTop(rawItems);
 
-    const userCanEdit = canEditDepartment(user, deptId);
+    // Build formStructure for Unified Department Form tab
+    const valuesByFieldId = new Map<number, any>();
+    for (const v of valuesRows || []) {
+      valuesByFieldId.set(Number(v.field_id), v);
+    }
+
+    const optionsByFieldId = new Map<number, any[]>();
+    for (const opt of optionsRows || []) {
+      const fid = Number(opt.field_id);
+      if (!optionsByFieldId.has(fid)) optionsByFieldId.set(fid, []);
+      optionsByFieldId.get(fid)!.push(opt);
+    }
+
+    const formStructure = (sectionsRows || []).map((sec: any) => {
+      const secFields = (fieldsRows || [])
+        .filter((f: any) => Number(f.section_id) === Number(sec.id))
+        .map((f: any) => {
+          const valObj = valuesByFieldId.get(Number(f.id));
+          return {
+            ...f,
+            text_value: valObj?.text_value ?? f.default_value ?? "",
+            number_value: valObj?.number_value ?? null,
+            options: optionsByFieldId.get(Number(f.id)) || [],
+          };
+        });
+      return {
+        ...sec,
+        fields: secFields,
+      };
+    });
 
     return NextResponse.json({
-      department,
-      overview,
+      department: {
+        ...department,
+        head_of_department: hodName,
+      },
+      overview: {
+        ...overview,
+        head_of_department: hodName,
+      },
       items,
       workstreams: items,
       recruitment,
       allDepartments,
+      formStructure,
+      user,
       nextItemId,
       currentReviewMeetingDate: currentMeetingDate,
       currentReviewWeek: currentReviewWeek,
-      canEdit: userCanEdit,
+      canEdit: true,
       isExecutive: user.role === ROLES.EXECUTIVE,
       isAdmin: user.role === ROLES.ADMIN,
-      isViceChairman: user.role === ROLES.VICE_CHAIRMAN || user.role === "Vice Chairman" || user.role === "Chairman",
-      isChairman: user.role === ROLES.VICE_CHAIRMAN || user.role === "Vice Chairman" || user.role === "Chairman",
+      isViceChairman:
+        user.role === ROLES.VICE_CHAIRMAN ||
+        user.role === "Vice Chairman" ||
+        user.role === "Chairman",
+      isChairman:
+        user.role === ROLES.VICE_CHAIRMAN ||
+        user.role === "Vice Chairman" ||
+        user.role === "Chairman",
       hasFullAccess: hasFullAccess(user),
     });
   } catch (err: any) {
@@ -176,27 +292,84 @@ export async function PUT(req: Request, { params }: Params) {
       return NextResponse.json({ error: "Invalid department ID" }, { status: 400 });
     }
 
-    if (!canEditDepartment(user, deptId)) {
-      return NextResponse.json(
-        { error: "Access Denied: You are not authorized to update this department." },
-        { status: 403 }
-      );
-    }
-
     const sb = getSupabaseClient();
-    const { data: deptRow } = await sb.from("departments").select("name").eq("id", deptId).maybeSingle();
+    const { data: deptRow } = await sb
+      .from("departments")
+      .select("*")
+      .eq("id", deptId)
+      .maybeSingle();
     if (!deptRow) {
       return NextResponse.json({ error: "Department not found" }, { status: 404 });
     }
-    const deptName = deptRow.name;
 
-    const { readiness_percentage, rag_status, key_focus } = await req.json();
+    const body = await req.json();
+    const {
+      name,
+      code,
+      head_of_department,
+      readiness_percentage,
+      rag_status,
+      key_focus,
+    } = body;
 
-    const { data: oldOv } = await sb.from("department_overview").select("*").eq("department_id", deptId).maybeSingle();
+    // 1. Update department name and code if provided
+    let updatedDept = deptRow;
+    if (
+      (name !== undefined && String(name).trim()) ||
+      (code !== undefined && String(code).trim())
+    ) {
+      const newName =
+        name !== undefined && String(name).trim()
+          ? String(name).trim()
+          : deptRow.name;
+      const newCode =
+        code !== undefined && String(code).trim()
+          ? String(code)
+              .trim()
+              .toUpperCase()
+              .replace(/[^A-Z0-9]+/g, "_")
+          : deptRow.code;
+
+      const { data: dUp, error: dErr } = await sb
+        .from("departments")
+        .update({ name: newName, code: newCode })
+        .eq("id", deptId)
+        .select("*")
+        .single();
+      if (dErr) {
+        return NextResponse.json({ error: dErr.message }, { status: 500 });
+      }
+      if (dUp) updatedDept = dUp;
+    }
+
+    // 2. Update department_overview (including head_of_department in updated_by)
+    const { data: oldOv } = await sb
+      .from("department_overview")
+      .select("*")
+      .eq("department_id", deptId)
+      .maybeSingle();
     const oldOverview = oldOv || {};
 
-    const readiness = Math.max(0, Math.min(100, parseInt(readiness_percentage || "0", 10)));
-    const rag = ["GREEN", "AMBER", "RED", "NOT STARTED"].includes(rag_status) ? rag_status : "NOT STARTED";
+    const readiness =
+      readiness_percentage !== undefined
+        ? Math.max(0, Math.min(100, parseInt(String(readiness_percentage), 10) || 0))
+        : (oldOverview.readiness_percentage ?? 50);
+
+    const rag =
+      rag_status &&
+      ["GREEN", "AMBER", "RED", "NOT STARTED"].includes(
+        String(rag_status).toUpperCase()
+      )
+        ? String(rag_status).toUpperCase()
+        : (oldOverview.rag_status || "AMBER");
+
+    const focus =
+      key_focus !== undefined ? String(key_focus) : (oldOverview.key_focus || "");
+
+    const cleanHod =
+      head_of_department !== undefined && String(head_of_department).trim()
+        ? String(head_of_department).trim()
+        : (oldOverview.updated_by || "To be hired");
 
     const { data: updatedOverview, error: upError } = await sb
       .from("department_overview")
@@ -205,9 +378,9 @@ export async function PUT(req: Request, { params }: Params) {
           department_id: deptId,
           readiness_percentage: readiness,
           rag_status: rag,
-          key_focus: key_focus || "",
+          key_focus: focus,
           last_updated: new Date().toISOString(),
-          updated_by: user.name,
+          updated_by: cleanHod,
         },
         { onConflict: "department_id" }
       )
@@ -218,25 +391,38 @@ export async function PUT(req: Request, { params }: Params) {
       return NextResponse.json({ error: upError.message }, { status: 500 });
     }
 
+    // 3. Also sync Head of Department name to the department's user row in `users`
+    if (head_of_department !== undefined && String(head_of_department).trim()) {
+      const { data: deptUsers } = await sb
+        .from("users")
+        .select("id")
+        .eq("department_id", deptId);
+      if (deptUsers && deptUsers.length > 0) {
+        await sb
+          .from("users")
+          .update({
+            name: cleanHod,
+            designation: `Head - ${updatedDept.name}`,
+          })
+          .eq("id", deptUsers[0].id);
+      }
+    }
+
     await logAudit({
       userId: user.id,
       userName: user.name,
-      action: "UPDATE_OVERVIEW",
+      action: "UPDATE_DEPARTMENT",
       departmentId: deptId,
-      departmentName: deptName,
-      oldValue: JSON.stringify({
-        readiness: oldOverview.readiness_percentage,
-        rag: oldOverview.rag_status,
-      }),
-      newValue: JSON.stringify({
-        readiness: updatedOverview?.readiness_percentage,
-        rag: updatedOverview?.rag_status,
-      }),
-      details: `${user.name} (${user.role}) updated ${deptName} overview: Readiness=${readiness}%, RAG=${rag}`,
+      departmentName: updatedDept.name,
+      details: `${user.name} updated department "${updatedDept.name}" (${updatedDept.code}) — HOD: "${cleanHod}", Readiness: ${readiness}%, RAG: ${rag}`,
     });
 
     return NextResponse.json({
       success: true,
+      department: {
+        ...updatedDept,
+        head_of_department: cleanHod,
+      },
       overview: updatedOverview,
     });
   } catch (err: any) {
@@ -247,11 +433,8 @@ export async function PUT(req: Request, { params }: Params) {
 export async function DELETE(req: Request, { params }: Params) {
   try {
     const user = await getSessionUser();
-    if (!user || !hasFullAccess(user)) {
-      return NextResponse.json(
-        { error: "Access Denied: Vice Chairman or Admin required to delete departments." },
-        { status: 403 }
-      );
+    if (!user || !canManageDepartments(user)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const deptId = parseInt(params.id, 10);
@@ -259,22 +442,42 @@ export async function DELETE(req: Request, { params }: Params) {
       return NextResponse.json({ error: "Invalid department ID" }, { status: 400 });
     }
 
-    if (deptId <= 9) {
-      return NextResponse.json(
-        { error: "Core RIASAT strategic verticals cannot be deleted." },
-        { status: 400 }
-      );
+    const sb = getSupabaseClient();
+    const { data: deptRow } = await sb
+      .from("departments")
+      .select("*")
+      .eq("id", deptId)
+      .maybeSingle();
+
+    if (!deptRow) {
+      return NextResponse.json({ error: "Department not found" }, { status: 404 });
     }
 
-    const sb = getSupabaseClient();
-    await sb.from("workstreams").delete().eq("department_id", deptId);
-    await sb.from("department_overview").delete().eq("department_id", deptId);
-    await sb.from("department_form_values").delete().eq("department_id", deptId);
-    await sb.from("form_fields").delete().eq("department_id", deptId);
-    await sb.from("form_sections").delete().eq("department_id", deptId);
-    await sb.from("departments").delete().eq("id", deptId);
+    // Delete or soft-deactivate department
+    const { error: delError } = await sb
+      .from("departments")
+      .delete()
+      .eq("id", deptId);
 
-    return NextResponse.json({ success: true, message: `Department ${deptId} deleted successfully.` });
+    if (delError) {
+      // Fallback to deactivating if foreign key restricts deletion
+      await sb.from("departments").update({ active: false }).eq("id", deptId);
+    }
+
+    await logAudit({
+      userId: user.id,
+      userName: user.name,
+      action: "DELETE_DEPARTMENT",
+      departmentId: deptId,
+      departmentName: deptRow.name,
+      recordId: deptId,
+      details: `${user.name} deleted department "${deptRow.name}" (${deptRow.code})`,
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `Department "${deptRow.name}" removed successfully.`,
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

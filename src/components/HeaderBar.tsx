@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { LogOut, BookOpen, FileBarChart, LayoutDashboard, ListChecks } from "lucide-react";
+import { LogOut, BookOpen, FileBarChart, LayoutDashboard, ListChecks, UserCheck, Building2 } from "lucide-react";
 import { SessionUser } from "@/lib/auth";
 
 export default function HeaderBar({ user }: { user: SessionUser }) {
@@ -47,7 +47,7 @@ export default function HeaderBar({ user }: { user: SessionUser }) {
       </div>
 
       {/* Top Navigation Links matching Riasat Executive Dashboard */}
-      <nav className="hidden xl:flex items-center gap-1.5 shrink-0">
+      <nav className="hidden lg:flex items-center gap-1.5 shrink-0">
         <Link
           href="/executive?view=actions"
           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
@@ -58,6 +58,28 @@ export default function HeaderBar({ user }: { user: SessionUser }) {
         >
           <ListChecks className="w-3.5 h-3.5" />
           Action Register
+        </Link>
+        <Link
+          href="/actions"
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+            pathname.startsWith("/actions")
+              ? "bg-[#003B71] text-white"
+              : "text-slate-700 hover:bg-slate-100 hover:text-[#003B71]"
+          }`}
+        >
+          <ListChecks className="w-3.5 h-3.5 text-[#D81B60]" />
+          All Actions
+        </Link>
+        <Link
+          href="/departments-master"
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+            pathname.startsWith("/departments-master")
+              ? "bg-[#003B71] text-white"
+              : "text-slate-700 hover:bg-slate-100 hover:text-[#003B71]"
+          }`}
+        >
+          <UserCheck className="w-3.5 h-3.5 text-[#F37021]" />
+          Departments &amp; HODs
         </Link>
         <Link
           href="/executive?view=executive_dashboard"
