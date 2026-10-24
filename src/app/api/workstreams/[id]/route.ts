@@ -116,10 +116,19 @@ export async function PUT(req: Request, { params }: Params) {
     let finalClosureRemarks = existing.closure_remarks;
     let finalClosedBy = existing.closed_by;
 
+    const authorName = (body.updated_by && String(body.updated_by).trim()) || user.name;
+    const progressDateIso =
+      body.progress_date && String(body.progress_date).trim()
+        ? new Date(String(body.progress_date).trim()).toISOString()
+        : new Date().toISOString();
+
     if (isClosing) {
-      finalClosureDate = new Date().toISOString();
+      finalClosureDate =
+        body.closure_date && String(body.closure_date).trim()
+          ? new Date(String(body.closure_date).trim()).toISOString()
+          : new Date().toISOString();
       finalClosureRemarks = closure_remarks || finalRemarks || "Closed during management review";
-      finalClosedBy = user.name;
+      finalClosedBy = authorName;
     } else if (isReopening) {
       finalClosureDate = null;
       finalClosureRemarks = null;
@@ -161,9 +170,9 @@ export async function PUT(req: Request, { params }: Params) {
     if (newRemarkText) {
       // Prepend latest update at the top (datewise, latest first)
       history.unshift({
-        timestamp: new Date().toISOString(),
-        date: new Date().toISOString(),
-        user: user.name,
+        timestamp: progressDateIso,
+        date: progressDateIso,
+        user: authorName,
         role: user.role,
         action: historyAction,
         status: targetStatus,
@@ -204,7 +213,7 @@ export async function PUT(req: Request, { params }: Params) {
       action_history: JSON.stringify(history),
       priority: priority !== undefined ? priority : existing.priority,
       updated_at: new Date().toISOString(),
-      updated_by: user.name,
+      updated_by: authorName,
       review_meeting_date:
         body.review_meeting_date !== undefined && body.review_meeting_date
           ? body.review_meeting_date

@@ -574,7 +574,7 @@ function AdminPageContent() {
                 </span>
               </div>
               <h1 className="text-xl md:text-2xl font-black text-slate-950 tracking-tight truncate">
-                RIASAT Admin Control &amp; Analytics Suite
+                RIASAT Executive Dashboard — Admin &amp; Analytics Suite
               </h1>
             </div>
           </div>
@@ -925,7 +925,7 @@ function AdminPageContent() {
             <table className="w-full text-left border-collapse min-w-[850px] text-xs">
               <thead>
                 <tr className="bg-slate-950 text-white text-[11px] font-black uppercase tracking-wider">
-                  <th className="py-3.5 px-4">ID</th>
+                  <th className="py-3.5 px-4">S.No.</th>
                   <th className="py-3.5 px-4">Vertical Name</th>
                   <th className="py-3.5 px-4">Code</th>
                   <th className="py-3.5 px-4">Readiness %</th>
@@ -935,9 +935,9 @@ function AdminPageContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/80">
-                {filteredDepartments.map((d) => (
+                {filteredDepartments.map((d, idx) => (
                   <tr key={d.id} className="hover:bg-slate-50/90 transition">
-                    <td className="py-3.5 px-4 font-mono font-bold text-slate-500">#{d.id}</td>
+                    <td className="py-3.5 px-4 font-mono font-bold text-slate-600">S.No. {idx + 1}</td>
                     <td className="py-3.5 px-4 font-black text-slate-900">{d.name}</td>
                     <td className="py-3.5 px-4 font-mono font-bold text-[#003B71]">{d.code}</td>
                     <td className="py-3.5 px-4 font-black text-slate-900">
@@ -1026,8 +1026,8 @@ function AdminPageContent() {
                   className="p-4 rounded-xl border border-slate-200 hover:border-[#003B71]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition"
                 >
                   <div className="flex items-start gap-3 min-w-0">
-                    <span className="w-8 h-8 rounded-lg bg-[#003B71]/10 text-[#003B71] font-black text-xs flex items-center justify-center shrink-0">
-                      #{f.display_order || idx + 1}
+                    <span className="px-2.5 h-8 rounded-lg bg-[#003B71]/10 text-[#003B71] font-black text-xs flex items-center justify-center shrink-0 whitespace-nowrap">
+                      S.No. {idx + 1}
                     </span>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">

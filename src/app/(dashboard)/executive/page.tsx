@@ -14,12 +14,7 @@ export default async function ExecutiveControlTowerPage() {
     redirect("/login");
   }
 
-  // Department Heads are restricted to their assigned department
-  if (user.role === ROLES.DEPARTMENT_HEAD || user.role === "Department Head") {
-    redirect(user.department_id ? `/department/${user.department_id}` : "/login");
-  }
-
   const initialData = await getExecutiveSummaryData();
 
-  return <ExecutiveControlTowerClient initialData={initialData} />;
+  return <ExecutiveControlTowerClient initialData={initialData} data={initialData} currentUser={user} />;
 }

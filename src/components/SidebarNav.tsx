@@ -109,7 +109,7 @@ function SidebarNavContent({ user }: { user: SessionUser }) {
           <div className="mt-2 flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-[#D81B60]" />
             <span className="text-[10px] font-black tracking-widest uppercase text-[#003B71]">
-              RIASAT CONTROL TOWER
+              RIASAT EXECUTIVE DASHBOARD
             </span>
           </div>
         </div>
@@ -124,21 +124,29 @@ function SidebarNavContent({ user }: { user: SessionUser }) {
 
       {/* Navigation Links */}
       <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto text-xs">
-        {/* Executive Control Tower Sub-Pages */}
-        {isExecutiveOrAbove && !isAnySpecializedAdmin && (
+        {/* Riasat Executive Dashboard Sub-Pages (Available to all users) */}
+        {!isAnySpecializedAdmin && (
           <div>
             <p className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-              Executive Command Pages
+              Riasat Executive Dashboard
             </p>
             <div className="space-y-1">
               {[
                 {
                   href: "/executive?view=actions",
-                  label: "Pending Action Register",
+                  label: "Action Register (Summary)",
                   icon: <ListChecks className="w-4 h-4" />,
                   active:
                     pathname === "/executive" &&
                     (!currentView || currentView === "actions"),
+                },
+                {
+                  href: "/executive?view=executive_dashboard",
+                  label: "Executive Action Dashboard",
+                  icon: <LayoutDashboard className="w-4 h-4" />,
+                  active:
+                    pathname === "/executive" &&
+                    currentView === "executive_dashboard",
                 },
                 {
                   href: "/executive?view=verticals",
@@ -191,46 +199,44 @@ function SidebarNavContent({ user }: { user: SessionUser }) {
           </div>
         )}
 
-        {/* 9 Strategic Verticals */}
+        {/* 9 Strategic Verticals (Available to all users) */}
         {!isAnySpecializedAdmin && (
           <div>
             <p className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-              {isExecutiveOrAbove ? "9 Strategic Verticals" : "Assigned Vertical"}
+              9 Strategic Verticals
             </p>
             <div className="space-y-1">
-              {departmentsList
-                .filter((d) => isExecutiveOrAbove || d.id === user.department_id)
-                .map((dept) => {
-                  const active = pathname === `/department/${dept.id}`;
-                  return (
-                    <Link
-                      key={dept.id}
-                      href={`/department/${dept.id}`}
-                      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl font-bold transition-all ${
-                        active
-                          ? "bg-gradient-to-r from-[#003B71] to-[#D81B60] text-white shadow-xs"
-                          : "text-slate-600 hover:text-[#003B71] hover:bg-slate-50"
-                      }`}
-                    >
-                      <span className={active ? "text-white" : "text-slate-400"}>
-                        {deptIcons[dept.code] || <Building2 className="w-4 h-4" />}
-                      </span>
-                      <span className="truncate">{dept.name}</span>
-                    </Link>
-                  );
-                })}
+              {departmentsList.map((dept) => {
+                const active = pathname === `/department/${dept.id}`;
+                return (
+                  <Link
+                    key={dept.id}
+                    href={`/department/${dept.id}`}
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-xl font-bold transition-all ${
+                      active
+                        ? "bg-gradient-to-r from-[#003B71] to-[#D81B60] text-white shadow-xs"
+                        : "text-slate-600 hover:text-[#003B71] hover:bg-slate-50"
+                    }`}
+                  >
+                    <span className={active ? "text-white" : "text-slate-400"}>
+                      {deptIcons[dept.code] || <Building2 className="w-4 h-4" />}
+                    </span>
+                    <span className="truncate">{dept.name}</span>
+                  </Link>
+                );
+              })}
             </div>
           </div>
         )}
 
-        {/* Governance & Admin Suite */}
-        {(isExecutiveOrAbove || isAnySpecializedAdmin) && (
-          <div>
-            <p className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-              Governance &amp; Admin Pages
-            </p>
-            <div className="space-y-1">
-              {isExecutiveOrAbove && !isAnySpecializedAdmin && (
+        {/* Reports, Guide & Admin Suite */}
+        <div>
+          <p className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+            Reports, Guide &amp; Governance
+          </p>
+          <div className="space-y-1">
+            {!isAnySpecializedAdmin && (
+              <>
                 <Link
                   href="/reports"
                   className={`flex items-center gap-2.5 px-3 py-2 rounded-xl font-bold transition-all ${
@@ -246,7 +252,23 @@ function SidebarNavContent({ user }: { user: SessionUser }) {
                   />
                   <span>Reports &amp; CSV Export</span>
                 </Link>
-              )}
+                <Link
+                  href="/guidelines"
+                  className={`flex items-center gap-2.5 px-3 py-2 rounded-xl font-bold transition-all ${
+                    pathname.startsWith("/guidelines")
+                      ? "bg-[#003B71] text-white shadow-xs"
+                      : "text-slate-600 hover:text-[#003B71] hover:bg-slate-50"
+                  }`}
+                >
+                  <Settings
+                    className={`w-4 h-4 ${
+                      pathname.startsWith("/guidelines") ? "text-[#F37021]" : "text-slate-400"
+                    }`}
+                  />
+                  <span>How to Use / Guide</span>
+                </Link>
+              </>
+            )}
 
               {(isViceChairmanOrAdmin || isUserAdmin) && (
                 <Link
@@ -329,7 +351,6 @@ function SidebarNavContent({ user }: { user: SessionUser }) {
               )}
             </div>
           </div>
-        )}
       </nav>
 
       {/* Bottom User Badge */}

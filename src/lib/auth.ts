@@ -70,25 +70,16 @@ export function hasFullAccess(user: SessionUser | null): boolean {
   );
 }
 
-export function canEditDepartment(user: SessionUser | null, departmentId: number): boolean {
+export function canEditDepartment(user: SessionUser | null, _departmentId?: number): boolean {
   if (!user) return false;
-  // Vice Chairman and Admin have complete access across the entire dashboard
-  if (hasFullAccess(user)) return true;
-  if (user.role === ROLES.EXECUTIVE) return false;
-  if (user.role === ROLES.DEPARTMENT_HEAD) {
-    return Number(user.department_id) === Number(departmentId);
-  }
-  return false;
+  // Every authenticated user on the Riasat Executive Dashboard can edit actions and submit updates
+  return true;
 }
 
-export function canViewDepartment(user: SessionUser | null, departmentId: number): boolean {
+export function canViewDepartment(user: SessionUser | null, _departmentId?: number): boolean {
   if (!user) return false;
-  // Vice Chairman, Executive, and Admin can view all departments
-  if (hasFullAccess(user) || user.role === ROLES.EXECUTIVE) return true;
-  if (user.role === ROLES.DEPARTMENT_HEAD) {
-    return Number(user.department_id) === Number(departmentId);
-  }
-  return false;
+  // Every authenticated user can view department registers and reports
+  return true;
 }
 
 export function canManageForms(user: SessionUser | null): boolean {

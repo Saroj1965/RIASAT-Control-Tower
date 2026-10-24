@@ -57,7 +57,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     pass: "Exec@123",
     category: "Leadership",
     badgeColor: "bg-pink-600 text-white",
-    scope: "Executive Control Tower (Read-Only)",
+    scope: "Riasat Executive Dashboard & Action Register",
   },
 
   // Administration
@@ -283,7 +283,7 @@ export default function LoginPage() {
               <h1 className="text-xl sm:text-2xl font-extrabold text-[#1e1b4b] tracking-tight">
                 Welcome to <span className="text-black">RIASAT</span>{" "}
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-700 via-pink-600 to-orange-500">
-                  Control Tower
+                  Executive Dashboard
                 </span>
               </h1>
               <p className="text-xs sm:text-sm font-semibold text-slate-800 tracking-wide uppercase">
@@ -329,7 +329,7 @@ export default function LoginPage() {
             </div>
           </div>
           <h2 className="text-lg font-bold text-[#1e1b4b] tracking-tight">
-            Executive Control Tower
+            Riasat Executive Dashboard
           </h2>
           <p className="text-xs text-slate-500 mt-1 font-medium">
             Ramaiah Institute for Advanced Skills &amp; Technology

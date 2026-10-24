@@ -1,7 +1,7 @@
 -- =====================================================================
--- RIASAT EXECUTIVE CONTROL TOWER: COMPLETE SUPABASE DATABASE SCHEMA
+-- RIASAT EXECUTIVE DASHBOARD: COMPLETE SUPABASE DATABASE SCHEMA
 -- Ramaiah Institute for Advanced Skills & Technology (RIASAT)
--- Compatible with Supabase PostgreSQL (Standard & Transaction Pooler)
+-- Unified Action Register, Edit Action Form & Departmental Report Schema
 -- =====================================================================
 
 -- 1. DEPARTMENTS TABLE
@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS workstreams (
   meeting_context TEXT DEFAULT 'Weekly Management Review - 12 Oct 2026',
   priority TEXT DEFAULT 'Medium',
   review_meeting_date DATE DEFAULT '2026-10-12',
+  review_frequency TEXT DEFAULT 'Weekly',
   review_week TEXT DEFAULT 'Week 42 (12 Oct 2026)',
   initial_target_date TEXT,
   closure_date TIMESTAMP WITH TIME ZONE,
@@ -132,6 +133,9 @@ CREATE TABLE IF NOT EXISTS workstreams (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_by TEXT DEFAULT ''
 );
+
+-- Ensure review_frequency column exists on existing deployments
+ALTER TABLE workstreams ADD COLUMN IF NOT EXISTS review_frequency TEXT DEFAULT 'Weekly';
 
 -- 9. RECRUITMENT TABLE (Talent Acquisition Pipeline)
 CREATE TABLE IF NOT EXISTS recruitment (
@@ -408,57 +412,50 @@ ON CONFLICT DO NOTHING;
 SELECT setval('recruitment_id_seq', (SELECT MAX(id) FROM recruitment));
 
 -- =====================================================================
--- SEED DATA: FORM SECTIONS & DYNAMIC FIELDS FOR ALL 9 VERTICALS
+-- SEED DATA: UNIFIED FORM SECTIONS & 14 STANDARDISED FIELDS FOR ALL 9 VERTICALS
+-- (All 9 departments including HR & Recruitment share the exact same form structure
+--  with S.No. 1..14 to generate identical, uniform reports across the dashboard)
 -- =====================================================================
 DO $$
 DECLARE
   dept_rec RECORD;
   sec_id INTEGER;
 BEGIN
-  FOR dept_rec IN SELECT id, code FROM departments LOOP
-    IF dept_rec.id = 7 OR dept_rec.code = 'HR_REC' THEN
-      INSERT INTO form_sections (department_id, section_key, title, display_order)
-      VALUES (dept_rec.id, 'recruitment_tracker', 'Recruitment Tracker Web Form', 1)
-      ON CONFLICT (department_id, section_key) DO UPDATE SET title = EXCLUDED.title
-      RETURNING id INTO sec_id;
+  DELETE FROM department_form_values;
+  DELETE FROM form_field_options;
+  DELETE FROM form_fields;
+  DELETE FROM form_sections;
 
-      IF sec_id IS NULL THEN
-        SELECT id INTO sec_id FROM form_sections WHERE department_id = dept_rec.id AND section_key = 'recruitment_tracker';
-      END IF;
+  FOR dept_rec IN SELECT id, code, name FROM departments ORDER BY id LOOP
+    INSERT INTO form_sections (department_id, section_key, title, display_order, active)
+    VALUES (dept_rec.id, 'action_tracker', 'Weekly Departmental Action Register & Progress Form', 1, TRUE)
+    ON CONFLICT (department_id, section_key) DO UPDATE SET title = EXCLUDED.title
+    RETURNING id INTO sec_id;
 
-      INSERT INTO form_fields (department_id, section_id, field_key, label, field_type, required, active, display_order, help_text) VALUES
-        (dept_rec.id, sec_id, 'sl_no', 'Sl. No. — automatically generated', 'Number', TRUE, TRUE, 1, 'Automatically generated sequential row number'),
-        (dept_rec.id, sec_id, 'position_title', 'Position / Role', 'Short Text', TRUE, TRUE, 2, 'Position title or role designation'),
-        (dept_rec.id, sec_id, 'strategic_segment', 'Department / Strategic Vertical', 'Dropdown', TRUE, TRUE, 3, 'Target strategic vertical domain'),
-        (dept_rec.id, sec_id, 'priority', 'Priority', 'Dropdown', TRUE, TRUE, 4, 'Critical / High / Medium / Low'),
-        (dept_rec.id, sec_id, 'hiring_lead', 'Hiring Owner', 'Short Text', TRUE, TRUE, 5, 'Assigned talent acquisition lead or hiring manager'),
-        (dept_rec.id, sec_id, 'target_date', 'Target Joining Date', 'Date', FALSE, TRUE, 6, 'Planned joining date (YYYY-MM-DD)'),
-        (dept_rec.id, sec_id, 'status', 'Status', 'Dropdown', TRUE, TRUE, 7, 'Candidate sourced / shortlisted / Interview in progress / Offers released / Rejected / Joined'),
-        (dept_rec.id, sec_id, 'remarks', 'Remarks', 'Long Text', FALSE, TRUE, 8, 'Progress, notes, compensation or bottlenecks'),
-        (dept_rec.id, sec_id, 'vc_decision_required', 'VC decision required', 'Dropdown', TRUE, TRUE, 9, 'Yes / No - leadership escalation flag')
-      ON CONFLICT (department_id, field_key) DO UPDATE SET label = EXCLUDED.label, field_type = EXCLUDED.field_type;
-
-    ELSE
-      INSERT INTO form_sections (department_id, section_key, title, display_order)
-      VALUES (dept_rec.id, 'action_tracker', 'Action Tracker Web Form', 1)
-      ON CONFLICT (department_id, section_key) DO UPDATE SET title = EXCLUDED.title
-      RETURNING id INTO sec_id;
-
-      IF sec_id IS NULL THEN
-        SELECT id INTO sec_id FROM form_sections WHERE department_id = dept_rec.id AND section_key = 'action_tracker';
-      END IF;
-
-      INSERT INTO form_fields (department_id, section_id, field_key, label, field_type, required, active, display_order, help_text) VALUES
-        (dept_rec.id, sec_id, 'deliverable', 'Action item', 'Short Text', TRUE, TRUE, 1, 'Specific action item or key operational deliverable'),
-        (dept_rec.id, sec_id, 'ownership', 'Owner / support', 'Short Text', TRUE, TRUE, 2, 'Responsible person, team, or support coordinator'),
-        (dept_rec.id, sec_id, 'timeline', 'Timeline', 'Short Text', TRUE, TRUE, 3, 'Target completion deadline (e.g. Urgent, Immediate, Dec 2026)'),
-        (dept_rec.id, sec_id, 'status', 'Status', 'Dropdown', TRUE, TRUE, 4, 'Open / In Progress / Completed / Delayed / Blocked'),
-        (dept_rec.id, sec_id, 'remarks', 'Remarks / Dependencies', 'Long Text', FALSE, TRUE, 5, 'Progress notes, dependencies, or blockers'),
-        (dept_rec.id, sec_id, 'vc_decision_required', 'Vice Chairman Decision Required', 'Dropdown', TRUE, TRUE, 6, 'Yes / No - escalation required for leadership action'),
-        (dept_rec.id, sec_id, 'category', 'Initiative / Event / Campaign', 'Short Text', FALSE, TRUE, 7, 'Strategic initiative or functional theme'),
-        (dept_rec.id, sec_id, 'sl_no', 'Sl. No. — automatically generated', 'Number', FALSE, TRUE, 8, 'Sequential line item number')
-      ON CONFLICT (department_id, field_key) DO UPDATE SET label = EXCLUDED.label, field_type = EXCLUDED.field_type;
+    IF sec_id IS NULL THEN
+      SELECT id INTO sec_id FROM form_sections WHERE department_id = dept_rec.id AND section_key = 'action_tracker';
     END IF;
+
+    INSERT INTO form_fields (department_id, section_id, field_key, label, field_type, required, active, display_order, help_text) VALUES
+      (dept_rec.id, sec_id, 'sl_no', 'Sl.No. (assigned automatically)', 'Short Text', TRUE, TRUE, 1, 'Automatically assigned action code (e.g. ACT-01)'),
+      (dept_rec.id, sec_id, 'review_meeting_date', 'Review Meeting Date', 'Date', TRUE, TRUE, 2, 'Date of the review meeting (YYYY-MM-DD)'),
+      (dept_rec.id, sec_id, 'review_frequency', 'Review Frequency', 'Dropdown', TRUE, TRUE, 3, 'Weekly or Monthly review cadence'),
+      (dept_rec.id, sec_id, 'department', 'Department', 'Dropdown', TRUE, TRUE, 4, 'Primary responsible department / vertical'),
+      (dept_rec.id, sec_id, 'ownership', 'Action Owner', 'Short Text', TRUE, TRUE, 5, 'Pick from the staff list or type a name'),
+      (dept_rec.id, sec_id, 'priority', 'Priority', 'Dropdown', TRUE, TRUE, 6, 'Critical / High / Medium / Low'),
+      (dept_rec.id, sec_id, 'deliverable', 'Action Item / Deliverable', 'Long Text', TRUE, TRUE, 7, 'Concrete action or deliverable agreed in the review meeting'),
+      (dept_rec.id, sec_id, 'supporting_departments', 'Support Required From', 'Short Text', FALSE, TRUE, 8, 'People, teams or departments required for support'),
+      (dept_rec.id, sec_id, 'timeline', 'Completion Date / Target Date', 'Date', TRUE, TRUE, 9, 'Not reset on carry-forward. Changes are logged.'),
+      (dept_rec.id, sec_id, 'status', 'Status', 'Dropdown', TRUE, TRUE, 10, 'Open / In Progress / On Track / Delayed / Blocked / On Hold / Completed / Closed'),
+      (dept_rec.id, sec_id, 'next_followup_date', 'Next Follow-up Date', 'Date', FALSE, TRUE, 11, 'Scheduled date for next follow-up review'),
+      (dept_rec.id, sec_id, 'vc_decision_required', 'Vice Chairman Decision Required', 'Dropdown', TRUE, TRUE, 12, 'No / Yes — whether Vice Chairman decision is required'),
+      (dept_rec.id, sec_id, 'remarks', 'Progress Update / Remarks (this week)', 'Long Text', FALSE, TRUE, 13, 'Progress, blockers and dependencies since the last review'),
+      (dept_rec.id, sec_id, 'decision_action', 'Action Taken (Closed / Open / In Progress)', 'Long Text', FALSE, TRUE, 14, 'Clearly records what action was taken if closed, open, or in progress')
+    ON CONFLICT (department_id, field_key) DO UPDATE SET
+      label = EXCLUDED.label,
+      field_type = EXCLUDED.field_type,
+      display_order = EXCLUDED.display_order,
+      help_text = EXCLUDED.help_text;
   END LOOP;
 END $$;
 
