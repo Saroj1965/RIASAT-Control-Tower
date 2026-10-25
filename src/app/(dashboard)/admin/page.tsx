@@ -1036,7 +1036,7 @@ function AdminPageContent() {
                 >
                   <div className="flex items-start gap-3 min-w-0">
                     <span className="px-2.5 h-8 rounded-lg bg-[#003B71]/10 text-[#003B71] font-black text-xs flex items-center justify-center shrink-0 whitespace-nowrap">
-                      S.No. {idx + 1}
+                      {idx + 1}
                     </span>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">

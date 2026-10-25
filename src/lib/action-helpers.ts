@@ -276,8 +276,9 @@ export function getActionUpdatesDatewise(action: any): FormattedActionUpdate[] {
 /**
  * Sorts actions so that:
  * 1. Pending items come before Closed/Completed items
- * 2. Newly added items (id > 15 or created recently) and Red Alerts / Critical Alerts come first at the top
- * 3. Within each tier, newest items (id DESC) come first
+ * 2. Red Alerts / Overdue / Critical items come first at the top
+ * 3. VC Decision Required items come next
+ * 4. Within each group, order by review_meeting_date DESC (19 Oct before 12 Oct) then action code / ID
  */
 export function sortActionsWithNewAndAlertsOnTop<T extends Record<string, any>>(items: T[]): T[] {
   return [...items].sort((a, b) => {
@@ -285,17 +286,7 @@ export function sortActionsWithNewAndAlertsOnTop<T extends Record<string, any>>(
     const bPending = isPendingActionStatus(b.status) ? 0 : 1;
     if (aPending !== bPending) return aPending - bPending;
 
-    // Newly added items (ID > 15 are user-created beyond initial 15 seed items)
-    const aIsNewlyAdded = Number(a.id) > 15 ? 0 : 1;
-    const bIsNewlyAdded = Number(b.id) > 15 ? 0 : 1;
-    if (aIsNewlyAdded !== bIsNewlyAdded) return aIsNewlyAdded - bIsNewlyAdded;
-
-    // If both are newly added, sort newest ID on top
-    if (aIsNewlyAdded === 0 && bIsNewlyAdded === 0) {
-      return Number(b.id) - Number(a.id);
-    }
-
-    // Next: Red Alert items on top
+    // Red Alert / Overdue / Critical items on top
     const aRed = isRedAlertItem(a) ? 0 : 1;
     const bRed = isRedAlertItem(b) ? 0 : 1;
     if (aRed !== bRed) return aRed - bRed;
@@ -318,8 +309,15 @@ export function sortActionsWithNewAndAlertsOnTop<T extends Record<string, any>>(
         : 1;
     if (aAmber !== bAmber) return aAmber - bAmber;
 
-    // Finally: newest ID first
-    return Number(b.id) - Number(a.id);
+    // Next: Latest review meeting date first (e.g. 2026-10-19 before 2026-10-12)
+    const aDate = String(a.review_meeting_date || "2026-10-12").slice(0, 10);
+    const bDate = String(b.review_meeting_date || "2026-10-12").slice(0, 10);
+    if (aDate !== bDate) return bDate.localeCompare(aDate);
+
+    // Finally: sort by ACT code number or ID ascending
+    const aCodeNum = parseInt(String(a.item_id || "").replace(/\D+/g, ""), 10) || Number(a.id) || 0;
+    const bCodeNum = parseInt(String(b.item_id || "").replace(/\D+/g, ""), 10) || Number(b.id) || 0;
+    return aCodeNum - bCodeNum;
   });
 }
 
@@ -388,8 +386,8 @@ export function calculateActionWeekStats(action: any, referenceDate: Date = new 
     weeks_outstanding = Math.max(0, Math.floor(diffDays / 7));
   }
 
-  const is_carried_forward = !is_closed && weeks_outstanding > 0;
-  const is_new_this_week = !is_closed && (weeks_outstanding === 0 || Number(action.id) > 15);
+  const is_carried_forward = !is_closed && (review_meeting_date < "2026-10-19" || weeks_outstanding > 0);
+  const is_new_this_week = !is_closed && !is_carried_forward;
 
   const timeline = (action.timeline || action.target_date || "").trim();
   let is_overdue = false;

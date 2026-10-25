@@ -71,6 +71,8 @@ export default function DepartmentWorkspacePage() {
 
   // Filters
   const [wsSearch, setWsSearch] = useState("");
+  const [wsMeetingDateFilter, setWsMeetingDateFilter] = useState("ALL");
+  const [wsStatusFilter, setWsStatusFilter] = useState("ALL");
   const [wsPriorityFilter, setWsPriorityFilter] = useState("ALL");
   const [redAlertOnly, setRedAlertOnly] = useState(false);
 
@@ -150,69 +152,29 @@ export default function DepartmentWorkspacePage() {
     }
   }, [deptId, fetchDepartmentData]);
 
-  // Unify all department actions (workstreams + any HR recruitment records mapped to the same schema)
+  // Unify all department actions from the unified workstreams table
   const unifiedActions = useMemo(() => {
-    const wsMapped = (workstreams || []).map((w: any) => ({
+    return (workstreams || []).map((w: any) => ({
       ...w,
       is_hr_item: false,
     }));
+  }, [workstreams]);
 
-    // Map any recruitment positions for Dept 7 into the exact same unified action structure
-    const recMapped = (recruitment || []).map((r: any) => {
-      const statusNorm =
-        r.status === "Joined" || r.status === "Closed" ? "Closed" : r.status || "Open";
-      const updates = [
-        {
-          date: r.updated_at || "2026-10-23T09:00:00Z",
-          user: r.hiring_lead || r.updated_by || "Anamika Sahay",
-          status: statusNorm,
-          remarks:
-            r.remarks ||
-            r.next_action ||
-            `Sourced: ${r.candidates_sourced || 0}, Shortlisted: ${r.candidates_shortlisted || 0}, Interviews: ${r.interviews || 0}`,
-        },
-      ];
-      return {
-        id: r.id,
-        item_id: r.position_id || `REC-${String(r.id).padStart(2, "0")}`,
-        position_id: r.position_id,
-        department_id: deptId,
-        department_name: department?.name || "HR & Recruitment",
-        category: r.strategic_segment || "Talent Acquisition",
-        deliverable: r.position_title,
-        action_point: r.position_title,
-        position_title: r.position_title,
-        strategic_segment: r.strategic_segment,
-        owner: r.hiring_lead || "Anamika Sahay",
-        ownership: r.hiring_lead || "Anamika Sahay",
-        hiring_lead: r.hiring_lead || "Anamika Sahay",
-        supporting_departments: r.strategic_segment || "",
-        priority: r.priority || "High",
-        target_date: r.target_date || "Immediate",
-        timeline: r.target_date || "Immediate",
-        status: statusNorm,
-        rag_status: r.rag_status || "GREEN",
-        effective_rag: r.rag_status || "GREEN",
-        is_red_alert:
-          r.rag_status === "RED" || String(r.priority || "").toUpperCase() === "CRITICAL",
-        vc_decision_required:
-          r.vc_decision_required === "Yes" || r.vc_attention ? "Yes" : "No",
-        vc_attention: r.vc_attention,
-        remarks: r.remarks || r.next_action || "",
-        decision_action: r.next_action || r.remarks || "",
-        next_action: r.next_action || "",
-        review_meeting_date: "2026-10-12",
-        review_frequency: "Weekly",
-        updates_list: updates,
-        action_history: updates,
-        is_hr_item: true,
-        updated_at: r.updated_at,
-        updated_by: r.updated_by,
-      };
-    });
-
-    return [...wsMapped, ...recMapped];
-  }, [workstreams, recruitment, deptId, department]);
+  const deptMeetingCounts = useMemo(() => {
+    const getMtg = (w: any) => String(w.review_meeting_date || "2026-10-12").trim().slice(0, 10);
+    const isPend = (w: any) => {
+      const st = String(w.status || "OPEN").trim().toUpperCase();
+      return st !== "CLOSED" && st !== "COMPLETED" && st !== "JOINED";
+    };
+    const oct12 = unifiedActions.filter((w) => getMtg(w) === "2026-10-12");
+    const oct19 = unifiedActions.filter((w) => getMtg(w) === "2026-10-19");
+    return {
+      oct12Total: oct12.length,
+      oct12Pending: oct12.filter(isPend).length,
+      oct19Total: oct19.length,
+      oct19Pending: oct19.filter(isPend).length,
+    };
+  }, [unifiedActions]);
 
   // Separate Pending vs Closed
   const pendingWorkstreams = useMemo(() => {
@@ -232,6 +194,16 @@ export default function DepartmentWorkspacePage() {
   const filterList = useCallback(
     (list: any[]) => {
       return list.filter((w) => {
+        const mtgDate = String(w.review_meeting_date || "2026-10-12").trim().slice(0, 10);
+        if (wsMeetingDateFilter !== "ALL" && mtgDate !== wsMeetingDateFilter) {
+          return false;
+        }
+        if (
+          wsStatusFilter !== "ALL" &&
+          String(w.status || "Open").trim().toUpperCase() !== wsStatusFilter.toUpperCase()
+        ) {
+          return false;
+        }
         if (
           wsPriorityFilter !== "ALL" &&
           String(w.priority || "Medium").toUpperCase() !==
@@ -269,7 +241,7 @@ export default function DepartmentWorkspacePage() {
         return true;
       });
     },
-    [wsPriorityFilter, redAlertOnly, wsSearch]
+    [wsMeetingDateFilter, wsStatusFilter, wsPriorityFilter, redAlertOnly, wsSearch]
   );
 
   const displayedPending = useMemo(
@@ -330,7 +302,7 @@ export default function DepartmentWorkspacePage() {
           "Active operational directive";
 
         return [
-          `S.No. ${idx + 1}`,
+          `${idx + 1}`,
           w.item_id || `ACT-${idx + 1}`,
           String(w.review_meeting_date || "2026-10-12").slice(0, 10),
           w.review_frequency || "Weekly",
@@ -715,6 +687,112 @@ export default function DepartmentWorkspacePage() {
       {/* =================================================================== */}
       {(activePage === "pending" || activePage === "closed" || activePage === "all") && (
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+          {/* 2 Separate Prominent Tabs for Meeting Dates (12 Oct 2026 & 19 Oct 2026) */}
+          <div className="px-4 md:px-5 pt-4 pb-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2.5 bg-slate-50/60">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 mr-1">
+                Review Meeting Tabs:
+              </span>
+              <button
+                type="button"
+                onClick={() => setWsMeetingDateFilter("ALL")}
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                  wsMeetingDateFilter === "ALL"
+                    ? "bg-[#003B71] text-white border-[#003B71]"
+                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                <span>All Meeting Dates</span>
+                <span className="px-1.5 py-0.5 rounded bg-black/15 font-mono text-[10px] font-black">
+                  {unifiedActions.length} Total · {pendingWorkstreams.length} Pending
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setWsMeetingDateFilter("2026-10-12")}
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                  wsMeetingDateFilter === "2026-10-12"
+                    ? "bg-[#F37021] text-white border-[#F37021]"
+                    : "bg-orange-50 text-orange-900 border-orange-200 hover:bg-orange-100"
+                }`}
+              >
+                <span>12 Oct 2026 Actions</span>
+                <span className="px-1.5 py-0.5 rounded bg-black/15 font-mono text-[10px] font-black">
+                  {deptMeetingCounts.oct12Total} Total · {deptMeetingCounts.oct12Pending} Pending
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setWsMeetingDateFilter("2026-10-19")}
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                  wsMeetingDateFilter === "2026-10-19"
+                    ? "bg-[#D81B60] text-white border-[#D81B60]"
+                    : "bg-pink-50 text-pink-900 border-pink-200 hover:bg-pink-100"
+                }`}
+              >
+                <span>19 Oct 2026 Actions</span>
+                <span className="px-1.5 py-0.5 rounded bg-black/15 font-mono text-[10px] font-black">
+                  {deptMeetingCounts.oct19Total} Total · {deptMeetingCounts.oct19Pending} Pending
+                </span>
+              </button>
+            </div>
+
+            {/* Quick Status Filter Pills (Open has distinct Sky-Blue color) */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[
+                {
+                  id: "ALL",
+                  label: "All Statuses",
+                  activeCls: "bg-slate-900 text-white border-slate-900",
+                  idleCls: "bg-white text-slate-700 border-slate-200 hover:bg-slate-100",
+                },
+                {
+                  id: "Open",
+                  label: "Open",
+                  activeCls: "bg-sky-500 text-white border-sky-500",
+                  idleCls: "bg-sky-50 text-sky-800 border-sky-300 hover:bg-sky-100",
+                },
+                {
+                  id: "In Progress",
+                  label: "In Progress",
+                  activeCls: "bg-indigo-600 text-white border-indigo-600",
+                  idleCls: "bg-indigo-50 text-indigo-800 border-indigo-300 hover:bg-indigo-100",
+                },
+                {
+                  id: "On Hold",
+                  label: "On Hold",
+                  activeCls: "bg-amber-500 text-white border-amber-500",
+                  idleCls: "bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100",
+                },
+                {
+                  id: "Closed",
+                  label: "Closed",
+                  activeCls: "bg-emerald-600 text-white border-emerald-600",
+                  idleCls: "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100",
+                },
+              ].map((pill) => {
+                const isActive = wsStatusFilter.toUpperCase() === pill.id.toUpperCase();
+                return (
+                  <button
+                    key={pill.id}
+                    type="button"
+                    onClick={() => {
+                      setWsStatusFilter(pill.id);
+                      if (pill.id === "Closed") setPage("all");
+                    }}
+                    className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition cursor-pointer ${
+                      isActive ? pill.activeCls : pill.idleCls
+                    }`}
+                  >
+                    {pill.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="p-4 md:p-5 border-b border-slate-200/80 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -768,6 +846,20 @@ export default function DepartmentWorkspacePage() {
               </div>
 
               <select
+                value={wsMeetingDateFilter}
+                onChange={(e) => setWsMeetingDateFilter(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-white"
+              >
+                <option value="ALL">All Meeting Dates ({unifiedActions.length})</option>
+                <option value="2026-10-19">
+                  Raised 19 Oct 2026 ({deptMeetingCounts.oct19Total})
+                </option>
+                <option value="2026-10-12">
+                  Raised 12 Oct 2026 ({deptMeetingCounts.oct12Total})
+                </option>
+              </select>
+
+              <select
                 value={wsPriorityFilter}
                 onChange={(e) => setWsPriorityFilter(e.target.value)}
                 className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-white"
@@ -798,7 +890,7 @@ export default function DepartmentWorkspacePage() {
             <table className="w-full text-left border-collapse min-w-[1150px] text-xs">
               <thead>
                 <tr className="bg-slate-950 text-white text-[11px] font-black uppercase tracking-wider">
-                  <th className="py-3.5 px-4 w-28">S.No. / Code</th>
+                  <th className="py-3.5 px-4 w-24">No. / Code</th>
                   <th className="py-3.5 px-4 w-28">Review Date</th>
                   <th className="py-3.5 px-4 min-w-[260px]">
                     Action Item &amp; Action Taken
@@ -839,13 +931,15 @@ export default function DepartmentWorkspacePage() {
                       w.effective_rag === "RED" ||
                       w.rag_status === "RED" ||
                       String(w.priority || "").toUpperCase() === "CRITICAL";
-                    const isNew = Number(w.id) > 15 && !w.is_hr_item;
+                    const wDate = String(w.review_meeting_date || "2026-10-12").slice(0, 10);
+                    const isNew = wDate >= "2026-10-19";
                     const updates = Array.isArray(w.updates_list)
                       ? w.updates_list
                       : [];
                     const statusUpper = String(w.status || "Open").toUpperCase();
                     const isClosedRow =
                       statusUpper === "CLOSED" || statusUpper === "COMPLETED";
+                    const isOpenRow = statusUpper === "OPEN" || statusUpper === "NOT STARTED";
 
                     const actionTakenSummary =
                       w.closure_remarks ||
@@ -864,18 +958,22 @@ export default function DepartmentWorkspacePage() {
                               : "hover:bg-slate-50/90"
                         }`}
                       >
-                        {/* S.No. 1, 2... + Code */}
+                        {/* Number 1, 2, 3... + Code */}
                         <td className="py-3.5 px-4">
                           <div className="flex flex-col gap-1">
                             <span className="inline-flex items-center px-2 py-0.5 rounded bg-[#003B71]/10 text-[#003B71] font-mono font-black text-[11px] w-fit">
-                              S.No. {idx + 1}
+                              {idx + 1}
                             </span>
                             <span className="font-mono font-black text-slate-950 text-xs">
                               {w.item_id || `ACT-${w.id}`}
                             </span>
-                            {isNew && (
+                            {isNew ? (
                               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-[#003B71] text-white w-fit">
-                                <Sparkles className="w-2.5 h-2.5" /> NEW
+                                <Sparkles className="w-2.5 h-2.5" /> 19 OCT NEW
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-900 w-fit">
+                                12 OCT C/F
                               </span>
                             )}
                             {isRedAlert && (
@@ -889,10 +987,7 @@ export default function DepartmentWorkspacePage() {
                         {/* Review Date */}
                         <td className="py-3.5 px-4 whitespace-nowrap">
                           <div className="font-semibold text-slate-900">
-                            {String(w.review_meeting_date || "2026-10-12").slice(
-                              0,
-                              10
-                            )}
+                            {wDate}
                           </div>
                           <div className="text-[11px] text-slate-500">
                             {w.review_frequency || "Weekly"}
@@ -911,10 +1006,12 @@ export default function DepartmentWorkspacePage() {
                             className={`mt-1.5 rounded-md border px-2.5 py-1.5 text-[11px] ${
                               isClosedRow
                                 ? "border-emerald-200 bg-emerald-50/70 text-emerald-900"
-                                : statusUpper.includes("PROGRESS") ||
-                                    statusUpper.includes("TRACK")
-                                  ? "border-blue-200 bg-blue-50/60 text-blue-900"
-                                  : "border-slate-200 bg-slate-50 text-slate-700"
+                                : isOpenRow
+                                  ? "border-sky-200 bg-sky-50/70 text-sky-900"
+                                  : statusUpper.includes("PROGRESS") ||
+                                      statusUpper.includes("TRACK")
+                                    ? "border-indigo-200 bg-indigo-50/60 text-indigo-900"
+                                    : "border-slate-200 bg-slate-50 text-slate-700"
                             }`}
                           >
                             <span className="font-bold">
@@ -943,10 +1040,16 @@ export default function DepartmentWorkspacePage() {
                           </div>
                           <div className="flex flex-wrap gap-1">
                             <span
-                              className={`inline-flex px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                                isRedAlert
-                                  ? "bg-[#D81B60] text-white"
-                                  : "bg-[#003B71]/10 text-[#003B71]"
+                              className={`inline-flex px-2 py-0.5 rounded text-[10px] font-black uppercase border ${
+                                isClosedRow
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : isOpenRow
+                                    ? "bg-sky-50 text-sky-800 border-sky-300"
+                                    : statusUpper.includes("PROGRESS") || statusUpper.includes("TRACK")
+                                      ? "bg-indigo-50 text-indigo-800 border-indigo-300"
+                                      : statusUpper.includes("HOLD") || statusUpper.includes("DELAY")
+                                        ? "bg-amber-50 text-amber-800 border-amber-300"
+                                        : "bg-[#D81B60]/10 text-[#D81B60] border-[#D81B60]/30"
                               }`}
                             >
                               {w.status || "OPEN"}
@@ -1121,7 +1224,7 @@ export default function DepartmentWorkspacePage() {
                   <div key={idx} className="space-y-1">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-slate-800">
-                        S.No. {idx + 1} &bull; {cat.name}
+                        {idx + 1} &bull; {cat.name}
                       </span>
                       <span className="font-mono text-[11px] text-slate-600">
                         Pending:{" "}
@@ -1236,7 +1339,7 @@ export default function DepartmentWorkspacePage() {
                   >
                     <label className="block text-xs font-bold text-slate-700 mb-1">
                       <span className="inline-flex items-center px-2 py-0.5 mr-1.5 rounded bg-[#003B71]/10 text-[#003B71] font-mono text-[10px] font-black">
-                        S.No. {fIdx + 1}
+                        {fIdx + 1}
                       </span>
                       {f.label}{" "}
                       {f.required && (

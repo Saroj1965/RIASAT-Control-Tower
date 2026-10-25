@@ -15,93 +15,145 @@ export const revalidate = 0;
 
 const GUIDE_SECTIONS = [
   {
-    sno: "S.No. 1",
-    title: "What the Riasat Executive Dashboard does",
+    sno: "1",
+    title: "Purpose of the Riasat Executive Dashboard",
     body: [
-      "The Riasat Executive Dashboard keeps one ongoing list of departmental actions agreed in weekly and monthly management reviews across all strategic verticals and administrative offices.",
-      "The Summary Sheet shows every action that is still pending. When a new review meeting takes place, pending actions stay in this list automatically—nothing needs to be copied over from last week.",
-      "When an action is finished and marked Closed, it leaves the pending list and is kept in Closed actions and All Actions Directory (/actions) so its record and history are never lost.",
-      "All departments (including HR & Recruitment, Strategy & Process, Executive Administration, and Vice Chairman) use the exact same unified Action Form and generate identical, uniform reports.",
+      "The Riasat Executive Dashboard is the central real-time governance, action-tracking, and readiness command platform for the Ramaiah Institute for Advanced Skills & Technology (RIASAT).",
+      "Its primary purpose is to maintain a single, live, non-duplicated source of truth in Supabase for every directive agreed in weekly and monthly management review meetings with the Vice Chairman, Executive Office, and Department Heads (HODs).",
+      "The Summary Sheet displays all active pending actions. Whenever a new review meeting takes place, any open/pending items from earlier meetings automatically carry forward into the current agenda—nothing is lost or manually re-copied.",
+      "When an action is completed and marked Closed, it moves out of the Pending Summary Sheet into the Closed History and All Actions Directory (/actions) with its full audit trail preserved.",
     ],
   },
   {
-    sno: "S.No. 2",
-    title: "Switching between the dashboard views & dedicated pages",
+    sno: "2",
+    title: "What Data the Dashboard Holds (12 Oct & 19 Oct Reviews + Verticals)",
     body: [
-      "Use the top navigation bar or sidebar to switch between:",
-      "• Action Register (Summary Sheet): where weekly updates are entered and pending, closed, and all actions are listed.",
-      "• All Actions Directory (/actions): a dedicated page where every action (pending, in-progress, and closed) can be searched, filtered, and edited.",
-      "• Departments & Heads of Department (/departments-master): a dedicated page where Admin, Vice Chairman, and all users can add, edit, rename, and delete departments and assign Heads of Department (HOD).",
-      "• Executive Action Dashboard: an overview for the Vice Chairman and leadership showing totals, department-wise progress, interactive priority/status charts, overdue items, and actions waiting for a Vice Chairman decision.",
-      "• Reports & CSV Export: unified departmental reports across all verticals with one-click CSV and PDF export.",
+      "• Weekly Review Actions (28 Total Actions in Supabase):",
+      "  — 12 October 2026 Review Meeting (ACT-01 to ACT-16): 16 foundational departmental actions across Strategy & Process, HR & Recruitment, Communications, and Executive Administration (all 16 currently carried forward as active directives).",
+      "  — 19 October 2026 Review Meeting (ACT-17 to ACT-28): 12 new weekly follow-up actions (9 currently pending/active and 3 completed/closed).",
+      "• 11 Departments & Strategic Verticals: Semicon, Aerospace & Defence, Space, Cybersecurity, MedTech, Advanced Manufacturing, HR & Recruitment, Communications, Strategy & Process, Executive Administration, and Vice Chairman Office.",
+      "• Operational Readiness & Financial Pipeline: Vertical readiness scores (0–100%), RAG health indicators (Green, Amber, Red), Capex allocations (₹ Cr), Revenue Pipeline projections (₹ Cr), and 14 standardized reporting fields per vertical.",
     ],
   },
   {
-    sno: "S.No. 3",
-    title: "Adding a new action item (linked to Department HOD)",
+    sno: "3",
+    title: "Where to Find Actions Across the Website",
     body: [
-      "1. Click Add Action Item in the top-right corner of any dashboard page.",
-      "2. Sl.No. (such as ACT-16) is assigned automatically when you save.",
-      "3. Pick the Review Meeting Date and whether the action is reviewed Weekly or Monthly.",
-      "4. Choose the Department from the list — its Head of Department (HOD) is automatically displayed and linked to the Action Owner field.",
-      "5. Set the Priority (Critical, High, Medium, or Low) and write the Action Item / Deliverable.",
-      "6. Tick anyone under Support Required From. If the person or team is not listed, tick Others — enter name and type their name(s).",
-      "7. Set the Completion Date / Target Date, Status, Next Follow-up Date, and whether a Vice Chairman Decision is required.",
-      "8. Enter your name at the bottom and click Add action.",
+      "You can view, search, and filter actions from 5 dedicated locations:",
+      "1. Action Register (Summary Sheet — /executive?view=actions): Default landing register showing active pending actions (25), closed actions (3), or all actions (28) with Red Alerts and newly added items prioritized at the top.",
+      "2. All Actions & History Directory (/actions): Dedicated master page listing every action across all departments with instant status cards (All, All Pending, Open Status, In Progress, Closed, With Updates, Red Alerts).",
+      "3. Executive Action Dashboard (/executive?view=executive_dashboard): High-level KPI summary, Department-wise completion table, Priority/Status donut charts, Overdue & At-Risk list, and Vice Chairman Decisions Required.",
+      "4. Department Workspaces (/department/[id]): Each vertical has its own dedicated Action Register, Vertical Analytics, and Unified Department Form.",
+      "5. Unified Reports (/reports): Printable and CSV-exportable department-by-department action registers.",
     ],
   },
   {
-    sno: "S.No. 4",
-    title: "Editing an action & clearly viewing what action was taken",
+    sno: "4",
+    title: "Using the 12 October & 19 October Meeting Date Tabs & Dropdowns",
     body: [
-      "1. Every action row across the entire website has an Edit button available to everyone.",
-      "2. At the top of the Edit Action modal, a colour-coded Status & Action Taken banner clearly displays what action was taken whether the item is Closed, In Progress, or Open.",
-      "3. Type this week’s progress in Progress Update / Remarks (this week) and update Action Taken (Summary of Execution / Resolution).",
-      "4. Your update is added to the top of the action’s numbered history list with the date and your name. Earlier updates are preserved below it.",
+      "Every action register (/executive, /actions, /department/[id], and /reports) provides two separate prominent Meeting Date Tabs plus dropdown filters:",
+      "• Tab 1 — 12 October 2026 Actions: Displays the 16 actions raised in the 12 Oct 2026 review meeting.",
+      "• Tab 2 — 19 October 2026 Actions: Displays the 12 actions raised in the 19 Oct 2026 review meeting.",
+      "• Quick Pending Toggles: Click '12 Oct Pending Only' or '19 Oct Pending Only' to immediately isolate unfinished deliverables from either review date.",
+      "• Original Meeting Date Dropdown: Pull down actions by 'All meeting dates (28)', 'Raised 19 Oct 2026 (12)', or 'Raised 12 Oct 2026 (16)'.",
+      "• Meeting Agenda Dropdown: Filter by '19 Oct 2026 agenda' (shows all 19 Oct items plus carried-forward pending items from 12 Oct) or '12 Oct 2026 agenda'.",
     ],
   },
   {
-    sno: "S.No. 5",
-    title: "Closing an action (and reopening if needed)",
+    sno: "5",
+    title: "Where & How to Make Changes (Add, Edit & Assign HOD Owner)",
     body: [
-      "1. Click Edit on the action and change Status to Closed or Completed.",
-      "2. A green Close action box appears. Fill in the Actual closure date and Closure remarks / Action taken (what was delivered or decided).",
-      "3. Click Save changes. The action moves out of the Summary Sheet into Closed actions and remains visible in All Actions (/actions). The original target date is kept.",
-      "4. If a closed action needs to be worked on again, open Closed actions or All Actions, click Edit, change the status back to an open status (such as In Progress), and enter the Reason for reopening.",
+      "1. Add a New Action: Click '+ Add New Action Item' on the top-right of any register. The next serial code (e.g., ACT-29) is assigned automatically.",
+      "2. Edit Any Action: Every row across the entire dashboard has an 'Edit' button available to all users. Clicking 'Edit' opens the unified Action Form Modal.",
+      "3. Select Action Owner from HOD Dropdown: In the 'Action Owner *' field, click the dropdown arrow button ('Select from HOD / Staff List') to pick any Department Head (HOD) or staff member, or type a custom name directly. Selecting a Department also auto-links its assigned HOD.",
+      "4. Log Weekly Progress & Action Taken: Enter your weekly note in 'Progress Update / Remarks (this week)' and update 'Action Taken (Summary of Execution / Resolution)'. Your update is prepended to the top of the numbered datewise history list.",
     ],
   },
   {
-    sno: "S.No. 6",
-    title: "Recording a Vice Chairman decision",
+    sno: "6",
+    title: "Status Color Coding Guide (Distinct 'Open' Status Theme)",
     body: [
-      "When Vice Chairman Decision Required is set to Yes, the action appears in the Vice Chairman decisions required panel on the Executive Dashboard.",
-      "To record the decision, click Edit on the action and fill in the Record Vice Chairman decision box with the decision text and date.",
+      "Every status button and badge uses a distinct color so you can identify execution state at a glance:",
+      "• Open (Sky-Blue): Newly registered or open directive awaiting execution progress.",
+      "• In Progress / On Track (Indigo / Navy Blue): Active execution underway with weekly updates.",
+      "• On Hold / Delayed (Amber / Orange): Temporarily paused or behind target date.",
+      "• Blocked / Red Alert / Critical (Rose / Pink-Red): Escalated item or overdue directive prioritized at the top of the register.",
+      "• Closed / Completed (Emerald Green): Verified and completed directive (archived in Closed view, never deleted).",
     ],
   },
   {
-    sno: "S.No. 7",
-    title: "Departments & Heads of Department (HOD)",
+    sno: "7",
+    title: "Closing an Action, Reopening & Recording VC Decisions",
     body: [
-      "Each action item relates directly to its Department and Head of the Department (HOD):",
-      "• Semicon (SEMICON) — HOD: To be hired",
-      "• Aerospace & Defence (AERO_DEFENCE) — HOD: To be hired",
-      "• Space (SPACE) — HOD: To be hired",
-      "• Cybersecurity (CYBER) — HOD: To be hired",
-      "• MedTech (MEDTECH) — HOD: To be hired",
-      "• Advanced Manufacturing (ADV_MFG) — HOD: To be hired",
-      "• HR & Recruitment (HR_REC) — HOD: Ms. Anamika Sahay",
-      "• Communications (COMM) — HOD: Ms. Vinila Kalive",
-      "• Strategy & Process (STRATEGY_PROCESS) — HOD: Mr. Avinash Ghodgaonkar",
-      "• Executive Administration (EXEC_ADMIN) — HOD: Ms. Sarojini Mangalam",
-      "• Vice Chairman (VICE_CHAIRMAN) — HOD: Mr. Venkatesh Valluri",
-      "You can edit department names, add new departments, delete departments, and update Heads of Department below or on the dedicated Departments & HODs page (/departments-master).",
+      "• Closing an Action: Click 'Edit', change Status to 'Closed' or 'Completed', and fill in the green 'Close action' box with the Actual Closure Date and Closure Remarks / Action Taken.",
+      "• Reopening a Closed Action: Switch to the 'Closed actions' or 'All actions' tab, click 'Edit' on the item, change Status back to 'Open' or 'In Progress', and enter the 'Reason for reopening'.",
+      "• Vice Chairman Decisions: Set 'VC Decision Required' to 'Yes' to escalate an item to the Vice Chairman panel on the Executive Dashboard. Record the VC's decision and date inside the Edit modal.",
     ],
   },
   {
-    sno: "S.No. 8",
-    title: "Unified Form Fields Across All Departments",
+    sno: "8",
+    title: "Managing Departments & Heads of Department (HOD)",
     body: [
-      "All departments share the same 14 standardised fields (S.No. 1 to S.No. 14) so that every departmental report has the exact same columns and structure.",
+      "Click 'Departments & HODs' in the sidebar (/departments-master) or scroll to the live manager at the bottom of this page to:",
+      "• Quick Edit Inline: Click 'Quick Edit' on any row to rename a department or assign/change its Head of Department (HOD) and click 'Save'.",
+      "• Full Edit Modal: Click 'Edit Dept & HOD' to update the department name, code, HOD name, readiness %, and RAG status.",
+      "• Add or Delete Departments: Click '+ Add Department & HOD' to create a new vertical (automatically provisioning 14 standardized form fields) or click 'Delete' to remove a department.",
+    ],
+  },
+];
+
+const ROLE_GUIDES = [
+  {
+    no: "1",
+    role: "Vice Chairman (VC)",
+    access: "Full Global Access (/executive, /actions, /departments-master, /reports, /admin)",
+    howToUse: [
+      "Open the Executive Action Dashboard (/executive?view=executive_dashboard) to review the 8 headline KPIs, department-wise completion rates, and interactive priority/status donut charts.",
+      "Review the 'Vice Chairman decisions required' panel and click 'Record / Edit' to log executive decisions directly into Supabase.",
+      "Use the '12 October 2026 Actions' and '19 October 2026 Actions' tabs to compare carried-forward actions against newly raised directives.",
+      "Add, edit, or close any action item across all 11 departments and assign deliverables to any HOD.",
+    ],
+  },
+  {
+    no: "2",
+    role: "Executive Office & Leadership",
+    access: "Full Cross-Departmental Access (/executive, /actions, /departments-master, /reports)",
+    howToUse: [
+      "Coordinate weekly review meetings using the Action Register Summary Sheet (/executive?view=actions).",
+      "During or after each review meeting, click '+ Add New Action Item' to log new directives with the meeting date, review frequency, department, HOD owner, and support required.",
+      "Filter by '19 Oct 2026 agenda' or '12 Oct 2026 agenda' to run through every pending carry-forward item department by department.",
+      "Export unified CSV or PDF reports from /reports for distribution to leadership.",
+    ],
+  },
+  {
+    no: "3",
+    role: "System Administrator (Super Admin)",
+    access: "Complete System, User, Department, Form & Database Governance (/admin + all routes)",
+    howToUse: [
+      "Manage user accounts, credentials, roles, and active status under Admin Suite -> User Accounts (/admin?tab=users).",
+      "Add, rename, or delete departments and update Heads of Department under Admin Suite -> Departments & HODs Master (/admin?tab=departments).",
+      "Configure the 14 standardized departmental reporting fields under Admin Suite -> Form Configuration (/admin?tab=form_config).",
+      "Download full JSON database backups and inspect Directives, Readiness, and Financial analytics.",
+    ],
+  },
+  {
+    no: "4",
+    role: "Form Admin, User Admin & Department Admin",
+    access: "Specialized Administrative Governance (/admin, /departments-master, /actions)",
+    howToUse: [
+      "User Admin: Create new logins, reset passwords, and assign users to verticals in /admin?tab=users.",
+      "Department Admin: Maintain department names, codes, and HOD assignments in /departments-master and /admin?tab=departments.",
+      "Form Admin: Customize vertical form fields, mandatory flags, and dropdown options in /admin?tab=form_config.",
+    ],
+  },
+  {
+    no: "5",
+    role: "Department Heads (HODs) & Vertical Leads",
+    access: "Dedicated Vertical Workspace (/department/[id]) + Master Action Register (/actions)",
+    howToUse: [
+      "Open your Department Workspace (/department/[id]) to view your vertical's Pending Items, 12 Oct vs 19 Oct actions, Red Alerts, and Closed History.",
+      "Click 'Edit' on each assigned action item before the weekly review meeting to log 'Progress Update / Remarks (this week)' and update 'Action Taken'.",
+      "Use the 'Unified Department Form' tab inside your department workspace to update your vertical's Readiness %, RAG status, and 14 standardized reporting metrics.",
     ],
   },
 ];
@@ -213,7 +265,7 @@ export default function GuidelinesPage() {
                     </span>
                     <h3 className="text-sm font-black text-slate-900">{s.title}</h3>
                   </div>
-                  {s.sno === "S.No. 7" && (
+                  {s.sno === "8" && (
                     <Link
                       href="/departments-master"
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#F37021] text-white text-[11px] font-black hover:opacity-90"
@@ -231,6 +283,49 @@ export default function GuidelinesPage() {
               </div>
             </section>
           ))}
+        </div>
+
+        {/* Role-by-Role Usage Guide */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-2xs space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="text-base font-black text-slate-950">
+                Role-by-Role Guide — How Different Users Use the Dashboard
+              </h3>
+              <p className="text-xs text-slate-500">
+                Permissions, recommended pages, and workflows for every role in the Riasat Executive Dashboard
+              </p>
+            </div>
+            <span className="px-3 py-1 rounded-full bg-[#003B71]/10 text-[#003B71] text-[11px] font-black uppercase">
+              5 User Role Categories
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {ROLE_GUIDES.map((r) => (
+              <div
+                key={r.role}
+                className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-[#003B71] text-white font-mono text-xs font-black">
+                      {r.no}
+                    </span>
+                    <h4 className="text-sm font-black text-slate-900">{r.role}</h4>
+                  </div>
+                  <div className="text-[11px] font-bold text-[#F37021] mb-2">
+                    Access: {r.access}
+                  </div>
+                  <ul className="space-y-1.5 text-xs text-slate-700 list-disc pl-4">
+                    {r.howToUse.map((step, idx) => (
+                      <li key={idx}>{step}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Live Interactive Departments & Heads of Department Editor right on the Guidelines Page */}

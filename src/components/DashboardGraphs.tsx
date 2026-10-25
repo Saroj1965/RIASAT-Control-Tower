@@ -74,7 +74,14 @@ export default function DashboardGraphs({
     10
   );
   const maxActionCount = Math.max(...actionsDistribution.map((a) => a.total || 0), 5);
-  const totalActionsCount = Object.values(statusBreakdown || {}).reduce((acc, v) => acc + v, 0);
+  const totalActionsCount =
+    (statusBreakdown?.["Open"] || 0) +
+    (statusBreakdown?.["In Progress"] || 0) +
+    (statusBreakdown?.["On Track"] || 0) +
+    (statusBreakdown?.["On Hold"] || 0) +
+    (statusBreakdown?.["Delayed"] || 0) +
+    (statusBreakdown?.["Blocked"] || 0) +
+    (statusBreakdown?.["Completed"] || statusBreakdown?.["Closed"] || 0);
 
   const showDirectives = mode === "all" || mode === "directives";
   const showReadiness = mode === "all" || mode === "readiness";
@@ -242,17 +249,22 @@ export default function DashboardGraphs({
                   {totalActionsCount} Total
                 </span>
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {[
                   {
-                    label: "On Track",
-                    count: statusBreakdown["On Track"] || 0,
-                    cls: "bg-[#003B71]/10 text-[#003B71] border-[#003B71]/20",
+                    label: "Open",
+                    count: statusBreakdown["Open"] || 0,
+                    cls: "bg-sky-50 text-sky-800 border-sky-300",
                   },
                   {
                     label: "In Progress",
                     count: statusBreakdown["In Progress"] || 0,
-                    cls: "bg-slate-900 text-white border-slate-900",
+                    cls: "bg-indigo-50 text-indigo-800 border-indigo-300",
+                  },
+                  {
+                    label: "On Track",
+                    count: statusBreakdown["On Track"] || 0,
+                    cls: "bg-[#003B71]/10 text-[#003B71] border-[#003B71]/20",
                   },
                   {
                     label: "Delayed",
@@ -267,11 +279,11 @@ export default function DashboardGraphs({
                   {
                     label: "On Hold",
                     count: statusBreakdown["On Hold"] || 0,
-                    cls: "bg-slate-100 text-slate-700 border-slate-200",
+                    cls: "bg-amber-50 text-amber-800 border-amber-300",
                   },
                   {
-                    label: "Completed",
-                    count: statusBreakdown["Completed"] || 0,
+                    label: "Completed / Closed",
+                    count: (statusBreakdown["Completed"] || 0) + (statusBreakdown["Closed"] || 0),
                     cls: "bg-emerald-50 text-emerald-700 border-emerald-200",
                   },
                 ].map((s) => (

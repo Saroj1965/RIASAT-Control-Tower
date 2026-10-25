@@ -280,12 +280,14 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
   let closedActions = 0;
 
   const globalStatusCounts: Record<string, number> = {
-    Completed: 0,
-    "On Track": 0,
+    Open: 0,
     "In Progress": 0,
+    "On Track": 0,
+    "On Hold": 0,
     Delayed: 0,
     Blocked: 0,
-    "On Hold": 0,
+    Completed: 0,
+    Closed: 0,
   };
 
   const enrichedAllWs: AttentionItem[] = allWsRows.map((ws: any) => {
@@ -360,12 +362,27 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
 
     if (stUpper === "DELAYED") deptStatsMap[dId].delayed++;
     if (stUpper === "ON TRACK") deptStatsMap[dId].on_track++;
-    if (stUpper === "IN PROGRESS" || stUpper === "OPEN")
+    if (stUpper === "IN PROGRESS" || stUpper === "ON TRACK")
       deptStatsMap[dId].in_progress++;
     if (stUpper === "ON HOLD") deptStatsMap[dId].on_hold++;
 
-    if (globalStatusCounts[st] !== undefined) {
-      globalStatusCounts[st]++;
+    if (stUpper === "OPEN" || stUpper === "NOT STARTED") {
+      globalStatusCounts["Open"]++;
+    } else if (stUpper === "IN PROGRESS") {
+      globalStatusCounts["In Progress"]++;
+    } else if (stUpper === "ON TRACK") {
+      globalStatusCounts["On Track"]++;
+    } else if (stUpper === "ON HOLD") {
+      globalStatusCounts["On Hold"]++;
+    } else if (stUpper === "DELAYED") {
+      globalStatusCounts["Delayed"]++;
+    } else if (stUpper === "BLOCKED") {
+      globalStatusCounts["Blocked"]++;
+    } else if (stUpper === "CLOSED" || stUpper === "COMPLETED" || stUpper === "JOINED") {
+      globalStatusCounts["Completed"]++;
+      globalStatusCounts["Closed"]++;
+    } else {
+      globalStatusCounts["Open"]++;
     }
 
     const c = parseAmount(ws.capex);

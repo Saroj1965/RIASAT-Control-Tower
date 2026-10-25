@@ -34,8 +34,10 @@ export default function AllActionsPage() {
 
   // Filters
   const [statusTab, setStatusTab] = useState<
-    "all" | "pending" | "in_progress" | "closed" | "updated" | "alerts"
+    "all" | "pending" | "open" | "in_progress" | "closed" | "updated" | "alerts"
   >("all");
+  const [selectedMeetingDate, setSelectedMeetingDate] = useState<string>("all");
+  const [selectedAgenda, setSelectedAgenda] = useState<string>("all");
   const [selectedDeptId, setSelectedDeptId] = useState<string>("all");
   const [selectedOwner, setSelectedOwner] = useState<string>("all");
   const [selectedPriority, setSelectedPriority] = useState<string>("all");
@@ -119,19 +121,36 @@ export default function AllActionsPage() {
   // KPI counts
   const counts = useMemo(() => {
     let pending = 0;
+    let openOnly = 0;
     let inProgress = 0;
     let closed = 0;
     let updated = 0;
     let alerts = 0;
+    let oct12Total = 0;
+    let oct12Pending = 0;
+    let oct19Total = 0;
+    let oct19Pending = 0;
 
     for (const a of enrichedActions) {
       const st = String(a.status || "Open").toUpperCase();
       const isClosed = st === "CLOSED" || st === "COMPLETED" || st === "JOINED";
+      const mtgDate = String(a.review_meeting_date || "2026-10-12").trim().slice(0, 10);
+
+      if (mtgDate === "2026-10-12") {
+        oct12Total++;
+        if (!isClosed) oct12Pending++;
+      } else if (mtgDate === "2026-10-19") {
+        oct19Total++;
+        if (!isClosed) oct19Pending++;
+      }
+
       if (isClosed) {
         closed++;
       } else {
         pending++;
-        if (st === "IN PROGRESS" || st === "ON TRACK") {
+        if (st === "OPEN" || st === "NOT STARTED") {
+          openOnly++;
+        } else if (st === "IN PROGRESS" || st === "ON TRACK") {
           inProgress++;
         }
       }
@@ -145,10 +164,16 @@ export default function AllActionsPage() {
     return {
       all: enrichedActions.length,
       pending,
+      openOnly,
       inProgress,
       closed,
       updated,
       alerts,
+      oct12Total,
+      oct12Pending,
+      oct19Total,
+      oct19Pending,
+      agendaOct19Total: oct19Total + oct12Pending,
     };
   }, [enrichedActions]);
 
@@ -156,8 +181,19 @@ export default function AllActionsPage() {
     return enrichedActions.filter((a) => {
       const st = String(a.status || "Open").toUpperCase();
       const isClosed = st === "CLOSED" || st === "COMPLETED" || st === "JOINED";
+      const mtgDate = String(a.review_meeting_date || "2026-10-12").trim().slice(0, 10);
+
+      if (selectedMeetingDate !== "all" && mtgDate !== selectedMeetingDate) return false;
+      if (selectedAgenda === "2026-10-12" && mtgDate !== "2026-10-12") return false;
+      if (
+        selectedAgenda === "2026-10-19" &&
+        !(mtgDate === "2026-10-19" || (mtgDate === "2026-10-12" && !isClosed))
+      ) {
+        return false;
+      }
 
       if (statusTab === "pending" && !isPendingAction(a)) return false;
+      if (statusTab === "open" && !(st === "OPEN" || st === "NOT STARTED")) return false;
       if (statusTab === "in_progress" && !(st === "IN PROGRESS" || st === "ON TRACK"))
         return false;
       if (statusTab === "closed" && !isClosed) return false;
@@ -213,6 +249,8 @@ export default function AllActionsPage() {
   }, [
     enrichedActions,
     statusTab,
+    selectedMeetingDate,
+    selectedAgenda,
     selectedDeptId,
     selectedOwner,
     selectedPriority,
@@ -365,8 +403,8 @@ export default function AllActionsPage() {
           </div>
         </div>
 
-        {/* Status Filter Tabs inside Hero */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 mt-6 pt-5 border-t border-slate-800/80">
+        {/* Status Filter Tabs inside Hero (Open has distinct Sky-Blue color) */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 mt-6 pt-5 border-t border-slate-800/80">
           <button
             type="button"
             onClick={() => setStatusTab("all")}
@@ -392,9 +430,24 @@ export default function AllActionsPage() {
             }`}
           >
             <div className="text-[10px] font-black uppercase tracking-widest opacity-80">
-              Pending / Open
+              All Pending
             </div>
             <div className="text-xl font-black mt-0.5">{counts.pending}</div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStatusTab("open")}
+            className={`text-left p-3 rounded-xl border transition-all ${
+              statusTab === "open"
+                ? "bg-sky-500 text-white border-sky-300 shadow-md"
+                : "bg-sky-950/70 text-sky-300 border-sky-800 hover:border-sky-600"
+            }`}
+          >
+            <div className="text-[10px] font-black uppercase tracking-widest opacity-90">
+              Open Status
+            </div>
+            <div className="text-xl font-black mt-0.5">{counts.openOnly}</div>
           </button>
 
           <button
@@ -402,7 +455,7 @@ export default function AllActionsPage() {
             onClick={() => setStatusTab("in_progress")}
             className={`text-left p-3 rounded-xl border transition-all ${
               statusTab === "in_progress"
-                ? "bg-blue-500 text-white border-blue-300 shadow-md"
+                ? "bg-indigo-600 text-white border-indigo-400 shadow-md"
                 : "bg-slate-900/90 text-slate-300 border-slate-800 hover:border-slate-700"
             }`}
           >
@@ -459,9 +512,101 @@ export default function AllActionsPage() {
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      {/* Filter Bar + 2 Separate Meeting Date Tabs (12 Oct 2026 & 19 Oct 2026) */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 pb-3 border-b border-slate-100">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 mr-1">
+              Review Meeting Date Tabs:
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedMeetingDate("all");
+                setSelectedAgenda("all");
+              }}
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all ${
+                selectedMeetingDate === "all" && selectedAgenda === "all"
+                  ? "bg-[#003B71] text-white border-[#003B71] shadow-xs"
+                  : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+              }`}
+            >
+              <span>All Meeting Dates</span>
+              <span className="px-1.5 py-0.5 rounded bg-black/15 font-mono text-[10px] font-black">
+                {counts.all} Total · {counts.pending} Pending
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedMeetingDate("2026-10-12");
+                setSelectedAgenda("all");
+              }}
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all ${
+                selectedMeetingDate === "2026-10-12"
+                  ? "bg-[#F37021] text-white border-[#F37021] shadow-xs"
+                  : "bg-orange-50 text-orange-900 border-orange-200 hover:bg-orange-100"
+              }`}
+            >
+              <span>12 October 2026 Actions</span>
+              <span className="px-1.5 py-0.5 rounded bg-black/15 font-mono text-[10px] font-black">
+                {counts.oct12Total} Total · {counts.oct12Pending} Pending
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedMeetingDate("2026-10-19");
+                setSelectedAgenda("all");
+              }}
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all ${
+                selectedMeetingDate === "2026-10-19"
+                  ? "bg-[#D81B60] text-white border-[#D81B60] shadow-xs"
+                  : "bg-pink-50 text-pink-900 border-pink-200 hover:bg-pink-100"
+              }`}
+            >
+              <span>19 October 2026 Actions</span>
+              <span className="px-1.5 py-0.5 rounded bg-black/15 font-mono text-[10px] font-black">
+                {counts.oct19Total} Total · {counts.oct19Pending} Pending
+              </span>
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedMeetingDate("2026-10-12");
+                setStatusTab("pending");
+              }}
+              className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition-all ${
+                selectedMeetingDate === "2026-10-12" && statusTab === "pending"
+                  ? "bg-[#F37021]/15 text-[#F37021] border-[#F37021]"
+                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              12 Oct Pending Only ({counts.oct12Pending})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedMeetingDate("2026-10-19");
+                setStatusTab("pending");
+              }}
+              className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition-all ${
+                selectedMeetingDate === "2026-10-19" && statusTab === "pending"
+                  ? "bg-[#D81B60]/15 text-[#D81B60] border-[#D81B60]"
+                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              19 Oct Pending Only ({counts.oct19Pending})
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
           {/* Search */}
           <div className="relative md:col-span-1">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -472,6 +617,40 @@ export default function AllActionsPage() {
               placeholder="Search action code, deliverable, owner, HOD..."
               className="w-full pl-9 pr-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
             />
+          </div>
+
+          {/* Original Meeting Date Dropdown */}
+          <div>
+            <select
+              value={selectedMeetingDate}
+              onChange={(e) => setSelectedMeetingDate(e.target.value)}
+              className="w-full px-3 py-2 text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Meeting Dates ({counts.all})</option>
+              <option value="2026-10-19">
+                Raised 19 Oct 2026 ({counts.oct19Total})
+              </option>
+              <option value="2026-10-12">
+                Raised 12 Oct 2026 ({counts.oct12Total})
+              </option>
+            </select>
+          </div>
+
+          {/* Meeting Agenda Dropdown */}
+          <div>
+            <select
+              value={selectedAgenda}
+              onChange={(e) => setSelectedAgenda(e.target.value)}
+              className="w-full px-3 py-2 text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">Any Meeting Agenda</option>
+              <option value="2026-10-19">
+                19 Oct 2026 Agenda ({counts.agendaOct19Total})
+              </option>
+              <option value="2026-10-12">
+                12 Oct 2026 Agenda ({counts.oct12Total})
+              </option>
+            </select>
           </div>
 
           {/* Department Filter */}
@@ -521,6 +700,8 @@ export default function AllActionsPage() {
             </select>
 
             {(statusTab !== "all" ||
+              selectedMeetingDate !== "all" ||
+              selectedAgenda !== "all" ||
               selectedDeptId !== "all" ||
               selectedOwner !== "all" ||
               selectedPriority !== "all" ||
@@ -529,6 +710,8 @@ export default function AllActionsPage() {
                 type="button"
                 onClick={() => {
                   setStatusTab("all");
+                  setSelectedMeetingDate("all");
+                  setSelectedAgenda("all");
                   setSelectedDeptId("all");
                   setSelectedOwner("all");
                   setSelectedPriority("all");
@@ -561,8 +744,8 @@ export default function AllActionsPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-100 border-b border-slate-200 text-[10px] font-black uppercase tracking-wider text-slate-600">
-                <th className="py-3.5 px-3 w-14">S.No.</th>
-                <th className="py-3.5 px-3 w-24">Code</th>
+                <th className="py-3.5 px-3 w-14">No.</th>
+                <th className="py-3.5 px-3 w-28">Code & Date</th>
                 <th className="py-3.5 px-3 w-48">Department & HOD</th>
                 <th className="py-3.5 px-3 min-w-[260px]">Action Item / Deliverable</th>
                 <th className="py-3.5 px-3 w-40">Action Owner</th>
@@ -592,10 +775,12 @@ export default function AllActionsPage() {
                   const isRed = isActionRedAlert(action);
                   const st = String(action.status || "Open").toUpperCase();
                   const isClosed = st === "CLOSED" || st === "COMPLETED" || st === "JOINED";
+                  const isOpen = st === "OPEN" || st === "NOT STARTED";
                   const isInProg = st === "IN PROGRESS" || st === "ON TRACK";
                   const updates = action.updates_list || [];
                   const actionCode =
                     action.item_id || `ACT-${String(action.id).padStart(2, "0")}`;
+                  const mtgDate = String(action.review_meeting_date || "2026-10-12").slice(0, 10);
 
                   return (
                     <tr
@@ -608,17 +793,20 @@ export default function AllActionsPage() {
                           : "hover:bg-blue-50/30"
                       }`}
                     >
-                      {/* S.No. */}
+                      {/* Number 1, 2, 3... */}
                       <td className="py-3.5 px-3 align-top">
                         <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-900 text-white text-[11px] font-black">
                           {idx + 1}
                         </span>
                       </td>
 
-                      {/* Code */}
+                      {/* Code & Review Date */}
                       <td className="py-3.5 px-3 align-top">
-                        <span className="font-mono font-black text-slate-900 text-xs">
+                        <span className="font-mono font-black text-slate-900 text-xs block">
                           {actionCode}
+                        </span>
+                        <span className="font-mono text-[10px] font-bold text-slate-500 block mt-0.5">
+                          {mtgDate}
                         </span>
                         {isRed && (
                           <span className="mt-1 block px-1.5 py-0.5 rounded bg-red-600 text-white text-[9px] font-black uppercase tracking-wider w-fit">
@@ -682,14 +870,16 @@ export default function AllActionsPage() {
                         )}
                       </td>
 
-                      {/* Status */}
+                      {/* Status (Open has distinct Sky-Blue color) */}
                       <td className="py-3.5 px-3 align-top">
                         <span
                           className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
                             isClosed
                               ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : isOpen
+                              ? "bg-sky-50 text-sky-800 border-sky-300"
                               : isInProg
-                              ? "bg-blue-50 text-blue-700 border-blue-200"
+                              ? "bg-indigo-50 text-indigo-800 border-indigo-300"
                               : isRed
                               ? "bg-red-50 text-red-700 border-red-200"
                               : "bg-amber-50 text-amber-800 border-amber-200"

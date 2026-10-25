@@ -25,6 +25,7 @@ export default function ReportsPage() {
   const [summary, setSummary] = useState<any>(null);
 
   const [selectedDept, setSelectedDept] = useState<string>("ALL");
+  const [selectedMeetingDate, setSelectedMeetingDate] = useState<string>("ALL");
   const [selectedRag, setSelectedRag] = useState<string>("ALL");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
 
@@ -62,68 +63,13 @@ export default function ReportsPage() {
     fetchAllData();
   }, [fetchAllData]);
 
-  // Unify all workstreams + any recruitment records into identical Action Item rows
-  // so HR & Recruitment (#7) and all other 8 departments generate the exact same report format
+  // Use unified workstreams table across all departments
   const unifiedWorkstreams = React.useMemo(() => {
-    const wsMapped = (workstreams || []).map((w: any) => ({
+    return (workstreams || []).map((w: any) => ({
       ...w,
       is_hr_item: false,
     }));
-
-    const recMapped = (recruitment || []).map((r: any) => {
-      const statusNorm =
-        r.status === "Joined" || r.status === "Closed" ? "Closed" : r.status || "Open";
-      const updates = [
-        {
-          date: r.updated_at || "2026-10-23T09:00:00Z",
-          user: r.hiring_lead || r.updated_by || "Anamika Sahay",
-          status: statusNorm,
-          remarks:
-            r.remarks ||
-            r.next_action ||
-            `Sourced: ${r.candidates_sourced || 0}, Shortlisted: ${r.candidates_shortlisted || 0}, Interviews: ${r.interviews || 0}`,
-        },
-      ];
-      return {
-        id: r.id,
-        item_id: r.position_id || `REC-${String(r.id).padStart(2, "0")}`,
-        position_id: r.position_id,
-        department_id: 7,
-        department_name: "HR & Recruitment",
-        department_code: "HR_REC",
-        category: r.strategic_segment || "Talent Acquisition",
-        deliverable: r.position_title,
-        action_point: r.position_title,
-        position_title: r.position_title,
-        strategic_segment: r.strategic_segment,
-        owner: r.hiring_lead || "Anamika Sahay",
-        ownership: r.hiring_lead || "Anamika Sahay",
-        hiring_lead: r.hiring_lead || "Anamika Sahay",
-        supporting_departments: r.strategic_segment || "",
-        priority: r.priority || "High",
-        target_date: r.target_date || "Immediate",
-        timeline: r.target_date || "Immediate",
-        status: statusNorm,
-        rag_status: r.rag_status || "GREEN",
-        effective_rag: r.rag_status || "GREEN",
-        vc_decision_required:
-          r.vc_decision_required === "Yes" || r.vc_attention ? "Yes" : "No",
-        vc_attention: r.vc_attention,
-        remarks: r.remarks || r.next_action || "",
-        decision_action: r.next_action || r.remarks || "",
-        next_action: r.next_action || "",
-        review_meeting_date: "2026-10-12",
-        review_frequency: "Weekly",
-        updates_list: updates,
-        action_history: updates,
-        is_hr_item: true,
-        updated_at: r.updated_at,
-        updated_by: r.updated_by,
-      };
-    });
-
-    return [...wsMapped, ...recMapped];
-  }, [workstreams, recruitment]);
+  }, [workstreams]);
 
   const filteredDepartments = departments.filter((d) => {
     if (selectedDept !== "ALL" && d.id.toString() !== selectedDept) return false;
@@ -133,6 +79,11 @@ export default function ReportsPage() {
 
   const filteredWorkstreams = unifiedWorkstreams.filter((w) => {
     if (selectedDept !== "ALL" && w.department_id.toString() !== selectedDept)
+      return false;
+    if (
+      selectedMeetingDate !== "ALL" &&
+      String(w.review_meeting_date || "2026-10-12").slice(0, 10) !== selectedMeetingDate
+    )
       return false;
     if (selectedStatus !== "ALL" && w.status !== selectedStatus) return false;
     return true;
@@ -198,7 +149,7 @@ export default function ReportsPage() {
         "Active operational directive";
 
       return [
-        `S.No. ${idx + 1}`,
+        `${idx + 1}`,
         w.item_id || `ACT-${idx + 1}`,
         String(w.review_meeting_date || "2026-10-12").slice(0, 10),
         w.review_frequency || "Weekly",
@@ -320,6 +271,16 @@ export default function ReportsPage() {
           </select>
 
           <select
+            value={selectedMeetingDate}
+            onChange={(e) => setSelectedMeetingDate(e.target.value)}
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700"
+          >
+            <option value="ALL">All Meeting Dates (12 Oct &amp; 19 Oct)</option>
+            <option value="2026-10-12">12 October 2026 Actions</option>
+            <option value="2026-10-19">19 October 2026 Actions</option>
+          </select>
+
+          <select
             value={selectedRag}
             onChange={(e) => setSelectedRag(e.target.value)}
             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700"
@@ -397,7 +358,7 @@ export default function ReportsPage() {
               <div className="px-6 py-4 bg-slate-950 text-white flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <span className="px-2.5 py-1 rounded-lg bg-[#003B71] text-white font-mono text-xs font-black">
-                    S.No. {deptIdx + 1}
+                    {deptIdx + 1}
                   </span>
                   <div>
                     <h3 className="text-base font-bold text-white">
@@ -465,7 +426,7 @@ export default function ReportsPage() {
                         return (
                           <tr key={`${w.item_id}-${idx}`} className="hover:bg-slate-50/80 align-top">
                             <td className="py-2.5 px-3 font-mono font-bold text-[#003B71]">
-                              S.No. {idx + 1}
+                              {idx + 1}
                             </td>
                             <td className="py-2.5 px-3 font-mono font-bold text-slate-900">
                               {w.item_id || `ACT-${idx + 1}`}

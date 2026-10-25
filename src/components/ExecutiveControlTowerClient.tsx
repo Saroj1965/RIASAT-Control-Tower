@@ -175,6 +175,8 @@ export default function ExecutiveControlTowerClient({
 
   // Register filters
   const [actionTab, setActionTab] = useState<"PENDING" | "CLOSED" | "ALL">("PENDING");
+  const [meetingDateFilter, setMeetingDateFilter] = useState<string>("ALL");
+  const [meetingAgendaFilter, setMeetingAgendaFilter] = useState<string>("ALL");
   const [deptFilter, setDeptFilter] = useState<string>("ALL");
   const [ownerFilter, setOwnerFilter] = useState<string>("ALL");
   const [priorityFilter, setPriorityFilter] = useState<string>("ALL");
@@ -243,6 +245,27 @@ export default function ExecutiveControlTowerClient({
     });
   }, [allActionsRaw]);
 
+  // Meeting date counts (12 Oct 2026 vs 19 Oct 2026)
+  const meetingDateStats = useMemo(() => {
+    const getMeetingDate = (a: any) =>
+      String(a.review_meeting_date || "2026-10-12").trim().slice(0, 10);
+    const isPending = (a: any) => {
+      const st = String(a.status || "OPEN").trim().toUpperCase();
+      return st !== "CLOSED" && st !== "COMPLETED" && st !== "JOINED";
+    };
+    const oct12All = allActionsRaw.filter((a: any) => getMeetingDate(a) === "2026-10-12");
+    const oct19All = allActionsRaw.filter((a: any) => getMeetingDate(a) === "2026-10-19");
+    return {
+      oct12Total: oct12All.length,
+      oct12Pending: oct12All.filter(isPending).length,
+      oct19Total: oct19All.length,
+      oct19Pending: oct19All.filter(isPending).length,
+      agendaOct19Total: allActionsRaw.filter(
+        (a: any) => getMeetingDate(a) === "2026-10-19" || (getMeetingDate(a) === "2026-10-12" && isPending(a))
+      ).length,
+    };
+  }, [allActionsRaw]);
+
   useEffect(() => {
     if (currentView === "all_actions") {
       setActionTab("ALL");
@@ -260,6 +283,22 @@ export default function ExecutiveControlTowerClient({
           : allActionsRaw;
 
     return sourceList.filter((item: any) => {
+      const itemDate = String(item.review_meeting_date || "2026-10-12").trim().slice(0, 10);
+      const st = String(item.status || "Open").trim().toUpperCase();
+      const isItemPending = st !== "CLOSED" && st !== "COMPLETED" && st !== "JOINED";
+
+      if (meetingDateFilter !== "ALL" && itemDate !== meetingDateFilter) {
+        return false;
+      }
+      if (meetingAgendaFilter === "2026-10-12" && itemDate !== "2026-10-12") {
+        return false;
+      }
+      if (
+        meetingAgendaFilter === "2026-10-19" &&
+        !(itemDate === "2026-10-19" || (itemDate === "2026-10-12" && isItemPending))
+      ) {
+        return false;
+      }
       if (deptFilter !== "ALL" && String(item.department_id) !== deptFilter) {
         return false;
       }
@@ -274,7 +313,6 @@ export default function ExecutiveControlTowerClient({
         return false;
       }
       if (statusFilter !== "ALL") {
-        const st = String(item.status || "Open").trim().toUpperCase();
         if (st !== statusFilter.toUpperCase()) return false;
       }
       if (frequencyFilter !== "ALL") {
@@ -321,9 +359,12 @@ export default function ExecutiveControlTowerClient({
     });
   }, [
     actionTab,
+    currentView,
     pendingActionsAll,
     closedActionsAll,
     allActionsRaw,
+    meetingDateFilter,
+    meetingAgendaFilter,
     deptFilter,
     ownerFilter,
     priorityFilter,
@@ -379,7 +420,7 @@ export default function ExecutiveControlTowerClient({
           "Active operational directive";
 
         return [
-          `S.No. ${idx + 1}`,
+          `${idx + 1}`,
           item.item_id || `ACT-${idx + 1}`,
           String(item.review_meeting_date || "2026-10-12").slice(0, 10),
           item.review_frequency || "Weekly",
@@ -880,7 +921,119 @@ export default function ExecutiveControlTowerClient({
           </div>
 
           {/* View Switcher & Filters */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs space-y-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs space-y-3.5">
+            {/* 2 Separate Prominent Tabs for Meeting Dates (12 Oct 2026 & 19 Oct 2026) + All Dates */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 mr-1">
+                  Review Meeting Tabs:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMeetingDateFilter("ALL");
+                    setMeetingAgendaFilter("ALL");
+                  }}
+                  className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition cursor-pointer border ${
+                    meetingDateFilter === "ALL" && meetingAgendaFilter === "ALL"
+                      ? "bg-[#003B71] text-white border-[#003B71] shadow-xs"
+                      : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  <span>All Meeting Dates</span>
+                  <span
+                    className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-black ${
+                      meetingDateFilter === "ALL" && meetingAgendaFilter === "ALL"
+                        ? "bg-white/20 text-white"
+                        : "bg-slate-200 text-slate-800"
+                    }`}
+                  >
+                    {allActionsRaw.length} Total · {pendingActionsAll.length} Pending
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMeetingDateFilter("2026-10-12");
+                    setMeetingAgendaFilter("ALL");
+                  }}
+                  className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition cursor-pointer border ${
+                    meetingDateFilter === "2026-10-12"
+                      ? "bg-[#F37021] text-white border-[#F37021] shadow-xs"
+                      : "bg-orange-50/70 text-orange-900 border-orange-200 hover:bg-orange-100/80"
+                  }`}
+                >
+                  <span>12 October 2026 Actions</span>
+                  <span
+                    className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-black ${
+                      meetingDateFilter === "2026-10-12"
+                        ? "bg-white/25 text-white"
+                        : "bg-orange-200/80 text-orange-950"
+                    }`}
+                  >
+                    {meetingDateStats.oct12Total} Total · {meetingDateStats.oct12Pending} Pending
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMeetingDateFilter("2026-10-19");
+                    setMeetingAgendaFilter("ALL");
+                  }}
+                  className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition cursor-pointer border ${
+                    meetingDateFilter === "2026-10-19"
+                      ? "bg-[#D81B60] text-white border-[#D81B60] shadow-xs"
+                      : "bg-pink-50/70 text-pink-900 border-pink-200 hover:bg-pink-100/80"
+                  }`}
+                >
+                  <span>19 October 2026 Actions</span>
+                  <span
+                    className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-black ${
+                      meetingDateFilter === "2026-10-19"
+                        ? "bg-white/25 text-white"
+                        : "bg-pink-200/80 text-pink-950"
+                    }`}
+                  >
+                    {meetingDateStats.oct19Total} Total · {meetingDateStats.oct19Pending} Pending
+                  </span>
+                </button>
+              </div>
+
+              {/* Quick Pull-down Toggle for Pending Only vs All Actions of Selected Meeting Date */}
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMeetingDateFilter("2026-10-12");
+                    setActionTab("PENDING");
+                  }}
+                  className={`rounded-md border px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
+                    meetingDateFilter === "2026-10-12" && actionTab === "PENDING"
+                      ? "border-[#F37021] bg-[#F37021]/15 text-[#F37021]"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  12 Oct Pending Only ({meetingDateStats.oct12Pending})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMeetingDateFilter("2026-10-19");
+                    setActionTab("PENDING");
+                  }}
+                  className={`rounded-md border px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
+                    meetingDateFilter === "2026-10-19" && actionTab === "PENDING"
+                      ? "border-[#D81B60] bg-[#D81B60]/15 text-[#D81B60]"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  19 Oct Pending Only ({meetingDateStats.oct19Pending})
+                </button>
+              </div>
+            </div>
+
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="inline-flex flex-wrap rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs">
                 <button
@@ -927,6 +1080,65 @@ export default function ExecutiveControlTowerClient({
                 </button>
               </div>
 
+              {/* Distinct Quick Status Filter Pills (Open has distinct Sky-Blue color) */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[
+                  {
+                    id: "ALL",
+                    label: "All Statuses",
+                    activeCls: "bg-slate-900 text-white border-slate-900",
+                    idleCls: "bg-white text-slate-700 border-slate-200 hover:bg-slate-50",
+                  },
+                  {
+                    id: "Open",
+                    label: "Open",
+                    activeCls: "bg-sky-500 text-white border-sky-500 shadow-xs",
+                    idleCls: "bg-sky-50 text-sky-800 border-sky-300 hover:bg-sky-100",
+                  },
+                  {
+                    id: "In Progress",
+                    label: "In Progress",
+                    activeCls: "bg-indigo-600 text-white border-indigo-600 shadow-xs",
+                    idleCls: "bg-indigo-50 text-indigo-800 border-indigo-300 hover:bg-indigo-100",
+                  },
+                  {
+                    id: "On Hold",
+                    label: "On Hold",
+                    activeCls: "bg-amber-500 text-white border-amber-500 shadow-xs",
+                    idleCls: "bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100",
+                  },
+                  {
+                    id: "Blocked",
+                    label: "Blocked / Red Alert",
+                    activeCls: "bg-rose-600 text-white border-rose-600 shadow-xs",
+                    idleCls: "bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100",
+                  },
+                  {
+                    id: "Closed",
+                    label: "Closed",
+                    activeCls: "bg-emerald-600 text-white border-emerald-600 shadow-xs",
+                    idleCls: "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100",
+                  },
+                ].map((pill) => {
+                  const isActive = statusFilter.toUpperCase() === pill.id.toUpperCase();
+                  return (
+                    <button
+                      key={pill.id}
+                      type="button"
+                      onClick={() => {
+                        setStatusFilter(pill.id);
+                        if (pill.id === "Closed") setActionTab("ALL");
+                      }}
+                      className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
+                        isActive ? pill.activeCls : pill.idleCls
+                      }`}
+                    >
+                      {pill.label}
+                    </button>
+                  );
+                })}
+              </div>
+
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
@@ -947,8 +1159,8 @@ export default function ExecutiveControlTowerClient({
               </div>
             </div>
 
-            {/* Filter Grid */}
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7">
+            {/* Filter Grid matching Image 5 (including Original Meeting Date & Meeting Agenda dropdowns) */}
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8">
               <div className="lg:col-span-2">
                 <label className="block text-[11px] font-medium text-slate-600">
                   Search
@@ -962,6 +1174,44 @@ export default function ExecutiveControlTowerClient({
                     className="w-full rounded-md border border-slate-300 bg-white py-1.5 pl-8 pr-2.5 text-xs text-slate-900 focus:border-slate-500 focus:outline-none"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-slate-600">
+                  Original Meeting Date
+                </label>
+                <select
+                  value={meetingDateFilter}
+                  onChange={(e) => setMeetingDateFilter(e.target.value)}
+                  className="mt-0.5 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:border-slate-500 focus:outline-none"
+                >
+                  <option value="ALL">All meeting dates ({allActionsRaw.length})</option>
+                  <option value="2026-10-19">
+                    Raised 19 Oct 2026 ({meetingDateStats.oct19Total})
+                  </option>
+                  <option value="2026-10-12">
+                    Raised 12 Oct 2026 ({meetingDateStats.oct12Total})
+                  </option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-slate-600">
+                  Meeting Agenda
+                </label>
+                <select
+                  value={meetingAgendaFilter}
+                  onChange={(e) => setMeetingAgendaFilter(e.target.value)}
+                  className="mt-0.5 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:border-slate-500 focus:outline-none"
+                >
+                  <option value="ALL">Any meeting agenda</option>
+                  <option value="2026-10-19">
+                    19 Oct 2026 agenda ({meetingDateStats.agendaOct19Total})
+                  </option>
+                  <option value="2026-10-12">
+                    12 Oct 2026 agenda ({meetingDateStats.oct12Total})
+                  </option>
+                </select>
               </div>
 
               <div>
@@ -1023,34 +1273,30 @@ export default function ExecutiveControlTowerClient({
 
               <div>
                 <label className="block text-[11px] font-medium text-slate-600">
-                  Priority
+                  Priority / VC
                 </label>
-                <select
-                  value={priorityFilter}
-                  onChange={(e) => setPriorityFilter(e.target.value)}
-                  className="mt-0.5 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-slate-500 focus:outline-none"
-                >
-                  <option value="ALL">All priorities</option>
-                  <option value="CRITICAL">Critical</option>
-                  <option value="HIGH">High</option>
-                  <option value="MEDIUM">Medium</option>
-                  <option value="LOW">Low</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-medium text-slate-600">
-                  VC Decision
-                </label>
-                <select
-                  value={vcFilter}
-                  onChange={(e) => setVcFilter(e.target.value)}
-                  className="mt-0.5 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-slate-500 focus:outline-none"
-                >
-                  <option value="ALL">All</option>
-                  <option value="YES">Required (Yes)</option>
-                  <option value="NO">Not required (No)</option>
-                </select>
+                <div className="mt-0.5 grid grid-cols-2 gap-1">
+                  <select
+                    value={priorityFilter}
+                    onChange={(e) => setPriorityFilter(e.target.value)}
+                    className="w-full rounded-md border border-slate-300 bg-white px-1.5 py-1.5 text-xs text-slate-900 focus:border-slate-500 focus:outline-none"
+                  >
+                    <option value="ALL">Priority</option>
+                    <option value="CRITICAL">Critical</option>
+                    <option value="HIGH">High</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="LOW">Low</option>
+                  </select>
+                  <select
+                    value={vcFilter}
+                    onChange={(e) => setVcFilter(e.target.value)}
+                    className="w-full rounded-md border border-slate-300 bg-white px-1.5 py-1.5 text-xs text-slate-900 focus:border-slate-500 focus:outline-none"
+                  >
+                    <option value="ALL">VC: All</option>
+                    <option value="YES">VC: Yes</option>
+                    <option value="NO">VC: No</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -1068,7 +1314,8 @@ export default function ExecutiveControlTowerClient({
                 <span className="text-[11px] text-slate-500">
                   Showing{" "}
                   <strong className="text-slate-800">{displayedActions.length}</strong>{" "}
-                  action{displayedActions.length === 1 ? "" : "s"} (Newly added &amp; Red Alerts on top)
+                  action{displayedActions.length === 1 ? "" : "s"}
+                  {meetingDateFilter !== "ALL" ? ` from ${meetingDateFilter}` : ""} (Newly added &amp; Red Alerts on top)
                 </span>
               </div>
             </div>
@@ -1080,7 +1327,7 @@ export default function ExecutiveControlTowerClient({
               <table className="w-full border-collapse text-left text-xs min-w-[1250px]">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-950 text-[11px] font-semibold uppercase tracking-wide text-white">
-                    <th className="py-3.5 px-3.5 w-28">S.No. / Code</th>
+                    <th className="py-3.5 px-3.5 w-24">No. / Code</th>
                     <th className="py-3.5 px-3.5 w-28">Review Date</th>
                     <th className="py-3.5 px-3.5 w-36">Department</th>
                     <th className="py-3.5 px-3.5 min-w-[260px]">
@@ -1113,13 +1360,15 @@ export default function ExecutiveControlTowerClient({
                         item.effective_rag === "RED" ||
                         item.rag_status === "RED" ||
                         String(item.priority || "").toUpperCase() === "CRITICAL";
-                      const isNew = Number(item.id) > 15 && !item.is_hr_item;
+                      const itemMeetingDate = String(item.review_meeting_date || "2026-10-12").slice(0, 10);
+                      const isNew = itemMeetingDate >= "2026-10-19";
                       const updates = Array.isArray(item.updates_list)
                         ? item.updates_list
                         : [];
                       const statusUpper = String(item.status || "Open").toUpperCase();
                       const isClosedRow =
                         statusUpper === "CLOSED" || statusUpper === "COMPLETED";
+                      const isOpenRow = statusUpper === "OPEN" || statusUpper === "NOT STARTED";
 
                       const actionTakenSummary =
                         item.closure_remarks ||
@@ -1138,18 +1387,22 @@ export default function ExecutiveControlTowerClient({
                                 : "hover:bg-slate-50/90"
                           }`}
                         >
-                          {/* S.No. 1, 2... + Code */}
+                          {/* Number 1, 2, 3... + Code */}
                           <td className="py-3.5 px-3.5">
                             <div className="flex flex-col gap-1">
                               <span className="inline-flex items-center px-2 py-0.5 rounded bg-[#003B71]/10 text-[#003B71] font-mono font-black text-[11px] w-fit">
-                                S.No. {idx + 1}
+                                {idx + 1}
                               </span>
                               <span className="font-mono font-bold text-slate-900 text-xs">
                                 {item.item_id || `ACT-${idx + 1}`}
                               </span>
-                              {isNew && (
+                              {isNew ? (
                                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-[#003B71] text-white w-fit">
-                                  <Sparkles className="w-2.5 h-2.5" /> NEW
+                                  <Sparkles className="w-2.5 h-2.5" /> 19 OCT NEW
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-900 w-fit">
+                                  12 OCT C/F
                                 </span>
                               )}
                               {isRedAlert && (
@@ -1163,7 +1416,7 @@ export default function ExecutiveControlTowerClient({
                           {/* Review Meeting Date */}
                           <td className="py-3.5 px-3.5 whitespace-nowrap">
                             <div className="font-medium text-slate-900">
-                              {String(item.review_meeting_date || "2026-10-12").slice(0, 10)}
+                              {itemMeetingDate}
                             </div>
                             <div className="text-[11px] text-slate-500">
                               {item.review_frequency || "Weekly"}
@@ -1200,10 +1453,12 @@ export default function ExecutiveControlTowerClient({
                               className={`mt-1.5 rounded-md border px-2.5 py-1.5 text-[11px] ${
                                 isClosedRow
                                   ? "border-emerald-200 bg-emerald-50/70 text-emerald-900"
-                                  : statusUpper.includes("PROGRESS") ||
-                                      statusUpper.includes("TRACK")
-                                    ? "border-blue-200 bg-blue-50/60 text-blue-900"
-                                    : "border-slate-200 bg-slate-50 text-slate-700"
+                                  : isOpenRow
+                                    ? "border-sky-200 bg-sky-50/70 text-sky-900"
+                                    : statusUpper.includes("PROGRESS") ||
+                                        statusUpper.includes("TRACK")
+                                      ? "border-indigo-200 bg-indigo-50/60 text-indigo-900"
+                                      : "border-slate-200 bg-slate-50 text-slate-700"
                               }`}
                             >
                               <span className="font-bold">
@@ -1246,9 +1501,13 @@ export default function ExecutiveControlTowerClient({
                                 className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
                                   isClosedRow
                                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                    : isRedAlert
-                                      ? "bg-[#D81B60]/10 text-[#D81B60] border-[#D81B60]/30"
-                                      : "bg-[#003B71]/10 text-[#003B71] border-[#003B71]/25"
+                                    : isOpenRow
+                                      ? "bg-sky-50 text-sky-800 border-sky-300"
+                                      : statusUpper.includes("PROGRESS") || statusUpper.includes("TRACK")
+                                        ? "bg-indigo-50 text-indigo-800 border-indigo-300"
+                                        : statusUpper.includes("HOLD") || statusUpper.includes("DELAY")
+                                          ? "bg-amber-50 text-amber-800 border-amber-300"
+                                          : "bg-[#D81B60]/10 text-[#D81B60] border-[#D81B60]/30"
                                 }`}
                               >
                                 {item.status || "Open"}
@@ -1518,7 +1777,7 @@ export default function ExecutiveControlTowerClient({
                   {execMetrics.byDepartment.map((d: any) => (
                     <tr key={d.id} className="hover:bg-slate-50/80">
                       <td className="px-3 py-2.5 font-mono font-bold text-slate-600">
-                        S.No. {d.sno}
+                        {d.sno}
                       </td>
                       <td className="px-3 py-2.5 font-semibold text-slate-900">
                         <Link
@@ -1688,7 +1947,7 @@ export default function ExecutiveControlTowerClient({
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="font-mono font-bold text-[#003B71]">
-                          S.No. {idx + 1} ({a.item_id})
+                          {idx + 1} ({a.item_id})
                         </span>
                         <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-700">
                           {a.department_name}
@@ -1735,7 +1994,7 @@ export default function ExecutiveControlTowerClient({
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="font-mono font-bold text-slate-900">
-                          S.No. {idx + 1} ({a.item_id})
+                          {idx + 1} ({a.item_id})
                         </span>
                         <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-700">
                           {a.department_name}
@@ -1820,7 +2079,7 @@ export default function ExecutiveControlTowerClient({
                     <div className="flex items-start justify-between gap-3 mb-2">
                       <div>
                         <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">
-                          S.No. {idx + 1} &bull; {d.code}
+                          {idx + 1} &bull; {d.code}
                         </span>
                         <h3 className="text-base font-black text-slate-950 group-hover:text-[#003B71] transition">
                           {d.name}
@@ -1936,7 +2195,7 @@ export default function ExecutiveControlTowerClient({
                   <div key={idx} className="space-y-1">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-slate-800">
-                        S.No. {idx + 1} &bull; {v.fullName}
+                        {idx + 1} &bull; {v.fullName}
                       </span>
                       <span className="font-mono text-[11px] text-slate-600">
                         Pending: <strong className="text-[#003B71]">{v.Pending}</strong>{" "}
@@ -1982,7 +2241,7 @@ export default function ExecutiveControlTowerClient({
               <div key={idx} className="space-y-1">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold text-slate-800">
-                    S.No. {idx + 1} &bull; {v.fullName}
+                    {idx + 1} &bull; {v.fullName}
                   </span>
                   <span className="font-mono font-black text-[#003B71]">
                     {v.Readiness}%
@@ -2048,7 +2307,7 @@ export default function ExecutiveControlTowerClient({
                 {financialChartData.map((f: any, idx: number) => (
                   <tr key={idx} className="hover:bg-slate-50">
                     <td className="py-3 px-4 font-mono font-bold text-slate-600">
-                      S.No. {idx + 1}
+                      {idx + 1}
                     </td>
                     <td className="py-3 px-4 font-bold text-slate-900">
                       {f.fullName}

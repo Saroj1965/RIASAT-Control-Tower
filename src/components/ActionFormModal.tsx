@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, History, CheckCircle2, Clock, AlertTriangle, FileText } from "lucide-react";
+import { X, History, CheckCircle2, Clock, AlertTriangle, FileText, ChevronDown, UserCheck } from "lucide-react";
 
 export const SUPPORT_OPTIONS = [
   "Venkatesh Valluri",
@@ -217,6 +217,7 @@ export function ActionFormModal({
   const [author, setAuthor] = useState<string>(currentUserName || "Executive Secretariat");
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [ownerDropdownOpen, setOwnerDropdownOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (!open) return;
@@ -454,6 +455,7 @@ export function ActionFormModal({
   // Status banner styling to clearly show what action was taken for Closed, Open, or In Progress
   const statusUpper = status.toUpperCase();
   const isClosedBanner = statusUpper === "CLOSED" || statusUpper === "COMPLETED";
+  const isOpenBanner = statusUpper === "OPEN";
   const isInProgressBanner = statusUpper === "IN PROGRESS" || statusUpper === "ON TRACK";
   const isDelayedOrBlocked = statusUpper === "DELAYED" || statusUpper === "BLOCKED";
 
@@ -498,11 +500,13 @@ export function ActionFormModal({
             className={`rounded-lg border px-4 py-3 ${
               isClosedBanner
                 ? "border-emerald-300 bg-emerald-50/70"
-                : isInProgressBanner
-                  ? "border-blue-200 bg-blue-50/60"
-                  : isDelayedOrBlocked
-                    ? "border-rose-200 bg-rose-50/60"
-                    : "border-amber-200 bg-amber-50/60"
+                : isOpenBanner
+                  ? "border-sky-300 bg-sky-50/80"
+                  : isInProgressBanner
+                    ? "border-indigo-200 bg-indigo-50/60"
+                    : isDelayedOrBlocked
+                      ? "border-rose-200 bg-rose-50/60"
+                      : "border-amber-200 bg-amber-50/60"
             }`}
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -511,8 +515,10 @@ export function ActionFormModal({
                   <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                 ) : isDelayedOrBlocked ? (
                   <AlertTriangle className="h-4 w-4 text-rose-600" />
+                ) : isOpenBanner ? (
+                  <Clock className="h-4 w-4 text-sky-600" />
                 ) : (
-                  <Clock className="h-4 w-4 text-blue-600" />
+                  <Clock className="h-4 w-4 text-indigo-600" />
                 )}
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
                   Current Status:{" "}
@@ -520,11 +526,13 @@ export function ActionFormModal({
                     className={
                       isClosedBanner
                         ? "text-emerald-700"
-                        : isInProgressBanner
-                          ? "text-blue-700"
-                          : isDelayedOrBlocked
-                            ? "text-rose-700"
-                            : "text-amber-800"
+                        : isOpenBanner
+                          ? "text-sky-700"
+                          : isInProgressBanner
+                            ? "text-indigo-700"
+                            : isDelayedOrBlocked
+                              ? "text-rose-700"
+                              : "text-amber-800"
                     }
                   >
                     {status}
@@ -611,7 +619,6 @@ export function ActionFormModal({
                   setDepartmentId(newDeptId);
                   const matchedDept = departments.find((d) => Number(d.id) === newDeptId);
                   if (
-                    mode === "create" &&
                     matchedDept?.head_of_department &&
                     matchedDept.head_of_department.toLowerCase() !== "to be hired"
                   ) {
@@ -650,30 +657,124 @@ export function ActionFormModal({
               })()}
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-slate-700">Action Owner *</label>
-              <input
-                list="owner-options"
-                value={owner}
-                onChange={(e) => setOwner(e.target.value)}
-                required
-                placeholder="Select HOD or type owner name(s)"
-                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none"
-              />
-              <datalist id="owner-options">
-                {Array.from(
-                  new Set([
-                    ...departments
-                      .map((d) => d.head_of_department)
-                      .filter((h): h is string => Boolean(h && h.toLowerCase() !== "to be hired")),
-                    ...STAFF_DIRECTORY,
-                  ])
-                ).map((p) => (
-                  <option key={p} value={p} />
-                ))}
-              </datalist>
+            <div className="relative">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-medium text-slate-700">Action Owner *</label>
+                <button
+                  type="button"
+                  onClick={() => setOwnerDropdownOpen((prev) => !prev)}
+                  className="text-[11px] font-bold text-[#003B71] hover:text-[#F37021] inline-flex items-center gap-0.5"
+                >
+                  Select from HOD / Staff List
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${ownerDropdownOpen ? "rotate-180" : ""}`} />
+                </button>
+              </div>
+              <div className="relative mt-1 flex items-center">
+                <input
+                  type="text"
+                  value={owner}
+                  onChange={(e) => setOwner(e.target.value)}
+                  onFocus={() => setOwnerDropdownOpen(true)}
+                  required
+                  placeholder="Click dropdown or type HOD / owner name(s)"
+                  className="w-full rounded-md border border-slate-300 bg-white pl-3 pr-9 py-2 text-sm text-slate-900 focus:border-[#003B71] focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setOwnerDropdownOpen((prev) => !prev)}
+                  title="Open HOD & Action Owner Dropdown"
+                  className="absolute right-1.5 inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-[#003B71]"
+                >
+                  <ChevronDown className={`h-4 w-4 transition-transform ${ownerDropdownOpen ? "rotate-180 text-[#003B71]" : ""}`} />
+                </button>
+              </div>
+
+              {ownerDropdownOpen && (
+                <div className="absolute left-0 right-0 z-30 mt-1 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
+                  <div className="sticky top-0 flex items-center justify-between border-b border-slate-100 bg-slate-50 px-3 py-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-[#003B71]">
+                      Department Heads (HODs)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setOwnerDropdownOpen(false)}
+                      className="text-[10px] font-bold text-slate-500 hover:text-slate-800"
+                    >
+                      Close
+                    </button>
+                  </div>
+                  <div className="divide-y divide-slate-100">
+                    {departments
+                      .filter(
+                        (d) =>
+                          d.head_of_department &&
+                          d.head_of_department.trim().toLowerCase() !== "to be hired"
+                      )
+                      .map((d) => {
+                        const hodName = String(d.head_of_department).trim();
+                        const isSelected = owner.trim().toLowerCase() === hodName.toLowerCase();
+                        return (
+                          <button
+                            key={`hod-${d.id}`}
+                            type="button"
+                            onClick={() => {
+                              setOwner(hodName);
+                              setOwnerDropdownOpen(false);
+                            }}
+                            className={`flex w-full items-center justify-between px-3 py-2 text-left text-xs transition-colors hover:bg-sky-50 ${
+                              isSelected ? "bg-sky-50/90 font-bold text-[#003B71]" : "text-slate-800"
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <div className="font-semibold text-slate-900 truncate flex items-center gap-1.5">
+                                <UserCheck className="h-3.5 w-3.5 text-[#003B71] shrink-0" />
+                                {hodName}
+                              </div>
+                              <div className="text-[10px] text-slate-500 truncate pl-5">
+                                HOD — {d.name}
+                              </div>
+                            </div>
+                            <span className="ml-2 shrink-0 rounded bg-[#003B71]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#003B71]">
+                              Assign
+                            </span>
+                          </button>
+                        );
+                      })}
+                  </div>
+
+                  <div className="border-t border-b border-slate-100 bg-slate-50 px-3 py-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-600">
+                      Executive & Staff Directory
+                    </span>
+                  </div>
+                  <div className="divide-y divide-slate-50">
+                    {Array.from(new Set(STAFF_DIRECTORY)).map((person) => {
+                      const isSelected = owner.trim().toLowerCase() === person.toLowerCase();
+                      return (
+                        <button
+                          key={`staff-${person}`}
+                          type="button"
+                          onClick={() => {
+                            setOwner(person);
+                            setOwnerDropdownOpen(false);
+                          }}
+                          className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-slate-100 ${
+                            isSelected ? "bg-sky-50 font-bold text-[#003B71]" : "text-slate-700"
+                          }`}
+                        >
+                          <span>{person}</span>
+                          {isSelected && (
+                            <span className="text-[10px] font-bold text-emerald-600">Selected</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <span className="mt-1 block text-[11px] text-slate-500">
-                Linked to Department HOD & staff list, or type any name.
+                Click the dropdown arrow to pick any Department HOD or staff member, or type custom owner name(s).
               </span>
             </div>
 
