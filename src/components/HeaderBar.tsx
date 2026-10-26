@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { LogOut, BookOpen, FileBarChart, LayoutDashboard, ListChecks, UserCheck, Building2 } from "lucide-react";
+import { LogOut, BookOpen, FileBarChart, LayoutDashboard, ListChecks, UserCheck, Building2, KeyRound } from "lucide-react";
 import { SessionUser } from "@/lib/auth";
 
 export default function HeaderBar({ user }: { user: SessionUser }) {
@@ -99,6 +99,19 @@ export default function HeaderBar({ user }: { user: SessionUser }) {
           <FileBarChart className="w-3.5 h-3.5 text-[#F37021]" />
           Reports
         </Link>
+        {(user.role === "Admin" || user.role === "Vice Chairman" || user.role === "User Admin" || user.role === "Executive") && (
+          <Link
+            href="/edit-credentail"
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+              pathname.startsWith("/edit-credentail") || pathname.startsWith("/edit-credentials")
+                ? "bg-[#003B71] text-white"
+                : "text-slate-700 hover:bg-slate-100 hover:text-[#003B71]"
+            }`}
+          >
+            <KeyRound className="w-3.5 h-3.5 text-[#D81B60]" />
+            Edit Credentials
+          </Link>
+        )}
         <Link
           href="/guidelines"
           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${

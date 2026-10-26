@@ -25,6 +25,7 @@ import {
   Menu,
   X,
   UserCheck,
+  KeyRound,
 } from "lucide-react";
 import { SessionUser } from "@/lib/auth";
 import { ROLES, DEPARTMENTS } from "@/lib/constants";
@@ -309,17 +310,31 @@ function SidebarNavContent({ user }: { user: SessionUser }) {
             )}
 
               {(isViceChairmanOrAdmin || isUserAdmin) && (
-                <Link
-                  href="/admin?tab=users"
-                  className={`flex items-center gap-2.5 px-3 py-2 rounded-xl font-bold transition-all ${
-                    pathname === "/admin" && (!currentTab || currentTab === "users")
-                      ? "bg-[#003B71] text-white shadow-xs"
-                      : "text-slate-600 hover:text-[#003B71] hover:bg-slate-50"
-                  }`}
-                >
-                  <Users className="w-4 h-4 text-[#F37021]" />
-                  <span>User Management</span>
-                </Link>
+                <>
+                  <Link
+                    href="/admin?tab=users"
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-xl font-bold transition-all ${
+                      pathname === "/admin" && (!currentTab || currentTab === "users")
+                        ? "bg-[#003B71] text-white shadow-xs"
+                        : "text-slate-600 hover:text-[#003B71] hover:bg-slate-50"
+                    }`}
+                  >
+                    <Users className="w-4 h-4 text-[#F37021]" />
+                    <span>User Management</span>
+                  </Link>
+
+                  <Link
+                    href="/edit-credentail"
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-xl font-bold transition-all ${
+                      pathname.startsWith("/edit-credentail") || pathname.startsWith("/edit-credentials")
+                        ? "bg-[#003B71] text-white shadow-xs"
+                        : "text-slate-600 hover:text-[#003B71] hover:bg-slate-50"
+                    }`}
+                  >
+                    <KeyRound className="w-4 h-4 text-[#D81B60]" />
+                    <span>Edit Credentials (/edit-credentail)</span>
+                  </Link>
+                </>
               )}
 
               <Link

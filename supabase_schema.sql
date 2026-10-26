@@ -842,11 +842,50 @@ WHERE d.active = TRUE
 GROUP BY d.id, d.name, d.code, d.head_of_department, ov.updated_by, ov.readiness_percentage, ov.rag_status, ov.key_focus
 ORDER BY d.id ASC;
 
--- Grant permissions on views to Supabase roles
+-- View 5: User Credentials Directory (For /edit-credentail & /login Real-Time Sync)
+CREATE OR REPLACE VIEW v_user_credentials_directory AS
+SELECT
+  u.id AS user_id,
+  u.name,
+  u.email,
+  COALESCE(u.mobile, '') AS mobile,
+  COALESCE(u.designation, '') AS designation,
+  u.role,
+  u.department_id,
+  d.name AS department_name,
+  d.code AS department_code,
+  COALESCE(d.head_of_department, 'To be hired') AS head_of_department,
+  u.status,
+  u.last_login,
+  u.created_at,
+  u.updated_at
+FROM users u
+LEFT JOIN departments d ON d.id = u.department_id
+ORDER BY u.id ASC;
+
+-- Table: Login Logs Ledger (For tracking user logins and credential updates)
+CREATE TABLE IF NOT EXISTS login_logs (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  email TEXT NOT NULL,
+  user_name TEXT,
+  role TEXT,
+  department_id INTEGER,
+  status TEXT NOT NULL DEFAULT 'SUCCESS',
+  timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  details TEXT DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_logs_email ON login_logs(email);
+CREATE INDEX IF NOT EXISTS idx_login_logs_timestamp ON login_logs(timestamp DESC);
+
+-- Grant permissions on views and tables to Supabase roles
 GRANT SELECT ON v_pending_actions_register TO postgres, anon, authenticated, service_role;
 GRANT SELECT ON v_all_actions_register TO postgres, anon, authenticated, service_role;
 GRANT SELECT ON v_departments_hod_directory TO postgres, anon, authenticated, service_role;
 GRANT SELECT ON v_vertical_readiness_analytics TO postgres, anon, authenticated, service_role;
+GRANT SELECT ON v_user_credentials_directory TO postgres, anon, authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON login_logs TO postgres, anon, authenticated, service_role;
 
 -- Backfill datewise action_history (latest update on top) for any workstreams with empty history
 UPDATE workstreams
