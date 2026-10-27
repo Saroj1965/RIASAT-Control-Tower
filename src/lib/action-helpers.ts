@@ -322,14 +322,133 @@ export function sortActionsWithNewAndAlertsOnTop<T extends Record<string, any>>(
 }
 
 /**
- * Returns the Monday of the current week as the standard review meeting date
+ * Returns the Monday of the current week as the standard review meeting date.
+ * Uses local calendar date parts (not UTC) so IST early-morning times don't shift to Sunday.
  */
 export function getCurrentReviewMeetingDate(now: Date = new Date()): string {
-  const d = new Date(now);
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const day = d.getDay();
-  const diffToMonday = d.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(d.setDate(diffToMonday));
-  return monday.toISOString().split("T")[0];
+  d.setDate(d.getDate() - day + (day === 0 ? -6 : 1));
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+
+// =====================================================================
+// DYNAMIC REVIEW MEETING DATES
+// Meeting date tabs are derived from the actual `review_meeting_date`
+// values stored in Supabase, so any new meeting (26 Oct, 2 Nov, ...)
+// automatically gets its own tab as soon as its first action is saved.
+// =====================================================================
+
+/** Fallback date for legacy rows that have no review_meeting_date */
+export const LEGACY_MEETING_DATE = "2026-10-12";
+
+/** Normalised YYYY-MM-DD review meeting date of an action */
+export function getActionMeetingDate(action: any): string {
+  const raw = String(action?.review_meeting_date || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  if (raw) {
+    const parsed = new Date(raw);
+    if (!isNaN(parsed.getTime())) {
+      const y = parsed.getFullYear();
+      const m = String(parsed.getMonth() + 1).padStart(2, "0");
+      const d = String(parsed.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+  }
+  return LEGACY_MEETING_DATE;
+}
+
+/** "26 October 2026" (long) or "26 Oct" (short) */
+export function formatMeetingDateLabel(iso: string, style: "long" | "short" | "medium" = "long"): string {
+  const [y, m, d] = String(iso).slice(0, 10).split("-").map((p) => parseInt(p, 10));
+  if (!y || !m || !d) return iso;
+  const date = new Date(y, m - 1, d);
+  if (style === "short") {
+    return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  }
+  if (style === "medium") {
+    return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  }
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+}
+
+function isClosedStatusValue(status?: string | null): boolean {
+  const st = String(status || "OPEN").trim().toUpperCase();
+  return st === "CLOSED" || st === "COMPLETED" || st === "JOINED";
+}
+
+export interface MeetingDateGroup {
+  date: string; // YYYY-MM-DD
+  label: string; // 26 October 2026
+  shortLabel: string; // 26 Oct
+  mediumLabel: string; // 26 Oct 2026
+  total: number;
+  pending: number;
+  closed: number;
+  /** Actions raised on this date + still-pending actions carried forward from earlier meetings */
+  agendaTotal: number;
+  isLatest: boolean;
+}
+
+/**
+ * Builds one group per distinct review meeting date found in the actions,
+ * sorted chronologically (oldest first, so a new meeting appears as the next tab).
+ */
+export function buildMeetingDateGroups(actions: any[]): MeetingDateGroup[] {
+  const map = new Map<string, { total: number; pending: number; closed: number }>();
+  for (const a of actions || []) {
+    const date = getActionMeetingDate(a);
+    const entry = map.get(date) || { total: 0, pending: 0, closed: 0 };
+    entry.total++;
+    if (isClosedStatusValue(a?.status)) entry.closed++;
+    else entry.pending++;
+    map.set(date, entry);
+  }
+
+  const dates = Array.from(map.keys()).sort();
+  const latest = dates[dates.length - 1];
+
+  return dates.map((date) => {
+    const e = map.get(date)!;
+    let carriedPending = 0;
+    map.forEach((other, otherDate) => {
+      if (otherDate < date) carriedPending += other.pending;
+    });
+    return {
+      date,
+      label: formatMeetingDateLabel(date, "long"),
+      shortLabel: formatMeetingDateLabel(date, "short"),
+      mediumLabel: formatMeetingDateLabel(date, "medium"),
+      total: e.total,
+      pending: e.pending,
+      closed: e.closed,
+      agendaTotal: e.total + carriedPending,
+      isLatest: date === latest,
+    };
+  });
+}
+
+/**
+ * True if an action belongs on the agenda of the given meeting:
+ * raised on that date, or raised earlier and still pending (carried forward).
+ */
+export function isActionInMeetingAgenda(action: any, agendaDate: string): boolean {
+  const date = getActionMeetingDate(action);
+  if (date === agendaDate) return true;
+  return date < agendaDate && !isClosedStatusValue(action?.status);
+}
+
+/** Latest meeting date among the actions (or the current week's Monday if none) */
+export function getLatestMeetingDate(actions: any[]): string {
+  let latest = "";
+  for (const a of actions || []) {
+    const d = getActionMeetingDate(a);
+    if (d > latest) latest = d;
+  }
+  return latest || getCurrentReviewMeetingDate();
 }
 
 /**
@@ -386,7 +505,9 @@ export function calculateActionWeekStats(action: any, referenceDate: Date = new 
     weeks_outstanding = Math.max(0, Math.floor(diffDays / 7));
   }
 
-  const is_carried_forward = !is_closed && (review_meeting_date < "2026-10-19" || weeks_outstanding > 0);
+  const currentReviewDate = getCurrentReviewMeetingDate(referenceDate);
+  const is_carried_forward =
+    !is_closed && (String(review_meeting_date).slice(0, 10) < currentReviewDate || weeks_outstanding > 0);
   const is_new_this_week = !is_closed && !is_carried_forward;
 
   const timeline = (action.timeline || action.target_date || "").trim();

@@ -20,27 +20,52 @@ const GUIDE_SECTIONS = [
     body: [
       "The Riasat Executive Dashboard is the central real-time governance, action-tracking, and readiness command platform for the Ramaiah Institute for Advanced Skills & Technology (RIASAT).",
       "Its primary purpose is to maintain a single, live, non-duplicated source of truth in Supabase for every directive agreed in weekly and monthly management review meetings with the Vice Chairman, Executive Office, and Department Heads (HODs).",
-      "The Summary Sheet displays all active pending actions. Whenever a new review meeting takes place, any open/pending items from earlier meetings automatically carry forward into the current agenda—nothing is lost or manually re-copied.",
+      "The Summary Sheet displays all active pending actions. Whenever a new review meeting takes place (e.g. 12 Oct, 19 Oct, 26 Oct, or future dates), any open/pending items from earlier meetings automatically carry forward into the current agenda—nothing is lost or manually re-copied.",
       "When an action is completed and marked Closed, it moves out of the Pending Summary Sheet into the Closed History and All Actions Directory (/actions) with its full audit trail preserved.",
     ],
   },
   {
     sno: "2",
-    title: "What Data the Dashboard Holds (12 Oct & 19 Oct Reviews + Verticals)",
+    title: "How & Where to Enter Actions of 26 October (Step-by-Step)",
     body: [
-      "• Weekly Review Actions (28 Total Actions in Supabase):",
-      "  — 12 October 2026 Review Meeting (ACT-01 to ACT-16): 16 foundational departmental actions across Strategy & Process, HR & Recruitment, Communications, and Executive Administration (all 16 currently carried forward as active directives).",
-      "  — 19 October 2026 Review Meeting (ACT-17 to ACT-28): 12 new weekly follow-up actions (9 currently pending/active and 3 completed/closed).",
-      "• 11 Departments & Strategic Verticals: Semicon, Aerospace & Defence, Space, Cybersecurity, MedTech, Advanced Manufacturing, HR & Recruitment, Communications, Strategy & Process, Executive Administration, and Vice Chairman Office.",
-      "• Operational Readiness & Financial Pipeline: Vertical readiness scores (0–100%), RAG health indicators (Green, Amber, Red), Capex allocations (₹ Cr), Revenue Pipeline projections (₹ Cr), and 14 standardized reporting fields per vertical.",
+      "Follow this simple 4-step process to enter actions from the 26 October 2026 (or any upcoming) review meeting:",
+      "1. WHERE TO ENTER: Click the '+ Add Action Item' button (or '+ Add Action') located on the top-right of any register: Action Register (/executive), All Actions (/actions), Department Workspace (/department/[id]), or Unified Reports (/reports).",
+      "2. SET REVIEW MEETING DATE: In the modal, locate the 'Review Meeting Date *' field. The date picker is pre-populated, or you can click the '26 Oct' quick button, or type/pick 2026-10-26 directly from the calendar.",
+      "3. FILL IN DIRECTIVE DETAILS: Select the Department, assign the Action Owner (pick from HOD dropdown or type name), choose Priority, specify Target Date, and describe the Action Item / Deliverable and initial Action Taken.",
+      "4. CLICK 'SAVE ACTION ITEM': Click the blue 'Save Action Item' button at the bottom of the modal. The action is committed instantly to Supabase with automatic audit logging.",
     ],
   },
   {
     sno: "3",
+    title: "Automatic 3rd Tab Creation (Is It Automatic? YES!)",
+    body: [
+      "• YES, TAB CREATION IS 100% AUTOMATIC: The review meeting tabs across the entire website are generated dynamically from Supabase database rows.",
+      "• Before any 26 October actions are entered, only meetings with existing actions (12 Oct and 19 Oct) are displayed as tabs.",
+      "• The exact moment you save your first action with Review Meeting Date set to 26 October 2026, the 3rd tab — '26 October 2026 Actions' — is created automatically across all 4 key pages:",
+      "    — Action Register (/executive?view=actions)",
+      "    — All Actions Directory (/actions)",
+      "    — Department Workspaces (/department/[id])",
+      "    — Unified Reports (/reports)",
+      "• A corresponding '26 Oct Pending Only' quick toggle and '26 Oct 2026 agenda' dropdown entry are also created automatically with live counters.",
+      "• FUTURE MEETINGS: The exact same automatic process applies to all future meetings (e.g. 2 Nov, 9 Nov, 16 Nov, etc.). Whenever you enter an action for a new Monday review date, its dedicated tab appears instantly.",
+    ],
+  },
+  {
+    sno: "4",
+    title: "Carried-Forward Pending Directives Across Meeting Cycles",
+    body: [
+      "• Cumulative Accountability: A new review meeting (like 26 October) does not discard unfinished actions from previous meetings (12 Oct and 19 Oct).",
+      "• Agenda Filter: Selecting the '26 Oct 2026 agenda' filter displays all new deliverables agreed on 26 Oct PLUS every pending carried-forward action from 12 Oct and 19 Oct.",
+      "• Visual Badges: Actions raised during the latest meeting cycle display a shiny 'NEW' badge, while unfinished actions from earlier meetings display a 'C/F' (Carried Forward) badge.",
+      "• Red Alerts: Any directive that is overdue, blocked, marked Critical, or flagged for Vice Chairman attention appears prominently on top of all views.",
+    ],
+  },
+  {
+    sno: "5",
     title: "Where to Find Actions Across the Website",
     body: [
       "You can view, search, and filter actions from 5 dedicated locations:",
-      "1. Action Register (Summary Sheet — /executive?view=actions): Default landing register showing active pending actions (25), closed actions (3), or all actions (28) with Red Alerts and newly added items prioritized at the top.",
+      "1. Action Register (Summary Sheet — /executive?view=actions): Default landing register showing active pending actions, closed actions, or all actions with Red Alerts and newly added items prioritized at the top.",
       "2. All Actions & History Directory (/actions): Dedicated master page listing every action across all departments with instant status cards (All, All Pending, Open Status, In Progress, Closed, With Updates, Red Alerts).",
       "3. Executive Action Dashboard (/executive?view=executive_dashboard): High-level KPI summary, Department-wise completion table, Priority/Status donut charts, Overdue & At-Risk list, and Vice Chairman Decisions Required.",
       "4. Department Workspaces (/department/[id]): Each vertical has its own dedicated Action Register, Vertical Analytics, and Unified Department Form.",
@@ -48,19 +73,7 @@ const GUIDE_SECTIONS = [
     ],
   },
   {
-    sno: "4",
-    title: "Using the 12 October & 19 October Meeting Date Tabs & Dropdowns",
-    body: [
-      "Every action register (/executive, /actions, /department/[id], and /reports) provides two separate prominent Meeting Date Tabs plus dropdown filters:",
-      "• Tab 1 — 12 October 2026 Actions: Displays the 16 actions raised in the 12 Oct 2026 review meeting.",
-      "• Tab 2 — 19 October 2026 Actions: Displays the 12 actions raised in the 19 Oct 2026 review meeting.",
-      "• Quick Pending Toggles: Click '12 Oct Pending Only' or '19 Oct Pending Only' to immediately isolate unfinished deliverables from either review date.",
-      "• Original Meeting Date Dropdown: Pull down actions by 'All meeting dates (28)', 'Raised 19 Oct 2026 (12)', or 'Raised 12 Oct 2026 (16)'.",
-      "• Meeting Agenda Dropdown: Filter by '19 Oct 2026 agenda' (shows all 19 Oct items plus carried-forward pending items from 12 Oct) or '12 Oct 2026 agenda'.",
-    ],
-  },
-  {
-    sno: "5",
+    sno: "6",
     title: "Where & How to Make Changes (Add, Edit & Assign HOD Owner)",
     body: [
       "1. Add a New Action: Click '+ Add New Action Item' on the top-right of any register. The next serial code (e.g., ACT-29) is assigned automatically.",
@@ -70,7 +83,7 @@ const GUIDE_SECTIONS = [
     ],
   },
   {
-    sno: "6",
+    sno: "7",
     title: "Status Color Coding Guide (Distinct 'Open' Status Theme)",
     body: [
       "Every status button and badge uses a distinct color so you can identify execution state at a glance:",
@@ -82,7 +95,7 @@ const GUIDE_SECTIONS = [
     ],
   },
   {
-    sno: "7",
+    sno: "8",
     title: "Closing an Action, Reopening & Recording VC Decisions",
     body: [
       "• Closing an Action: Click 'Edit', change Status to 'Closed' or 'Completed', and fill in the green 'Close action' box with the Actual Closure Date and Closure Remarks / Action Taken.",
@@ -91,7 +104,7 @@ const GUIDE_SECTIONS = [
     ],
   },
   {
-    sno: "8",
+    sno: "9",
     title: "Managing Departments & Heads of Department (HOD)",
     body: [
       "Click 'Departments & HODs' in the sidebar (/departments-master) or scroll to the live manager at the bottom of this page to:",
@@ -110,7 +123,7 @@ const ROLE_GUIDES = [
     howToUse: [
       "Open the Executive Action Dashboard (/executive?view=executive_dashboard) to review the 8 headline KPIs, department-wise completion rates, and interactive priority/status donut charts.",
       "Review the 'Vice Chairman decisions required' panel and click 'Record / Edit' to log executive decisions directly into Supabase.",
-      "Use the '12 October 2026 Actions' and '19 October 2026 Actions' tabs to compare carried-forward actions against newly raised directives.",
+      "Use the dynamic Meeting Date Tabs (12 Oct, 19 Oct, 26 Oct, etc.) to review and compare carried-forward actions against newly raised directives for each review cycle.",
       "Add, edit, or close any action item across all 11 departments and assign deliverables to any HOD.",
     ],
   },
@@ -121,7 +134,7 @@ const ROLE_GUIDES = [
     howToUse: [
       "Coordinate weekly review meetings using the Action Register Summary Sheet (/executive?view=actions).",
       "During or after each review meeting, click '+ Add New Action Item' to log new directives with the meeting date, review frequency, department, HOD owner, and support required.",
-      "Filter by '19 Oct 2026 agenda' or '12 Oct 2026 agenda' to run through every pending carry-forward item department by department.",
+      "Filter by meeting agenda (e.g. 26 Oct 2026 agenda or 19 Oct 2026 agenda) to run through every pending carry-forward item department by department.",
       "Export unified CSV or PDF reports from /reports for distribution to leadership.",
     ],
   },
@@ -151,7 +164,7 @@ const ROLE_GUIDES = [
     role: "Department Heads (HODs) & Vertical Leads",
     access: "Dedicated Vertical Workspace (/department/[id]) + Master Action Register (/actions)",
     howToUse: [
-      "Open your Department Workspace (/department/[id]) to view your vertical's Pending Items, 12 Oct vs 19 Oct actions, Red Alerts, and Closed History.",
+      "Open your Department Workspace (/department/[id]) to view your vertical's Pending Items, review meeting date tabs (12 Oct, 19 Oct, 26 Oct, etc.), Red Alerts, and Closed History.",
       "Click 'Edit' on each assigned action item before the weekly review meeting to log 'Progress Update / Remarks (this week)' and update 'Action Taken'.",
       "Use the 'Unified Department Form' tab inside your department workspace to update your vertical's Readiness %, RAG status, and 14 standardized reporting metrics.",
     ],

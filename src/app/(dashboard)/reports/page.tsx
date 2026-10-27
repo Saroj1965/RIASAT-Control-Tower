@@ -22,6 +22,12 @@ import {
   Sparkles,
 } from "lucide-react";
 import { ActionFormModal, ActionHistorySheet } from "@/components/ActionFormModal";
+import MeetingDateTabs from "@/components/MeetingDateTabs";
+import {
+  buildMeetingDateGroups,
+  getActionMeetingDate,
+  formatMeetingDateLabel,
+} from "@/lib/action-helpers";
 import { DEPARTMENTS } from "@/lib/constants";
 
 export default function ReportsPage() {
@@ -101,6 +107,9 @@ export default function ReportsPage() {
     }));
   }, [workstreams]);
 
+  // Dynamic meeting date groups (12 Oct, 19 Oct, 26 Oct, ... auto-detected from Supabase)
+  const meetingGroups = useMemo(() => buildMeetingDateGroups(unifiedWorkstreams), [unifiedWorkstreams]);
+
   // Overall counts across meeting dates and statuses
   const counts = useMemo(() => {
     let all = unifiedWorkstreams.length;
@@ -109,23 +118,10 @@ export default function ReportsPage() {
     let inProgress = 0;
     let delayed = 0;
     let closed = 0;
-    let oct12Total = 0;
-    let oct12Pending = 0;
-    let oct19Total = 0;
-    let oct19Pending = 0;
 
     for (const w of unifiedWorkstreams) {
       const st = String(w.status || "Open").toUpperCase().trim();
       const isClosed = st === "CLOSED" || st === "COMPLETED" || st === "JOINED";
-      const mtgDate = String(w.review_meeting_date || "2026-10-12").trim().slice(0, 10);
-
-      if (mtgDate === "2026-10-12") {
-        oct12Total++;
-        if (!isClosed) oct12Pending++;
-      } else if (mtgDate === "2026-10-19") {
-        oct19Total++;
-        if (!isClosed) oct19Pending++;
-      }
 
       if (isClosed) {
         closed++;
@@ -148,10 +144,6 @@ export default function ReportsPage() {
       inProgress,
       delayed,
       closed,
-      oct12Total,
-      oct12Pending,
-      oct19Total,
-      oct19Pending,
     };
   }, [unifiedWorkstreams]);
 
@@ -165,7 +157,7 @@ export default function ReportsPage() {
 
       // Meeting Date filter
       if (selectedMeetingDate !== "ALL") {
-        const d = String(w.review_meeting_date || "2026-10-12").slice(0, 10);
+        const d = getActionMeetingDate(w);
         if (d !== selectedMeetingDate) return false;
       }
 
@@ -324,7 +316,7 @@ export default function ReportsPage() {
       return [
         `${idx + 1}`,
         w.item_id || `ACT-${idx + 1}`,
-        String(w.review_meeting_date || "2026-10-12").slice(0, 10),
+        getActionMeetingDate(w),
         w.review_frequency || "Weekly",
         w.department_name || "",
         w.category || "",
@@ -423,84 +415,23 @@ export default function ReportsPage() {
       </div>
 
       {/* =====================================================================
-          1. REVIEW MEETING DATE TABS (All Meeting Dates, 12 Oct 2026, 19 Oct 2026)
+          1. REVIEW MEETING DATE TABS (Dynamic tabs for every meeting — 12 Oct, 19 Oct, 26 Oct, ...)
       ====================================================================== */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-3.5 print:hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-500 mr-1">
-              <Calendar className="w-4 h-4 text-[#003B71]" />
-              Meeting Date Tabs:
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setSelectedMeetingDate("ALL")}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                selectedMeetingDate === "ALL"
-                  ? "bg-[#003B71] text-white border-[#003B71] shadow-xs"
-                  : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
-              }`}
-            >
-              <span>All Meeting Dates</span>
-              <span className="px-1.5 py-0.5 rounded bg-black/15 font-mono text-[10px] font-black">
-                {counts.all} Total
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedMeetingDate("2026-10-12")}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                selectedMeetingDate === "2026-10-12"
-                  ? "bg-[#F37021] text-white border-[#F37021] shadow-xs"
-                  : "bg-orange-50 text-orange-900 border-orange-200 hover:bg-orange-100"
-              }`}
-            >
-              <span>12 October 2026 Actions</span>
-              <span className="px-1.5 py-0.5 rounded bg-black/15 font-mono text-[10px] font-black">
-                {counts.oct12Total} Total · {counts.oct12Pending} Pending
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedMeetingDate("2026-10-19")}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                selectedMeetingDate === "2026-10-19"
-                  ? "bg-[#D81B60] text-white border-[#D81B60] shadow-xs"
-                  : "bg-pink-50 text-pink-900 border-pink-200 hover:bg-pink-100"
-              }`}
-            >
-              <span>19 October 2026 Actions</span>
-              <span className="px-1.5 py-0.5 rounded bg-black/15 font-mono text-[10px] font-black">
-                {counts.oct19Total} Total · {counts.oct19Pending} Pending
-              </span>
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedMeetingDate("2026-10-12");
-                setSelectedStatusTab("ALL_PENDING");
-              }}
-              className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-orange-50 text-orange-800 border border-orange-200 hover:bg-orange-100 transition cursor-pointer"
-            >
-              12 Oct Pending Only ({counts.oct12Pending})
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedMeetingDate("2026-10-19");
-                setSelectedStatusTab("ALL_PENDING");
-              }}
-              className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-pink-50 text-pink-800 border border-pink-200 hover:bg-pink-100 transition cursor-pointer"
-            >
-              19 Oct Pending Only ({counts.oct19Pending})
-            </button>
-          </div>
+        <div className="pb-3 border-b border-slate-100">
+          <MeetingDateTabs
+            groups={meetingGroups}
+            totalCount={counts.all}
+            totalPending={counts.pending}
+            selectedDate={selectedMeetingDate}
+            allValue="ALL"
+            onSelectDate={setSelectedMeetingDate}
+            onSelectPendingOnly={(date) => {
+              setSelectedMeetingDate(date);
+              setSelectedStatusTab("ALL_PENDING");
+            }}
+            pendingOnlyActive={selectedStatusTab === "ALL_PENDING"}
+          />
         </div>
 
         {/* =====================================================================
@@ -886,7 +817,7 @@ export default function ReportsPage() {
                             </td>
                             <td className="py-2.5 px-3 text-slate-600">
                               <div>
-                                {String(w.review_meeting_date || "2026-10-12").slice(0, 10)}
+                                {getActionMeetingDate(w)}
                               </div>
                               <div className="text-[10px] text-slate-400">
                                 {w.review_frequency || "Weekly"}

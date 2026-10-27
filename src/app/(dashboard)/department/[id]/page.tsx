@@ -24,6 +24,13 @@ import {
 } from "lucide-react";
 import { ActionFormModal, ActionHistorySheet } from "@/components/ActionFormModal";
 import DepartmentsHodManager from "@/components/DepartmentsHodManager";
+import MeetingDateTabs from "@/components/MeetingDateTabs";
+import {
+  buildMeetingDateGroups,
+  getActionMeetingDate,
+  getCurrentReviewMeetingDate,
+  formatMeetingDateLabel,
+} from "@/lib/action-helpers";
 
 const BRAND = {
   blue: "#003B71",
@@ -160,21 +167,12 @@ export default function DepartmentWorkspacePage() {
     }));
   }, [workstreams]);
 
-  const deptMeetingCounts = useMemo(() => {
-    const getMtg = (w: any) => String(w.review_meeting_date || "2026-10-12").trim().slice(0, 10);
-    const isPend = (w: any) => {
-      const st = String(w.status || "OPEN").trim().toUpperCase();
-      return st !== "CLOSED" && st !== "COMPLETED" && st !== "JOINED";
-    };
-    const oct12 = unifiedActions.filter((w) => getMtg(w) === "2026-10-12");
-    const oct19 = unifiedActions.filter((w) => getMtg(w) === "2026-10-19");
-    return {
-      oct12Total: oct12.length,
-      oct12Pending: oct12.filter(isPend).length,
-      oct19Total: oct19.length,
-      oct19Pending: oct19.filter(isPend).length,
-    };
-  }, [unifiedActions]);
+  // Dynamic meeting date groups for this department (auto-adds 26 Oct, 2 Nov, ...)
+  const deptMeetingGroups = useMemo(() => buildMeetingDateGroups(unifiedActions), [unifiedActions]);
+  const latestMeetingDate =
+    deptMeetingGroups.length > 0
+      ? deptMeetingGroups[deptMeetingGroups.length - 1].date
+      : getCurrentReviewMeetingDate();
 
   // Separate Pending vs Closed
   const pendingWorkstreams = useMemo(() => {
@@ -194,7 +192,7 @@ export default function DepartmentWorkspacePage() {
   const filterList = useCallback(
     (list: any[]) => {
       return list.filter((w) => {
-        const mtgDate = String(w.review_meeting_date || "2026-10-12").trim().slice(0, 10);
+        const mtgDate = getActionMeetingDate(w);
         if (wsMeetingDateFilter !== "ALL" && mtgDate !== wsMeetingDateFilter) {
           return false;
         }
@@ -687,56 +685,20 @@ export default function DepartmentWorkspacePage() {
       {/* =================================================================== */}
       {(activePage === "pending" || activePage === "closed" || activePage === "all") && (
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
-          {/* 2 Separate Prominent Tabs for Meeting Dates (12 Oct 2026 & 19 Oct 2026) */}
+          {/* Dynamic Meeting Date Tabs (one tab per review meeting — 12 Oct, 19 Oct, 26 Oct, ... auto-detected) */}
           <div className="px-4 md:px-5 pt-4 pb-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2.5 bg-slate-50/60">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 mr-1">
-                Review Meeting Tabs:
-              </span>
-              <button
-                type="button"
-                onClick={() => setWsMeetingDateFilter("ALL")}
-                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                  wsMeetingDateFilter === "ALL"
-                    ? "bg-[#003B71] text-white border-[#003B71]"
-                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-                }`}
-              >
-                <span>All Meeting Dates</span>
-                <span className="px-1.5 py-0.5 rounded bg-black/15 font-mono text-[10px] font-black">
-                  {unifiedActions.length} Total · {pendingWorkstreams.length} Pending
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setWsMeetingDateFilter("2026-10-12")}
-                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                  wsMeetingDateFilter === "2026-10-12"
-                    ? "bg-[#F37021] text-white border-[#F37021]"
-                    : "bg-orange-50 text-orange-900 border-orange-200 hover:bg-orange-100"
-                }`}
-              >
-                <span>12 Oct 2026 Actions</span>
-                <span className="px-1.5 py-0.5 rounded bg-black/15 font-mono text-[10px] font-black">
-                  {deptMeetingCounts.oct12Total} Total · {deptMeetingCounts.oct12Pending} Pending
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setWsMeetingDateFilter("2026-10-19")}
-                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                  wsMeetingDateFilter === "2026-10-19"
-                    ? "bg-[#D81B60] text-white border-[#D81B60]"
-                    : "bg-pink-50 text-pink-900 border-pink-200 hover:bg-pink-100"
-                }`}
-              >
-                <span>19 Oct 2026 Actions</span>
-                <span className="px-1.5 py-0.5 rounded bg-black/15 font-mono text-[10px] font-black">
-                  {deptMeetingCounts.oct19Total} Total · {deptMeetingCounts.oct19Pending} Pending
-                </span>
-              </button>
+            <div className="flex-1 min-w-0">
+              <MeetingDateTabs
+                groups={deptMeetingGroups}
+                totalCount={unifiedActions.length}
+                totalPending={pendingWorkstreams.length}
+                selectedDate={wsMeetingDateFilter}
+                allValue="ALL"
+                onSelectDate={setWsMeetingDateFilter}
+                title="Review Meeting Tabs:"
+                size="sm"
+                labelStyle="medium"
+              />
             </div>
 
             {/* Quick Status Filter Pills (Open has distinct Sky-Blue color) */}
@@ -851,12 +813,11 @@ export default function DepartmentWorkspacePage() {
                 className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-white"
               >
                 <option value="ALL">All Meeting Dates ({unifiedActions.length})</option>
-                <option value="2026-10-19">
-                  Raised 19 Oct 2026 ({deptMeetingCounts.oct19Total})
-                </option>
-                <option value="2026-10-12">
-                  Raised 12 Oct 2026 ({deptMeetingCounts.oct12Total})
-                </option>
+                {[...deptMeetingGroups].reverse().map((g) => (
+                  <option key={g.date} value={g.date}>
+                    Raised {g.mediumLabel} ({g.total})
+                  </option>
+                ))}
               </select>
 
               <select
@@ -931,8 +892,8 @@ export default function DepartmentWorkspacePage() {
                       w.effective_rag === "RED" ||
                       w.rag_status === "RED" ||
                       String(w.priority || "").toUpperCase() === "CRITICAL";
-                    const wDate = String(w.review_meeting_date || "2026-10-12").slice(0, 10);
-                    const isNew = wDate >= "2026-10-19";
+                    const wDate = getActionMeetingDate(w);
+                    const isNew = wDate >= latestMeetingDate;
                     const updates = Array.isArray(w.updates_list)
                       ? w.updates_list
                       : [];
@@ -969,11 +930,11 @@ export default function DepartmentWorkspacePage() {
                             </span>
                             {isNew ? (
                               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-[#003B71] text-white w-fit">
-                                <Sparkles className="w-2.5 h-2.5" /> 19 OCT NEW
+                                <Sparkles className="w-2.5 h-2.5" /> {formatMeetingDateLabel(wDate, "short").toUpperCase()} NEW
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-900 w-fit">
-                                12 OCT C/F
+                                {formatMeetingDateLabel(wDate, "short").toUpperCase()} C/F
                               </span>
                             )}
                             {isRedAlert && (

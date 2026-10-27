@@ -20,11 +20,15 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { ActionFormModal, ActionHistorySheet } from "@/components/ActionFormModal";
+import MeetingDateTabs from "@/components/MeetingDateTabs";
 import {
   sortActionsWithAlertsAndNewFirst,
   isPendingAction,
   formatActionUpdatesDatewise,
   isActionRedAlert,
+  buildMeetingDateGroups,
+  getActionMeetingDate,
+  isActionInMeetingAgenda,
 } from "@/lib/action-helpers";
 
 export default function AllActionsPage() {
@@ -126,23 +130,10 @@ export default function AllActionsPage() {
     let closed = 0;
     let updated = 0;
     let alerts = 0;
-    let oct12Total = 0;
-    let oct12Pending = 0;
-    let oct19Total = 0;
-    let oct19Pending = 0;
 
     for (const a of enrichedActions) {
       const st = String(a.status || "Open").toUpperCase();
       const isClosed = st === "CLOSED" || st === "COMPLETED" || st === "JOINED";
-      const mtgDate = String(a.review_meeting_date || "2026-10-12").trim().slice(0, 10);
-
-      if (mtgDate === "2026-10-12") {
-        oct12Total++;
-        if (!isClosed) oct12Pending++;
-      } else if (mtgDate === "2026-10-19") {
-        oct19Total++;
-        if (!isClosed) oct19Pending++;
-      }
 
       if (isClosed) {
         closed++;
@@ -169,26 +160,20 @@ export default function AllActionsPage() {
       closed,
       updated,
       alerts,
-      oct12Total,
-      oct12Pending,
-      oct19Total,
-      oct19Pending,
-      agendaOct19Total: oct19Total + oct12Pending,
     };
   }, [enrichedActions]);
+
+  // Dynamic meeting date groups (12 Oct, 19 Oct, 26 Oct, ... auto-detected from Supabase)
+  const meetingGroups = useMemo(() => buildMeetingDateGroups(enrichedActions), [enrichedActions]);
 
   const filteredActions = useMemo(() => {
     return enrichedActions.filter((a) => {
       const st = String(a.status || "Open").toUpperCase();
       const isClosed = st === "CLOSED" || st === "COMPLETED" || st === "JOINED";
-      const mtgDate = String(a.review_meeting_date || "2026-10-12").trim().slice(0, 10);
+      const mtgDate = getActionMeetingDate(a);
 
       if (selectedMeetingDate !== "all" && mtgDate !== selectedMeetingDate) return false;
-      if (selectedAgenda === "2026-10-12" && mtgDate !== "2026-10-12") return false;
-      if (
-        selectedAgenda === "2026-10-19" &&
-        !(mtgDate === "2026-10-19" || (mtgDate === "2026-10-12" && !isClosed))
-      ) {
+      if (selectedAgenda !== "all" && !isActionInMeetingAgenda(a, selectedAgenda)) {
         return false;
       }
 
@@ -512,98 +497,26 @@ export default function AllActionsPage() {
         </div>
       </div>
 
-      {/* Filter Bar + 2 Separate Meeting Date Tabs (12 Oct 2026 & 19 Oct 2026) */}
+      {/* Filter Bar + Dynamic Meeting Date Tabs (one tab per review meeting, auto-created from Supabase) */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3.5">
-        <div className="flex flex-wrap items-center justify-between gap-2.5 pb-3 border-b border-slate-100">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 mr-1">
-              Review Meeting Date Tabs:
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedMeetingDate("all");
-                setSelectedAgenda("all");
-              }}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all ${
-                selectedMeetingDate === "all" && selectedAgenda === "all"
-                  ? "bg-[#003B71] text-white border-[#003B71] shadow-xs"
-                  : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
-              }`}
-            >
-              <span>All Meeting Dates</span>
-              <span className="px-1.5 py-0.5 rounded bg-black/15 font-mono text-[10px] font-black">
-                {counts.all} Total · {counts.pending} Pending
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedMeetingDate("2026-10-12");
-                setSelectedAgenda("all");
-              }}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all ${
-                selectedMeetingDate === "2026-10-12"
-                  ? "bg-[#F37021] text-white border-[#F37021] shadow-xs"
-                  : "bg-orange-50 text-orange-900 border-orange-200 hover:bg-orange-100"
-              }`}
-            >
-              <span>12 October 2026 Actions</span>
-              <span className="px-1.5 py-0.5 rounded bg-black/15 font-mono text-[10px] font-black">
-                {counts.oct12Total} Total · {counts.oct12Pending} Pending
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedMeetingDate("2026-10-19");
-                setSelectedAgenda("all");
-              }}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all ${
-                selectedMeetingDate === "2026-10-19"
-                  ? "bg-[#D81B60] text-white border-[#D81B60] shadow-xs"
-                  : "bg-pink-50 text-pink-900 border-pink-200 hover:bg-pink-100"
-              }`}
-            >
-              <span>19 October 2026 Actions</span>
-              <span className="px-1.5 py-0.5 rounded bg-black/15 font-mono text-[10px] font-black">
-                {counts.oct19Total} Total · {counts.oct19Pending} Pending
-              </span>
-            </button>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedMeetingDate("2026-10-12");
-                setStatusTab("pending");
-              }}
-              className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition-all ${
-                selectedMeetingDate === "2026-10-12" && statusTab === "pending"
-                  ? "bg-[#F37021]/15 text-[#F37021] border-[#F37021]"
-                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-              }`}
-            >
-              12 Oct Pending Only ({counts.oct12Pending})
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedMeetingDate("2026-10-19");
-                setStatusTab("pending");
-              }}
-              className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition-all ${
-                selectedMeetingDate === "2026-10-19" && statusTab === "pending"
-                  ? "bg-[#D81B60]/15 text-[#D81B60] border-[#D81B60]"
-                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-              }`}
-            >
-              19 Oct Pending Only ({counts.oct19Pending})
-            </button>
-          </div>
+        <div className="pb-3 border-b border-slate-100">
+          <MeetingDateTabs
+            groups={meetingGroups}
+            totalCount={counts.all}
+            totalPending={counts.pending}
+            selectedDate={selectedMeetingDate}
+            allValue="all"
+            onSelectDate={(value) => {
+              setSelectedMeetingDate(value);
+              setSelectedAgenda("all");
+            }}
+            onSelectPendingOnly={(date) => {
+              setSelectedMeetingDate(date);
+              setSelectedAgenda("all");
+              setStatusTab("pending");
+            }}
+            pendingOnlyActive={statusTab === "pending"}
+          />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
@@ -627,12 +540,11 @@ export default function AllActionsPage() {
               className="w-full px-3 py-2 text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All Meeting Dates ({counts.all})</option>
-              <option value="2026-10-19">
-                Raised 19 Oct 2026 ({counts.oct19Total})
-              </option>
-              <option value="2026-10-12">
-                Raised 12 Oct 2026 ({counts.oct12Total})
-              </option>
+              {[...meetingGroups].reverse().map((g) => (
+                <option key={g.date} value={g.date}>
+                  Raised {g.mediumLabel} ({g.total})
+                </option>
+              ))}
             </select>
           </div>
 
@@ -644,12 +556,11 @@ export default function AllActionsPage() {
               className="w-full px-3 py-2 text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">Any Meeting Agenda</option>
-              <option value="2026-10-19">
-                19 Oct 2026 Agenda ({counts.agendaOct19Total})
-              </option>
-              <option value="2026-10-12">
-                12 Oct 2026 Agenda ({counts.oct12Total})
-              </option>
+              {[...meetingGroups].reverse().map((g) => (
+                <option key={g.date} value={g.date}>
+                  {g.mediumLabel} Agenda ({g.agendaTotal})
+                </option>
+              ))}
             </select>
           </div>
 
@@ -780,7 +691,7 @@ export default function AllActionsPage() {
                   const updates = action.updates_list || [];
                   const actionCode =
                     action.item_id || `ACT-${String(action.id).padStart(2, "0")}`;
-                  const mtgDate = String(action.review_meeting_date || "2026-10-12").slice(0, 10);
+                  const mtgDate = getActionMeetingDate(action);
 
                   return (
                     <tr

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, History, CheckCircle2, Clock, AlertTriangle, FileText, ChevronDown, UserCheck } from "lucide-react";
+import { X, History, CheckCircle2, Clock, AlertTriangle, FileText, ChevronDown, UserCheck, Calendar } from "lucide-react";
+import { getCurrentReviewMeetingDate, getReviewWeekLabel } from "@/lib/action-helpers";
 
 export const SUPPORT_OPTIONS = [
   "Venkatesh Valluri",
@@ -154,9 +155,11 @@ export function ActionFormModal({
   const initialTargetIso = normalizeIsoDate(rawTimeline, "");
   const initialTimelineNote = !initialTargetIso && rawTimeline ? rawTimeline : "";
 
-  const [reviewMeetingDate, setReviewMeetingDate] = useState<string>(
-    normalizeIsoDate(action?.review_meeting_date, "2026-10-12")
-  );
+  const defaultMeetingDate = action?.review_meeting_date
+    ? normalizeIsoDate(action.review_meeting_date, "2026-10-12")
+    : getCurrentReviewMeetingDate();
+
+  const [reviewMeetingDate, setReviewMeetingDate] = useState<string>(defaultMeetingDate);
   const [reviewFrequency, setReviewFrequency] = useState<string>(
     action?.review_frequency || (String(action?.review_week || "").toLowerCase().includes("month") ? "Monthly" : "Weekly")
   );
@@ -228,7 +231,10 @@ export function ActionFormModal({
     const tlIso = normalizeIsoDate(rawTl, "");
     const st = normalizeStatusValue(action?.status);
 
-    setReviewMeetingDate(normalizeIsoDate(action?.review_meeting_date, "2026-10-12"));
+    const initialMeetingDate = action?.review_meeting_date
+      ? normalizeIsoDate(action.review_meeting_date, "2026-10-12")
+      : getCurrentReviewMeetingDate();
+    setReviewMeetingDate(initialMeetingDate);
     setReviewFrequency(
       action?.review_frequency ||
         (String(action?.review_week || "").toLowerCase().includes("month") ? "Monthly" : "Weekly")
@@ -423,9 +429,9 @@ export function ActionFormModal({
           ? closureRemarks.trim() || actionTakenText.trim() || finalRemarks
           : "",
         closure_date: isClosing ? closureDate || todayIso : null,
-        review_meeting_date: reviewMeetingDate || "2026-10-12",
-        review_week: `${reviewFrequency} Review (${reviewMeetingDate || "2026-10-12"})`,
-        meeting_context: `${reviewFrequency} Management Review - ${reviewMeetingDate || "2026-10-12"}`,
+        review_meeting_date: reviewMeetingDate || getCurrentReviewMeetingDate(),
+        review_week: `${reviewFrequency} Review (${reviewMeetingDate || getCurrentReviewMeetingDate()})`,
+        meeting_context: `${reviewFrequency} Management Review - ${reviewMeetingDate || getCurrentReviewMeetingDate()}`,
         updated_by: author.trim(),
         progress_date: progressDate,
       };
@@ -590,6 +596,23 @@ export function ActionFormModal({
                 required
                 className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none"
               />
+              <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                <span className="text-[10px] text-slate-400 font-bold uppercase mr-0.5">Quick Date:</span>
+                {["2026-10-26", "2026-10-19", "2026-10-12"].map((quickDate) => (
+                  <button
+                    key={quickDate}
+                    type="button"
+                    onClick={() => setReviewMeetingDate(quickDate)}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer ${
+                      reviewMeetingDate === quickDate
+                        ? "bg-[#003B71] text-white border-[#003B71]"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {quickDate === "2026-10-26" ? "26 Oct" : quickDate === "2026-10-19" ? "19 Oct" : "12 Oct"}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div>

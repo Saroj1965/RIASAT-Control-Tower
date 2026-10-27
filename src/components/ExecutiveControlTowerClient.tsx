@@ -28,6 +28,14 @@ import {
 } from "lucide-react";
 import { ActionFormModal, ActionHistorySheet } from "@/components/ActionFormModal";
 import DepartmentsHodManager from "@/components/DepartmentsHodManager";
+import MeetingDateTabs from "@/components/MeetingDateTabs";
+import {
+  buildMeetingDateGroups,
+  getActionMeetingDate,
+  isActionInMeetingAgenda,
+  formatMeetingDateLabel,
+  getCurrentReviewMeetingDate,
+} from "@/lib/action-helpers";
 
 const BRAND = {
   blue: "#003B71",
@@ -245,26 +253,12 @@ export default function ExecutiveControlTowerClient({
     });
   }, [allActionsRaw]);
 
-  // Meeting date counts (12 Oct 2026 vs 19 Oct 2026)
-  const meetingDateStats = useMemo(() => {
-    const getMeetingDate = (a: any) =>
-      String(a.review_meeting_date || "2026-10-12").trim().slice(0, 10);
-    const isPending = (a: any) => {
-      const st = String(a.status || "OPEN").trim().toUpperCase();
-      return st !== "CLOSED" && st !== "COMPLETED" && st !== "JOINED";
-    };
-    const oct12All = allActionsRaw.filter((a: any) => getMeetingDate(a) === "2026-10-12");
-    const oct19All = allActionsRaw.filter((a: any) => getMeetingDate(a) === "2026-10-19");
-    return {
-      oct12Total: oct12All.length,
-      oct12Pending: oct12All.filter(isPending).length,
-      oct19Total: oct19All.length,
-      oct19Pending: oct19All.filter(isPending).length,
-      agendaOct19Total: allActionsRaw.filter(
-        (a: any) => getMeetingDate(a) === "2026-10-19" || (getMeetingDate(a) === "2026-10-12" && isPending(a))
-      ).length,
-    };
-  }, [allActionsRaw]);
+  // Dynamic meeting date groups (12 Oct, 19 Oct, 26 Oct, ... auto-detected from Supabase)
+  const meetingGroups = useMemo(() => buildMeetingDateGroups(allActionsRaw), [allActionsRaw]);
+  const latestMeetingDate =
+    meetingGroups.length > 0
+      ? meetingGroups[meetingGroups.length - 1].date
+      : getCurrentReviewMeetingDate();
 
   useEffect(() => {
     if (currentView === "all_actions") {
@@ -283,19 +277,15 @@ export default function ExecutiveControlTowerClient({
           : allActionsRaw;
 
     return sourceList.filter((item: any) => {
-      const itemDate = String(item.review_meeting_date || "2026-10-12").trim().slice(0, 10);
+      const itemDate = getActionMeetingDate(item);
       const st = String(item.status || "Open").trim().toUpperCase();
-      const isItemPending = st !== "CLOSED" && st !== "COMPLETED" && st !== "JOINED";
 
       if (meetingDateFilter !== "ALL" && itemDate !== meetingDateFilter) {
         return false;
       }
-      if (meetingAgendaFilter === "2026-10-12" && itemDate !== "2026-10-12") {
-        return false;
-      }
       if (
-        meetingAgendaFilter === "2026-10-19" &&
-        !(itemDate === "2026-10-19" || (itemDate === "2026-10-12" && isItemPending))
+        meetingAgendaFilter !== "ALL" &&
+        !isActionInMeetingAgenda(item, meetingAgendaFilter)
       ) {
         return false;
       }
@@ -422,7 +412,7 @@ export default function ExecutiveControlTowerClient({
         return [
           `${idx + 1}`,
           item.item_id || `ACT-${idx + 1}`,
-          String(item.review_meeting_date || "2026-10-12").slice(0, 10),
+          getActionMeetingDate(item),
           item.review_frequency || "Weekly",
           item.department_name || "",
           item.action_point || item.deliverable || "",
@@ -922,116 +912,25 @@ export default function ExecutiveControlTowerClient({
 
           {/* View Switcher & Filters */}
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs space-y-3.5">
-            {/* 2 Separate Prominent Tabs for Meeting Dates (12 Oct 2026 & 19 Oct 2026) + All Dates */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 mr-1">
-                  Review Meeting Tabs:
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMeetingDateFilter("ALL");
-                    setMeetingAgendaFilter("ALL");
-                  }}
-                  className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition cursor-pointer border ${
-                    meetingDateFilter === "ALL" && meetingAgendaFilter === "ALL"
-                      ? "bg-[#003B71] text-white border-[#003B71] shadow-xs"
-                      : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
-                  }`}
-                >
-                  <span>All Meeting Dates</span>
-                  <span
-                    className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-black ${
-                      meetingDateFilter === "ALL" && meetingAgendaFilter === "ALL"
-                        ? "bg-white/20 text-white"
-                        : "bg-slate-200 text-slate-800"
-                    }`}
-                  >
-                    {allActionsRaw.length} Total · {pendingActionsAll.length} Pending
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMeetingDateFilter("2026-10-12");
-                    setMeetingAgendaFilter("ALL");
-                  }}
-                  className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition cursor-pointer border ${
-                    meetingDateFilter === "2026-10-12"
-                      ? "bg-[#F37021] text-white border-[#F37021] shadow-xs"
-                      : "bg-orange-50/70 text-orange-900 border-orange-200 hover:bg-orange-100/80"
-                  }`}
-                >
-                  <span>12 October 2026 Actions</span>
-                  <span
-                    className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-black ${
-                      meetingDateFilter === "2026-10-12"
-                        ? "bg-white/25 text-white"
-                        : "bg-orange-200/80 text-orange-950"
-                    }`}
-                  >
-                    {meetingDateStats.oct12Total} Total · {meetingDateStats.oct12Pending} Pending
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMeetingDateFilter("2026-10-19");
-                    setMeetingAgendaFilter("ALL");
-                  }}
-                  className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition cursor-pointer border ${
-                    meetingDateFilter === "2026-10-19"
-                      ? "bg-[#D81B60] text-white border-[#D81B60] shadow-xs"
-                      : "bg-pink-50/70 text-pink-900 border-pink-200 hover:bg-pink-100/80"
-                  }`}
-                >
-                  <span>19 October 2026 Actions</span>
-                  <span
-                    className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-black ${
-                      meetingDateFilter === "2026-10-19"
-                        ? "bg-white/25 text-white"
-                        : "bg-pink-200/80 text-pink-950"
-                    }`}
-                  >
-                    {meetingDateStats.oct19Total} Total · {meetingDateStats.oct19Pending} Pending
-                  </span>
-                </button>
-              </div>
-
-              {/* Quick Pull-down Toggle for Pending Only vs All Actions of Selected Meeting Date */}
-              <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMeetingDateFilter("2026-10-12");
-                    setActionTab("PENDING");
-                  }}
-                  className={`rounded-md border px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
-                    meetingDateFilter === "2026-10-12" && actionTab === "PENDING"
-                      ? "border-[#F37021] bg-[#F37021]/15 text-[#F37021]"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  12 Oct Pending Only ({meetingDateStats.oct12Pending})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMeetingDateFilter("2026-10-19");
-                    setActionTab("PENDING");
-                  }}
-                  className={`rounded-md border px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
-                    meetingDateFilter === "2026-10-19" && actionTab === "PENDING"
-                      ? "border-[#D81B60] bg-[#D81B60]/15 text-[#D81B60]"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  19 Oct Pending Only ({meetingDateStats.oct19Pending})
-                </button>
-              </div>
+            {/* Dynamic Review Meeting Date Tabs (12 Oct, 19 Oct, 26 Oct, ... auto-detected from Supabase) */}
+            <div className="border-b border-slate-100 pb-3">
+              <MeetingDateTabs
+                groups={meetingGroups}
+                totalCount={allActionsRaw.length}
+                totalPending={pendingActionsAll.length}
+                selectedDate={meetingDateFilter}
+                allValue="ALL"
+                onSelectDate={(value) => {
+                  setMeetingDateFilter(value);
+                  setMeetingAgendaFilter("ALL");
+                }}
+                onSelectPendingOnly={(date) => {
+                  setMeetingDateFilter(date);
+                  setMeetingAgendaFilter("ALL");
+                  setActionTab("PENDING");
+                }}
+                pendingOnlyActive={actionTab === "PENDING"}
+              />
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1186,12 +1085,11 @@ export default function ExecutiveControlTowerClient({
                   className="mt-0.5 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:border-slate-500 focus:outline-none"
                 >
                   <option value="ALL">All meeting dates ({allActionsRaw.length})</option>
-                  <option value="2026-10-19">
-                    Raised 19 Oct 2026 ({meetingDateStats.oct19Total})
-                  </option>
-                  <option value="2026-10-12">
-                    Raised 12 Oct 2026 ({meetingDateStats.oct12Total})
-                  </option>
+                  {[...meetingGroups].reverse().map((g) => (
+                    <option key={g.date} value={g.date}>
+                      Raised {g.mediumLabel} ({g.total})
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -1205,12 +1103,11 @@ export default function ExecutiveControlTowerClient({
                   className="mt-0.5 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:border-slate-500 focus:outline-none"
                 >
                   <option value="ALL">Any meeting agenda</option>
-                  <option value="2026-10-19">
-                    19 Oct 2026 agenda ({meetingDateStats.agendaOct19Total})
-                  </option>
-                  <option value="2026-10-12">
-                    12 Oct 2026 agenda ({meetingDateStats.oct12Total})
-                  </option>
+                  {[...meetingGroups].reverse().map((g) => (
+                    <option key={g.date} value={g.date}>
+                      {g.mediumLabel} agenda ({g.agendaTotal})
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -1360,8 +1257,8 @@ export default function ExecutiveControlTowerClient({
                         item.effective_rag === "RED" ||
                         item.rag_status === "RED" ||
                         String(item.priority || "").toUpperCase() === "CRITICAL";
-                      const itemMeetingDate = String(item.review_meeting_date || "2026-10-12").slice(0, 10);
-                      const isNew = itemMeetingDate >= "2026-10-19";
+                      const itemMeetingDate = getActionMeetingDate(item);
+                      const isNew = itemMeetingDate >= latestMeetingDate;
                       const updates = Array.isArray(item.updates_list)
                         ? item.updates_list
                         : [];
@@ -1398,11 +1295,11 @@ export default function ExecutiveControlTowerClient({
                               </span>
                               {isNew ? (
                                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-[#003B71] text-white w-fit">
-                                  <Sparkles className="w-2.5 h-2.5" /> 19 OCT NEW
+                                  <Sparkles className="w-2.5 h-2.5" /> {formatMeetingDateLabel(itemMeetingDate, "short").toUpperCase()} NEW
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-900 w-fit">
-                                  12 OCT C/F
+                                  {formatMeetingDateLabel(itemMeetingDate, "short").toUpperCase()} C/F
                                 </span>
                               )}
                               {isRedAlert && (
