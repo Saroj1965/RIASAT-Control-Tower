@@ -26,7 +26,7 @@ import {
   IndianRupee,
   UserCheck,
 } from "lucide-react";
-import { ROLES } from "@/lib/constants";
+import { ROLES, DEPARTMENTS } from "@/lib/constants";
 import DashboardGraphs from "@/components/DashboardGraphs";
 import DepartmentsHodManager from "@/components/DepartmentsHodManager";
 
@@ -1188,14 +1188,53 @@ function AdminPageContent() {
             <form onSubmit={handleCreateDept} className="space-y-4 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Department / Vertical Name *</label>
-                <input
-                  type="text"
+                <select
                   required
                   value={deptForm.name}
-                  onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })}
-                  placeholder="e.g., Strategy & Process"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold"
-                />
+                  onChange={(e) => {
+                    const selectedName = e.target.value;
+                    const existingDept = departments.find((d) => d.name === selectedName);
+                    const presetDept = DEPARTMENTS.find((d) => d.name === selectedName);
+                    if (existingDept) {
+                      if (editingDeptId) {
+                        setEditingDeptId(Number(existingDept.id));
+                        setSelectedDeptId(existingDept.id.toString());
+                      }
+                      setDeptForm({
+                        name: existingDept.name,
+                        code: existingDept.code || presetDept?.code || "",
+                        head_of_department:
+                          existingDept.head_of_department ||
+                          presetDept?.head_of_department ||
+                          "To be hired",
+                      });
+                    } else if (presetDept) {
+                      setDeptForm({
+                        name: presetDept.name,
+                        code: presetDept.code,
+                        head_of_department: presetDept.head_of_department,
+                      });
+                    } else {
+                      setDeptForm({ ...deptForm, name: selectedName });
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold bg-white"
+                >
+                  <option value="" disabled>
+                    Select Department / Vertical Name
+                  </option>
+                  {Array.from(
+                    new Set([
+                      ...departments.map((d) => d.name).filter(Boolean),
+                      ...DEPARTMENTS.map((d) => d.name),
+                      ...(deptForm.name ? [deptForm.name] : []),
+                    ])
+                  ).map((deptName) => (
+                    <option key={deptName} value={deptName}>
+                      {deptName}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Vertical Code *</label>

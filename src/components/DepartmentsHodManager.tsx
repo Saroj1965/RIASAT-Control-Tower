@@ -18,6 +18,7 @@ import {
   Users,
   ShieldCheck,
 } from "lucide-react";
+import { DEPARTMENTS } from "@/lib/constants";
 
 export interface DepartmentHodRecord {
   id: number;
@@ -494,13 +495,23 @@ export default function DepartmentsHodManager({
                       {/* Department Name */}
                       <td className="py-3.5 px-4">
                         {isInlineEditing ? (
-                          <input
-                            type="text"
+                          <select
                             value={inlineDeptNameValue}
                             onChange={(e) => setInlineDeptNameValue(e.target.value)}
                             className="w-full px-3 py-1.5 text-xs font-bold border-2 border-blue-500 rounded-lg bg-white text-slate-900 focus:outline-none"
-                            placeholder="Department Name"
-                          />
+                          >
+                            {Array.from(
+                              new Set([
+                                ...departments.map((d) => d.name).filter(Boolean),
+                                ...DEPARTMENTS.map((d) => d.name),
+                                ...(inlineDeptNameValue ? [inlineDeptNameValue] : []),
+                              ])
+                            ).map((deptName) => (
+                              <option key={deptName} value={deptName}>
+                                {deptName}
+                              </option>
+                            ))}
+                          </select>
                         ) : (
                           <div className="flex items-center gap-2">
                             <Link
@@ -682,19 +693,37 @@ export default function DepartmentsHodManager({
                 <label className="block text-[11px] font-black uppercase tracking-wider text-slate-700 mb-1">
                   Department / Vertical Name *
                 </label>
-                <input
-                  type="text"
+                <select
                   required
                   value={newDeptName}
                   onChange={(e) => {
-                    setNewDeptName(e.target.value);
-                    if (!newDeptCode) {
-                      // optional auto preview
+                    const selectedName = e.target.value;
+                    setNewDeptName(selectedName);
+                    const preset =
+                      departments.find((d) => d.name === selectedName) ||
+                      DEPARTMENTS.find((d) => d.name === selectedName);
+                    if (preset) {
+                      setNewDeptCode(preset.code || "");
+                      setNewDeptHod(preset.head_of_department || "To be hired");
                     }
                   }}
-                  placeholder="e.g., Strategy & Process, Executive Administration, Vice Chairman"
-                  className="w-full px-3.5 py-2.5 text-xs font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600"
-                />
+                  className="w-full px-3.5 py-2.5 text-xs font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 bg-white"
+                >
+                  <option value="" disabled>
+                    Select Department / Vertical Name
+                  </option>
+                  {Array.from(
+                    new Set([
+                      ...departments.map((d) => d.name).filter(Boolean),
+                      ...DEPARTMENTS.map((d) => d.name),
+                      ...(newDeptName ? [newDeptName] : []),
+                    ])
+                  ).map((deptName) => (
+                    <option key={deptName} value={deptName}>
+                      {deptName}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -800,13 +829,37 @@ export default function DepartmentsHodManager({
                 <label className="block text-[11px] font-black uppercase tracking-wider text-slate-700 mb-1">
                   Department / Vertical Name *
                 </label>
-                <input
-                  type="text"
+                <select
                   required
                   value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-xs font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600"
-                />
+                  onChange={(e) => {
+                    const selectedName = e.target.value;
+                    const matched = departments.find((d) => d.name === selectedName);
+                    if (matched) {
+                      handleOpenEdit(matched);
+                    } else {
+                      const preset = DEPARTMENTS.find((d) => d.name === selectedName);
+                      setEditName(selectedName);
+                      if (preset) {
+                        setEditCode(preset.code);
+                        setEditHod(preset.head_of_department);
+                      }
+                    }
+                  }}
+                  className="w-full px-3.5 py-2.5 text-xs font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 bg-white"
+                >
+                  {Array.from(
+                    new Set([
+                      ...departments.map((d) => d.name).filter(Boolean),
+                      ...DEPARTMENTS.map((d) => d.name),
+                      ...(editName ? [editName] : []),
+                    ])
+                  ).map((deptName) => (
+                    <option key={deptName} value={deptName}>
+                      {deptName}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
