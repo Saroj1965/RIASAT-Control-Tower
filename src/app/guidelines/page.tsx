@@ -1,5 +1,7 @@
 import React from "react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getSessionUser } from "@/lib/auth";
 import {
   ArrowLeft,
   Sparkles,
@@ -171,7 +173,12 @@ const ROLE_GUIDES = [
   },
 ];
 
-export default function GuidelinesPage() {
+export default async function GuidelinesPage() {
+  const user = await getSessionUser();
+  if (!user) {
+    redirect("/login");
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-20">
       <header className="bg-slate-950 text-white border-b border-slate-800 sticky top-0 z-30 shadow-md">

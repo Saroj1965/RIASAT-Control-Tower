@@ -182,7 +182,6 @@ export function getActionUpdatesDatewise(action: any): FormattedActionUpdate[] {
   // Ensure current primary remarks / issue is included if not already represented
   const currentRemarks = String(action.remarks || action.issue || "").trim();
   if (currentRemarks) {
-    // Check if currentRemarks contains multiple semicolon/newline separated dated updates or if it's a single update
     const alreadyExists = entries.some(
       (e) => e.text.toLowerCase() === currentRemarks.toLowerCase()
     );
@@ -489,11 +488,15 @@ export function calculateActionWeekStats(action: any, referenceDate: Date = new 
   const is_closed = status === "COMPLETED" || status === "CLOSED";
   const is_blocked = status === "BLOCKED";
 
+  const rawDate = action.review_meeting_date ? String(action.review_meeting_date).slice(0, 10) : "";
+
   const review_meeting_date =
-    action.review_meeting_date ||
+    rawDate ||
     (action.created_at ? new Date(action.created_at).toISOString().split("T")[0] : "2026-10-12");
 
-  const review_week = action.review_week || getReviewWeekLabel(review_meeting_date);
+  const review_week = action.review_week && action.review_week.includes("Week")
+    ? action.review_week
+    : getReviewWeekLabel(review_meeting_date);
 
   let weeks_outstanding = 0;
   const reviewTime = new Date(review_meeting_date).getTime();

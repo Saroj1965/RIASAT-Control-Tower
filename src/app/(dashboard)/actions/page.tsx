@@ -188,6 +188,16 @@ export default function AllActionsPage() {
       )
         return false;
       if (statusTab === "alerts" && !isActionRedAlert(a)) return false;
+      if (selectedMeetingDate !== "all") {
+        const itemDate = getActionMeetingDate(a);
+        if (itemDate !== selectedMeetingDate) return false;
+      }
+      if (
+        selectedAgenda !== "all" &&
+        !isActionInMeetingAgenda(a, selectedAgenda)
+      ) {
+        return false;
+      }
 
       if (selectedDeptId !== "all" && String(a.department_id) !== selectedDeptId) {
         return false;

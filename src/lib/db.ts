@@ -1,12 +1,24 @@
 import { DEPARTMENTS, ROLES } from "./constants";
-import { getSupabaseClient, getSupabaseAdmin, getSupabase, isSupabaseConfigured } from "./supabase";
+import {
+  getSupabaseClient,
+  getSupabaseAdmin,
+  getSupabase,
+  createSupabaseAuthClient,
+  isSupabaseConfigured,
+} from "./supabase";
 
 export interface DbResult<T = any> {
   rows: T[];
   rowCount?: number;
 }
 
-export { getSupabaseClient, getSupabaseAdmin, getSupabase, isSupabaseConfigured };
+export {
+  getSupabaseClient,
+  getSupabaseAdmin,
+  getSupabase,
+  createSupabaseAuthClient,
+  isSupabaseConfigured,
+};
 
 declare global {
   var __riasat_supabase_seeded: boolean;
@@ -21,7 +33,7 @@ export const OFFICIAL_SEED_USERS = [
   { id: 4, name: "Form Configuration Admin", email: "forms.admin@riasat.ac.in", pass: "Forms@123", hash: "$2a$10$q4QqRmh7t8vNa9OfgxFSiO1rjsDw4pJkJ6ClCW2NczUmOz75xzg3i", role: ROLES.FORM_ADMIN, deptId: null, desig: "Forms & Schema Administrator", mobile: "+91 98450 11003" },
   { id: 5, name: "User Management Admin", email: "users.admin@riasat.ac.in", pass: "Users@123", hash: "$2a$10$p4z9bv6zIcGOTjymBCjLEOf1kl5pYGCIUzVhsHFDxuWWAdFiU3sM2", role: ROLES.USER_ADMIN, deptId: null, desig: "User Access Administrator", mobile: "+91 98450 11004" },
   { id: 6, name: "Departments Master Admin", email: "dept.admin@riasat.ac.in", pass: "Dept@123", hash: "$2a$10$uYzIYr8LOQIh2p12eIjrQeQ5v.my6GzYmZLzfJFeyAPx3cZ7He11u", role: ROLES.DEPT_ADMIN, deptId: null, desig: "Departments Master Administrator", mobile: "+91 98450 11005" },
-  { id: 7, name: "To be hired", email: "semicon.head@riasat.ac.in", pass: "Semicon@123", hash: "$2a$10$CHQKEiBU1ANGUjx7KjaadeeBgMjb1/ise9FvchqH9pkn5ndK8t35i", role: ROLES.DEPARTMENT_HEAD, deptId: 1, desig: "Head - Semicon", mobile: "+91 98450 11006" },
+  { id: 7, name: "Mr. Kirankumar Doreswamy", email: "semicon.head@riasat.ac.in", pass: "Semicon@123", hash: "$2a$10$CHQKEiBU1ANGUjx7KjaadeeBgMjb1/ise9FvchqH9pkn5ndK8t35i", role: ROLES.DEPARTMENT_HEAD, deptId: 12, desig: "Head - Semicon", mobile: "+91 98450 11006" },
   { id: 8, name: "To be hired", email: "aero.head@riasat.ac.in", pass: "Aero@123", hash: "$2a$10$MhOzHyrRRlq4EDRvHI9NsOJLMZbdEDmuH0zyzlinH/PHZ0pvVlXWO", role: ROLES.DEPARTMENT_HEAD, deptId: 2, desig: "Head - Aerospace & Defence", mobile: "+91 98450 11007" },
   { id: 9, name: "To be hired", email: "space.head@riasat.ac.in", pass: "Space@123", hash: "$2a$10$wITRGTQJ1sDoBMzq4TlPpeJA7MydSkjNuTiUEIacenReq231y6FHe", role: ROLES.DEPARTMENT_HEAD, deptId: 3, desig: "Head - Space", mobile: "+91 98450 11008" },
   { id: 10, name: "To be hired", email: "cyber.head@riasat.ac.in", pass: "Cyber@123", hash: "$2a$10$gziJspang8msoJvsX4flv.8LmqgjdbKU.ewZqD5vDIgIkis3uOLmu", role: ROLES.DEPARTMENT_HEAD, deptId: 4, desig: "Head - Cybersecurity", mobile: "+91 98450 11009" },
@@ -31,40 +43,22 @@ export const OFFICIAL_SEED_USERS = [
   { id: 14, name: "Ms. Vinila Kalive", email: "comm.head@riasat.ac.in", pass: "Comm@123", hash: "$2a$10$X4MJ0o5D2NQ4ncCj.cwYsunx69RP7ScESeUBy5spa1ORHOk8ziNEC", role: ROLES.DEPARTMENT_HEAD, deptId: 8, desig: "Head - Communications", mobile: "+91 98450 11013" },
   { id: 15, name: "Mr. Avinash Ghodgaonkar", email: "ops.head@riasat.ac.in", pass: "Ops@123", hash: "$2a$10$pqMkSux5M2OWpIWV/eKofOTVfNRFx8jVFVIsmrCWdf9N1GQwzFKbC", role: ROLES.DEPARTMENT_HEAD, deptId: 9, desig: "Head - Strategy & Process", mobile: "+91 98450 11014" },
 ];
-
 export async function ensureDbInitialized() {
   if (isInitialized) return;
   try {
     const sb = getSupabaseClient();
-    const { count } = await sb.from("users").select("*", { count: "exact", head: true });
-    if (count && count >= 15) {
+    const { count } = await sb.from("departments").select("*", { count: "exact", head: true });
+    if (count && count >= 9) {
       isInitialized = true;
       globalThis.__riasat_supabase_seeded = true;
       return;
     }
 
-    // Ensure 9 core departments exist in Supabase
+    // Ensure core departments exist in Supabase if table is empty
     for (const dept of DEPARTMENTS) {
       await sb.from("departments").upsert(
         { id: dept.id, name: dept.name, code: dept.code, active: true },
         { onConflict: "id" }
-      );
-    }
-
-    // Ensure 15 seed users exist in Supabase
-    for (const u of OFFICIAL_SEED_USERS) {
-      await sb.from("users").upsert(
-        {
-          name: u.name,
-          email: u.email,
-          password_hash: u.hash,
-          mobile: u.mobile,
-          designation: u.desig,
-          role: u.role,
-          department_id: u.deptId,
-          status: "Active",
-        },
-        { onConflict: "email" }
       );
     }
 
@@ -110,7 +104,7 @@ export async function logAudit(params: {
 
 /**
  * Pure Supabase compatibility query adapter for any legacy callers of `query(sql, params)`.
- * Executes operations exclusively via `@supabase/supabase-js` REST client (zero PostgreSQL / PGlite / filesystem).
+ * Executes operations exclusively via `@supabase/supabase-js` REST client.
  */
 export async function query<T = any>(text: string, params: any[] = []): Promise<DbResult<T>> {
   const sb = getSupabaseClient();
@@ -174,10 +168,10 @@ export async function query<T = any>(text: string, params: any[] = []): Promise<
     }
     // All users with department join
     const [{ data: users }, { data: depts }] = await Promise.all([
-      sb.from("users").select("*").order("id", { ascending: true }),
+      sb.from("users").select("id, name, email, mobile, designation, role, department_id, status, created_at, updated_at, last_login").order("id", { ascending: true }),
       sb.from("departments").select("id, name, code"),
     ]);
-    const deptMap = new Map((depts || []).map((d: any) => [Number(d.id), d]));
+    const deptMap = new Map<number, any>((depts || []).map((d: any) => [Number(d.id), d]));
     const rows = (users || []).map((u: any) => {
       const d = u.department_id ? deptMap.get(Number(u.department_id)) : null;
       return { ...u, department_name: d?.name || null, department_code: d?.code || null };
@@ -187,7 +181,7 @@ export async function query<T = any>(text: string, params: any[] = []): Promise<
 
   if (sqlLower.startsWith("update users set last_login")) {
     const id = Number(params[0]);
-    const { data } = await sb.from("users").update({ last_login: new Date().toISOString() }).eq("id", id).select();
+    const { data } = await sb.from("users").update({ last_login: new Date().toISOString() }).eq("id", id).select("id, email, last_login");
     return { rows: (data || []) as T[], rowCount: data?.length || 0 };
   }
 

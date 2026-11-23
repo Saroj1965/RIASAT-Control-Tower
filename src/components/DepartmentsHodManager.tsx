@@ -44,12 +44,13 @@ interface DepartmentsHodManagerProps {
 }
 
 const SUGGESTED_HODS = [
-  "To be hired",
+  "Mr. Kirankumar Doreswamy",
   "Ms. Anamika Sahay",
   "Ms. Vinila Kalive",
   "Mr. Avinash Ghodgaonkar",
   "Ms. Sarojini Mangalam",
   "Mr. Venkatesh Valluri",
+  "To be hired",
 ];
 
 export default function DepartmentsHodManager({
@@ -62,7 +63,13 @@ export default function DepartmentsHodManager({
   const [searchQuery, setSearchQuery] = useState("");
   const [banner, setBanner] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  // Add Modal state
+  // Dedicated Add / Assign Head of Department Modal state
+  const [showAssignHodModal, setShowAssignHodModal] = useState(false);
+  const [assignDeptId, setAssignDeptId] = useState<number | null>(null);
+  const [assignHodName, setAssignHodName] = useState<string>("");
+  const [savingAssignHod, setSavingAssignHod] = useState(false);
+
+  // Add Department Modal state
   const [showAddModal, setShowAddModal] = useState(false);
   const [newDeptName, setNewDeptName] = useState("");
   const [newDeptCode, setNewDeptCode] = useState("");
@@ -115,6 +122,64 @@ export default function DepartmentsHodManager({
     setTimeout(() => {
       setBanner((prev) => (prev?.text === text ? null : prev));
     }, 5000);
+  };
+
+  const handleOpenAssignHod = (dept?: DepartmentHodRecord) => {
+    setInlineHodId(null);
+    if (dept) {
+      setAssignDeptId(dept.id);
+      setAssignHodName(
+        dept.head_of_department && dept.head_of_department.toLowerCase() !== "to be hired"
+          ? dept.head_of_department
+          : ""
+      );
+    } else {
+      const firstToBeHired = departments.find(
+        (d) => !d.head_of_department || d.head_of_department.toLowerCase() === "to be hired"
+      );
+      setAssignDeptId(firstToBeHired ? firstToBeHired.id : departments[0]?.id || null);
+      setAssignHodName("");
+    }
+    setShowAssignHodModal(true);
+  };
+
+  const handleSaveAssignHod = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assignDeptId) {
+      showMessage("error", "Please select a department.");
+      return;
+    }
+    const targetDept = departments.find((d) => d.id === assignDeptId);
+    if (!targetDept) return;
+    const finalHod = assignHodName.trim() || "To be hired";
+
+    setSavingAssignHod(true);
+    try {
+      const res = await fetch(`/api/departments/${assignDeptId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: targetDept.name,
+          code: targetDept.code,
+          head_of_department: finalHod,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to assign Head of Department");
+      }
+      showMessage(
+        "success",
+        `Successfully assigned "${finalHod}" as Head of Department for ${targetDept.name} (${targetDept.code}).`
+      );
+      setShowAssignHodModal(false);
+      await fetchDepartments();
+      if (onChanged) onChanged();
+    } catch (err: any) {
+      showMessage("error", err.message || "Error assigning Head of Department.");
+    } finally {
+      setSavingAssignHod(false);
+    }
   };
 
   const handleOpenEdit = (dept: DepartmentHodRecord) => {
@@ -326,10 +391,18 @@ export default function DepartmentsHodManager({
             <button
               type="button"
               onClick={fetchDepartments}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-bold transition-all"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-bold transition-all cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-blue-400" : ""}`} />
               Refresh
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOpenAssignHod()}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-black uppercase tracking-wider shadow-md transition-all cursor-pointer"
+            >
+              <UserCheck className="w-4 h-4 text-emerald-200" />
+              + Add / Assign HOD
             </button>
             <button
               type="button"
@@ -337,10 +410,10 @@ export default function DepartmentsHodManager({
                 setNewDeptOrder(departments.length + 1);
                 setShowAddModal(true);
               }}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-pink-600 to-orange-500 hover:from-blue-700 hover:to-orange-600 text-white text-xs font-black uppercase tracking-wider shadow-md transition-all"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-pink-600 to-orange-500 hover:from-blue-700 hover:to-orange-600 text-white text-xs font-black uppercase tracking-wider shadow-md transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              + Add Department & HOD
+              + Add Department
             </button>
           </div>
         </div>
@@ -495,23 +568,12 @@ export default function DepartmentsHodManager({
                       {/* Department Name */}
                       <td className="py-3.5 px-4">
                         {isInlineEditing ? (
-                          <select
-                            value={inlineDeptNameValue}
-                            onChange={(e) => setInlineDeptNameValue(e.target.value)}
-                            className="w-full px-3 py-1.5 text-xs font-bold border-2 border-blue-500 rounded-lg bg-white text-slate-900 focus:outline-none"
-                          >
-                            {Array.from(
-                              new Set([
-                                ...departments.map((d) => d.name).filter(Boolean),
-                                ...DEPARTMENTS.map((d) => d.name),
-                                ...(inlineDeptNameValue ? [inlineDeptNameValue] : []),
-                              ])
-                            ).map((deptName) => (
-                              <option key={deptName} value={deptName}>
-                                {deptName}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                            <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-900 text-[10px] font-black uppercase tracking-wider">
+                              Editing HOD
+                            </span>
+                            <span>{dept.name}</span>
+                          </div>
                         ) : (
                           <div className="flex items-center gap-2">
                             <Link
@@ -535,23 +597,33 @@ export default function DepartmentsHodManager({
                       {/* Head of the Department (HOD) */}
                       <td className="py-3.5 px-4">
                         {isInlineEditing ? (
-                          <div className="flex flex-col gap-1">
+                          <div className="flex flex-col gap-1 min-w-[220px]">
                             <input
                               type="text"
                               list={`hod-suggestions-${dept.id}`}
                               value={inlineHodValue}
+                              autoFocus
                               onChange={(e) => setInlineHodValue(e.target.value)}
-                              className="w-full px-3 py-1.5 text-xs font-bold border-2 border-orange-500 rounded-lg bg-white text-slate-900 focus:outline-none"
-                              placeholder="Enter Head of Department name..."
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleSaveInlineEdit(dept);
+                                } else if (e.key === "Escape") {
+                                  setInlineHodId(null);
+                                }
+                              }}
+                              className="w-full px-3 py-1.5 text-xs font-bold border-2 border-orange-500 rounded-lg bg-white text-slate-900 focus:outline-none shadow-sm"
+                              placeholder="e.g. Mr. Kirankumar Doreswamy"
                             />
                             <datalist id={`hod-suggestions-${dept.id}`}>
                               {SUGGESTED_HODS.map((h) => (
                                 <option key={h} value={h} />
                               ))}
                             </datalist>
+                            <span className="text-[10px] text-slate-500 font-medium">Press Enter to save • Esc to cancel</span>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span
                               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border ${
                                 isToBeHired
@@ -566,13 +638,33 @@ export default function DepartmentsHodManager({
                               />
                               {hod}
                             </span>
+                            {isToBeHired ? (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAssignHod(dept)}
+                                title="Add Head of Department for this vertical"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-[11px] font-black shadow-xs transition-all cursor-pointer"
+                              >
+                                <Plus className="w-3 h-3" />
+                                + Add HOD
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAssignHod(dept)}
+                                title="Change or Update Head of Department"
+                                className="text-[11px] font-bold text-blue-600 hover:text-blue-800 underline decoration-dotted cursor-pointer"
+                              >
+                                Edit HOD
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleStartInlineEdit(dept)}
-                              title="Quick Edit Department Name & HOD"
-                              className="text-[11px] font-bold text-blue-600 hover:text-pink-600 underline decoration-dotted ml-1"
+                              title="Quick inline edit"
+                              className="text-[10px] font-semibold text-slate-400 hover:text-slate-600 cursor-pointer"
                             >
-                              Quick Edit
+                              (Quick)
                             </button>
                           </div>
                         )}
@@ -616,7 +708,7 @@ export default function DepartmentsHodManager({
                               type="button"
                               disabled={savingInlineId === dept.id}
                               onClick={() => handleSaveInlineEdit(dept)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black shadow-sm disabled:opacity-50"
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black shadow-sm disabled:opacity-50 cursor-pointer"
                             >
                               <Save className="w-3.5 h-3.5" />
                               {savingInlineId === dept.id ? "Saving..." : "Save"}
@@ -624,7 +716,7 @@ export default function DepartmentsHodManager({
                             <button
                               type="button"
                               onClick={() => setInlineHodId(null)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer"
                             >
                               <X className="w-3.5 h-3.5" />
                               Cancel
@@ -632,19 +724,30 @@ export default function DepartmentsHodManager({
                           </div>
                         ) : (
                           <div className="inline-flex items-center justify-end gap-1.5 flex-wrap">
+                            {isToBeHired && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAssignHod(dept)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black shadow-xs transition-all cursor-pointer"
+                                title="Add / Assign Head of Department"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                + Add HOD
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleOpenEdit(dept)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-black shadow-sm transition-all"
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-black shadow-sm transition-all cursor-pointer"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
-                              Edit Dept & HOD
+                              Edit Dept &amp; HOD
                             </button>
                             <button
                               type="button"
                               disabled={deletingId === dept.id}
                               onClick={() => handleDeleteDepartment(dept)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-pink-50 hover:bg-pink-600 text-pink-700 hover:text-white border border-pink-200 text-[11px] font-black transition-all disabled:opacity-50"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-pink-50 hover:bg-pink-600 text-pink-700 hover:text-white border border-pink-200 text-[11px] font-black transition-all disabled:opacity-50 cursor-pointer"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                               {deletingId === dept.id ? "..." : "Delete"}
@@ -660,6 +763,124 @@ export default function DepartmentsHodManager({
           </table>
         </div>
       </div>
+
+      {/* Dedicated Assign / Add Head of Department Modal */}
+      {showAssignHodModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden">
+            <div className="bg-slate-950 text-white px-6 py-4 flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center">
+                  <UserCheck className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-wider">
+                    Assign / Add Head of Department (HOD)
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Assign the responsible Head of Department to lead this vertical
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAssignHodModal(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAssignHod} className="p-6 space-y-4">
+              <div>
+                <label className="block text-[11px] font-black uppercase tracking-wider text-slate-700 mb-1">
+                  Select Department / Vertical *
+                </label>
+                <select
+                  required
+                  value={assignDeptId ?? ""}
+                  onChange={(e) => {
+                    const id = Number(e.target.value);
+                    setAssignDeptId(id);
+                    const selected = departments.find((d) => d.id === id);
+                    if (selected) {
+                      setAssignHodName(
+                        selected.head_of_department &&
+                        selected.head_of_department.toLowerCase() !== "to be hired"
+                          ? selected.head_of_department
+                          : ""
+                      );
+                    }
+                  }}
+                  className="w-full px-3.5 py-2.5 text-xs font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 bg-white"
+                >
+                  <option value="" disabled>-- Select Department --</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name} ({d.code}) — Current: {d.head_of_department || "To be hired"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-black uppercase tracking-wider text-slate-700 mb-1">
+                  Head of the Department (HOD) Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  list="assign-hod-datalist"
+                  value={assignHodName}
+                  onChange={(e) => setAssignHodName(e.target.value)}
+                  placeholder="e.g., Mr. Kirankumar Doreswamy"
+                  className="w-full px-3.5 py-2.5 text-xs font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+                <datalist id="assign-hod-datalist">
+                  {SUGGESTED_HODS.map((h) => (
+                    <option key={h} value={h} />
+                  ))}
+                </datalist>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  <span className="text-[10px] text-slate-500 font-semibold self-center">Quick Select:</span>
+                  {SUGGESTED_HODS.filter((h) => h !== "To be hired").map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => setAssignHodName(name)}
+                      className={`text-[10px] px-2 py-0.5 rounded-full border transition-all cursor-pointer ${
+                        assignHodName === name
+                          ? "bg-blue-600 text-white border-blue-600 font-bold"
+                          : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200"
+                      }`}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setShowAssignHodModal(false)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingAssignHod}
+                  className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-black uppercase tracking-wider shadow-md hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  {savingAssignHod ? "Saving..." : "Save & Assign HOD"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Add Department Modal */}
       {showAddModal && (

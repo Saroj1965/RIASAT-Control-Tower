@@ -161,6 +161,7 @@ export async function POST(req: Request) {
         id: nextId,
         name: cleanName,
         code: cleanCode,
+        head_of_department: cleanHod,
         active: true,
       })
       .select("*")

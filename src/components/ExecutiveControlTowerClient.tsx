@@ -25,6 +25,8 @@ import {
   BookOpen,
   UserCheck,
   RefreshCw,
+  Calendar,
+  Filter,
 } from "lucide-react";
 import { ActionFormModal, ActionHistorySheet } from "@/components/ActionFormModal";
 import DepartmentsHodManager from "@/components/DepartmentsHodManager";
@@ -182,7 +184,7 @@ export default function ExecutiveControlTowerClient({
   };
 
   // Register filters
-  const [actionTab, setActionTab] = useState<"PENDING" | "CLOSED" | "ALL">("PENDING");
+  const [actionTab, setActionTab] = useState<string>("PENDING");
   const [meetingDateFilter, setMeetingDateFilter] = useState<string>("ALL");
   const [meetingAgendaFilter, setMeetingAgendaFilter] = useState<string>("ALL");
   const [deptFilter, setDeptFilter] = useState<string>("ALL");
@@ -266,15 +268,37 @@ export default function ExecutiveControlTowerClient({
     }
   }, [currentView]);
 
+  // Distinct review dates for weekly review date tabs
+  const reviewDateTabs = useMemo(() => {
+    const map = new Map<string, number>();
+    allActionsRaw.forEach((a: any) => {
+      const d = String(a.review_meeting_date || "2026-10-12").slice(0, 10);
+      if (d) {
+        map.set(d, (map.get(d) || 0) + 1);
+      }
+    });
+    return Array.from(map.entries())
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [allActionsRaw]);
+
   // Filtered actions for table display
   const displayedActions = useMemo(() => {
-    const effectiveTab = currentView === "all_actions" ? "ALL" : actionTab;
+    const isDateTab =
+      actionTab !== "PENDING" && actionTab !== "CLOSED" && actionTab !== "ALL";
+    const effectiveTab =
+      isDateTab ? actionTab : currentView === "all_actions" ? "ALL" : actionTab;
     const sourceList =
       effectiveTab === "PENDING"
         ? pendingActionsAll
         : effectiveTab === "CLOSED"
           ? closedActionsAll
-          : allActionsRaw;
+          : isDateTab
+            ? allActionsRaw.filter(
+                (a: any) =>
+                  String(a.review_meeting_date || "2026-10-12").slice(0, 10) === effectiveTab
+              )
+            : allActionsRaw;
 
     return sourceList.filter((item: any) => {
       const itemDate = getActionMeetingDate(item);
@@ -977,6 +1001,23 @@ export default function ExecutiveControlTowerClient({
                     {allActionsRaw.length}
                   </span>
                 </button>
+                {reviewDateTabs.map((rt) => (
+                  <button
+                    key={rt.date}
+                    type="button"
+                    onClick={() => setActionTab(rt.date)}
+                    className={`rounded-md px-3 py-1.5 font-semibold transition cursor-pointer ${
+                      actionTab === rt.date
+                        ? "bg-white text-slate-900 shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    {rt.date}
+                    <span className="ml-1.5 rounded bg-slate-200/80 px-1.5 py-0.5 font-mono text-[10px] text-slate-700">
+                      {rt.count}
+                    </span>
+                  </button>
+                ))}
               </div>
 
               {/* Distinct Quick Status Filter Pills (Open has distinct Sky-Blue color) */}
@@ -1076,18 +1117,19 @@ export default function ExecutiveControlTowerClient({
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-slate-600">
-                  Original Meeting Date
+                <label className="block text-[11px] font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                  Meeting Review Date
                 </label>
                 <select
                   value={meetingDateFilter}
                   onChange={(e) => setMeetingDateFilter(e.target.value)}
-                  className="mt-0.5 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:border-slate-500 focus:outline-none"
+                  className="mt-0.5 w-full rounded-md border-2 border-blue-500/50 bg-blue-50/20 px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:border-blue-600 focus:outline-none shadow-2xs"
                 >
-                  <option value="ALL">All meeting dates ({allActionsRaw.length})</option>
+                  <option value="ALL">All Weekly Meeting Dates ({allActionsRaw.length})</option>
                   {[...meetingGroups].reverse().map((g) => (
                     <option key={g.date} value={g.date}>
-                      Raised {g.mediumLabel} ({g.total})
+                      Weekly Meeting: {g.mediumLabel} ({g.total} actions)
                     </option>
                   ))}
                 </select>
@@ -1208,12 +1250,28 @@ export default function ExecutiveControlTowerClient({
                   />
                   Overdue / Red Alert only
                 </label>
-                <span className="text-[11px] text-slate-500">
-                  Showing{" "}
-                  <strong className="text-slate-800">{displayedActions.length}</strong>{" "}
-                  action{displayedActions.length === 1 ? "" : "s"}
-                  {meetingDateFilter !== "ALL" ? ` from ${meetingDateFilter}` : ""} (Newly added &amp; Red Alerts on top)
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-slate-500">
+                    Showing{" "}
+                    <strong className="text-slate-800">{displayedActions.length}</strong>{" "}
+                    action{displayedActions.length === 1 ? "" : "s"}
+                    {" "}(Newly added &amp; Red Alerts on top)
+                  </span>
+                  {meetingDateFilter !== "ALL" && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 text-[11px] font-bold border border-blue-200">
+                      <Calendar className="w-3 h-3 text-blue-600" />
+                      Weekly Meeting: {meetingDateFilter}
+                      <button
+                        type="button"
+                        onClick={() => setMeetingDateFilter("ALL")}
+                        className="text-blue-500 hover:text-blue-800 font-black ml-0.5 cursor-pointer"
+                        title="Clear date filter"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>

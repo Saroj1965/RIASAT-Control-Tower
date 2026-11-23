@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseClient, logAudit } from "@/lib/db";
+import { getSupabaseClient, getSupabaseAdmin, logAudit } from "@/lib/db";
 import { getSessionUser, hashPassword, canManageUsers } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -9,14 +9,19 @@ export async function GET() {
   try {
     const user = await getSessionUser();
     if (!user || !canManageUsers(user)) {
-      return NextResponse.json({ error: "Access Denied: User Administrator privileges required." }, { status: 403 });
+      return NextResponse.json(
+        { error: "Access Denied: User Administrator privileges required." },
+        { status: 403 }
+      );
     }
 
     const sb = getSupabaseClient();
     const [{ data: usersRows }, { data: deptsRows }] = await Promise.all([
       sb
         .from("users")
-        .select("id, name, email, mobile, designation, role, department_id, status, created_at, updated_at, last_login")
+        .select(
+          "id, name, email, mobile, designation, role, department_id, status, created_at, updated_at, last_login"
+        )
         .order("id", { ascending: true }),
       sb.from("departments").select("id, name, code"),
     ]);
@@ -45,25 +50,54 @@ export async function POST(req: Request) {
   try {
     const currentUser = await getSessionUser();
     if (!currentUser || !canManageUsers(currentUser)) {
-      return NextResponse.json({ error: "Access Denied: User Administrator privileges required." }, { status: 403 });
+      return NextResponse.json(
+        { error: "Access Denied: User Administrator privileges required." },
+        { status: 403 }
+      );
     }
 
     const body = await req.json();
-    const { name, email, mobile, designation, role, department_id, status, password } = body;
+    const {
+      name,
+      email,
+      mobile,
+      designation,
+      role,
+      department_id,
+      status,
+      password,
+    } = body;
 
     if (!name || !email || !role) {
-      return NextResponse.json({ error: "Name, email, and role are required." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Name, email, and role are required." },
+        { status: 400 }
+      );
     }
 
     const trimmedEmail = email.trim().toLowerCase();
     const sb = getSupabaseClient();
 
-    const { data: existing } = await sb.from("users").select("id").ilike("email", trimmedEmail).maybeSingle();
+    const { data: existing } = await sb
+      .from("users")
+      .select("id")
+      .ilike("email", trimmedEmail)
+      .maybeSingle();
     if (existing) {
-      return NextResponse.json({ error: "A user with this email address already exists." }, { status: 400 });
+      return NextResponse.json(
+        { error: "A user with this email address already exists." },
+        { status: 400 }
+      );
     }
 
-    const userPassword = password && password.trim() ? password.trim() : "Welcome@RIASAT1";
+    if (!password || String(password).trim().length < 6) {
+      return NextResponse.json(
+        { error: "A password of at least 6 characters is required for new users." },
+        { status: 400 }
+      );
+    }
+
+    const userPassword = String(password).trim();
     const passwordHash = await hashPassword(userPassword);
 
     const deptId = department_id ? parseInt(department_id, 10) : null;
@@ -81,16 +115,45 @@ export async function POST(req: Request) {
         department_id: deptId,
         status: userStatus,
       })
-      .select("id, name, email, mobile, designation, role, department_id, status, created_at")
+      .select(
+        "id, name, email, mobile, designation, role, department_id, status, created_at"
+      )
       .single();
 
     if (insError || !newUser) {
-      return NextResponse.json({ error: insError?.message || "Failed to create user" }, { status: 500 });
+      return NextResponse.json(
+        { error: insError?.message || "Failed to create user" },
+        { status: 500 }
+      );
+    }
+
+    // Sync user into Supabase Auth (auth.users)
+    try {
+      const adminSb = getSupabaseAdmin();
+      await adminSb.auth.admin.createUser({
+        email: trimmedEmail,
+        password: userPassword,
+        email_confirm: true,
+        ban_duration: userStatus === "Inactive" ? "876000h" : "none",
+        user_metadata: {
+          app_user_id: newUser.id,
+          name: newUser.name,
+          role: newUser.role,
+          department_id: newUser.department_id,
+          designation: newUser.designation || "",
+        },
+      });
+    } catch (syncErr) {
+      console.warn("Supabase Auth user sync notice:", syncErr);
     }
 
     let deptName = "None";
     if (deptId) {
-      const { data: d } = await sb.from("departments").select("name").eq("id", deptId).maybeSingle();
+      const { data: d } = await sb
+        .from("departments")
+        .select("name")
+        .eq("id", deptId)
+        .maybeSingle();
       deptName = d?.name || "Assigned Dept";
     }
 

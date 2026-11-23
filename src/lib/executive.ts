@@ -9,7 +9,7 @@ import {
 } from "@/lib/action-helpers";
 
 const DEFAULT_HOD_BY_CODE: Record<string, string> = {
-  SEMICON: "To be hired",
+  SEMICON: "Mr. Kirankumar Doreswamy",
   AERO_DEFENCE: "To be hired",
   SPACE: "To be hired",
   CYBER: "To be hired",
@@ -28,22 +28,45 @@ export function resolveDepartmentHod(
   overview?: any,
   deptHeadUser?: any
 ): string {
-  if (dept?.head_of_department && String(dept.head_of_department).trim()) {
-    return String(dept.head_of_department).trim();
+  const code = String(dept?.code || "").toUpperCase();
+  const rawHod = dept?.head_of_department ? String(dept.head_of_department).trim() : "";
+
+  // 1. If explicit HOD is set and is not "To be hired", return it
+  if (rawHod && rawHod.toLowerCase() !== "to be hired") {
+    return rawHod;
   }
+
+  // 2. Check overview.updated_by
   if (
     overview?.updated_by &&
     String(overview.updated_by).trim() &&
+    String(overview.updated_by).trim().toLowerCase() !== "to be hired" &&
     !["System Administrator", "Executive Secretariat", "System Migration"].includes(
       String(overview.updated_by).trim()
     )
   ) {
     return String(overview.updated_by).trim();
   }
-  if (deptHeadUser?.name && String(deptHeadUser.name).trim()) {
+
+  // 3. Check user assigned as department head in users table
+  if (
+    deptHeadUser?.name &&
+    String(deptHeadUser.name).trim() &&
+    String(deptHeadUser.name).trim().toLowerCase() !== "to be hired"
+  ) {
     return String(deptHeadUser.name).trim();
   }
-  const code = String(dept?.code || "").toUpperCase();
+
+  // 4. Check DEFAULT_HOD_BY_CODE
+  if (DEFAULT_HOD_BY_CODE[code] && DEFAULT_HOD_BY_CODE[code].toLowerCase() !== "to be hired") {
+    return DEFAULT_HOD_BY_CODE[code];
+  }
+
+  // 5. If rawHod is set (even if "To be hired"), return it
+  if (rawHod) {
+    return rawHod;
+  }
+
   return DEFAULT_HOD_BY_CODE[code] || "To be hired";
 }
 

@@ -312,27 +312,31 @@ export async function PUT(req: Request, { params }: Params) {
       key_focus,
     } = body;
 
-    // 1. Update department name and code if provided
-    let updatedDept = deptRow;
-    if (
-      (name !== undefined && String(name).trim()) ||
-      (code !== undefined && String(code).trim())
-    ) {
-      const newName =
-        name !== undefined && String(name).trim()
-          ? String(name).trim()
-          : deptRow.name;
-      const newCode =
-        code !== undefined && String(code).trim()
-          ? String(code)
-              .trim()
-              .toUpperCase()
-              .replace(/[^A-Z0-9]+/g, "_")
-          : deptRow.code;
+    const cleanHod =
+      head_of_department !== undefined && String(head_of_department).trim()
+        ? String(head_of_department).trim()
+        : (deptRow.head_of_department || "To be hired");
 
+    // 1. Update department name, code, and head_of_department in `departments` table
+    let updatedDept = deptRow;
+    const deptUpdatePayload: any = {};
+    if (name !== undefined && String(name).trim()) {
+      deptUpdatePayload.name = String(name).trim();
+    }
+    if (code !== undefined && String(code).trim()) {
+      deptUpdatePayload.code = String(code)
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, "_");
+    }
+    if (head_of_department !== undefined) {
+      deptUpdatePayload.head_of_department = cleanHod;
+    }
+
+    if (Object.keys(deptUpdatePayload).length > 0) {
       const { data: dUp, error: dErr } = await sb
         .from("departments")
-        .update({ name: newName, code: newCode })
+        .update(deptUpdatePayload)
         .eq("id", deptId)
         .select("*")
         .single();
@@ -365,11 +369,6 @@ export async function PUT(req: Request, { params }: Params) {
 
     const focus =
       key_focus !== undefined ? String(key_focus) : (oldOverview.key_focus || "");
-
-    const cleanHod =
-      head_of_department !== undefined && String(head_of_department).trim()
-        ? String(head_of_department).trim()
-        : (oldOverview.updated_by || "To be hired");
 
     const { data: updatedOverview, error: upError } = await sb
       .from("department_overview")

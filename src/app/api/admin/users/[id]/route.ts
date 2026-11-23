@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseClient, logAudit } from "@/lib/db";
+import { getSupabaseClient, getSupabaseAdmin, logAudit } from "@/lib/db";
 import { getSessionUser, hashPassword, canManageUsers } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,10 @@ export async function PUT(req: Request, { params }: Params) {
   try {
     const currentUser = await getSessionUser();
     if (!currentUser || !canManageUsers(currentUser)) {
-      return NextResponse.json({ error: "Access Denied: User Administrator privileges required." }, { status: 403 });
+      return NextResponse.json(
+        { error: "Access Denied: User Administrator privileges required." },
+        { status: 403 }
+      );
     }
 
     const userId = parseInt(params.id, 10);
@@ -22,30 +25,54 @@ export async function PUT(req: Request, { params }: Params) {
     }
 
     const sb = getSupabaseClient();
-    const { data: targetUser } = await sb.from("users").select("*").eq("id", userId).maybeSingle();
+    const { data: targetUser } = await sb
+      .from("users")
+      .select("*")
+      .eq("id", userId)
+      .maybeSingle();
     if (!targetUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     const body = await req.json();
-    const { name, email, mobile, designation, role, department_id, status, password } = body;
+    const {
+      name,
+      email,
+      mobile,
+      designation,
+      role,
+      department_id,
+      status,
+      password,
+    } = body;
 
     let newHash: string | undefined = undefined;
-    if (password && password.trim()) {
-      newHash = await hashPassword(password.trim());
+    const cleanNewPassword = password && String(password).trim() ? String(password).trim() : undefined;
+    if (cleanNewPassword) {
+      newHash = await hashPassword(cleanNewPassword);
     }
 
     const deptId =
-      department_id !== undefined ? (department_id ? parseInt(department_id, 10) : null) : targetUser.department_id;
+      department_id !== undefined
+        ? department_id
+          ? parseInt(department_id, 10)
+          : null
+        : targetUser.department_id;
+
+    const updatedEmail = email
+      ? email.trim().toLowerCase()
+      : targetUser.email.toLowerCase();
+    const updatedStatus = status !== undefined ? status : targetUser.status;
 
     const updatePayload: Record<string, any> = {
       name: name !== undefined ? name : targetUser.name,
-      email: email ? email.trim().toLowerCase() : targetUser.email,
+      email: updatedEmail,
       mobile: mobile !== undefined ? mobile : targetUser.mobile,
-      designation: designation !== undefined ? designation : targetUser.designation,
+      designation:
+        designation !== undefined ? designation : targetUser.designation,
       role: role !== undefined ? role : targetUser.role,
       department_id: deptId,
-      status: status !== undefined ? status : targetUser.status,
+      status: updatedStatus,
       updated_at: new Date().toISOString(),
     };
     if (newHash) {
@@ -56,17 +83,64 @@ export async function PUT(req: Request, { params }: Params) {
       .from("users")
       .update(updatePayload)
       .eq("id", userId)
-      .select("id, name, email, mobile, designation, role, department_id, status, updated_at")
+      .select(
+        "id, name, email, mobile, designation, role, department_id, status, updated_at"
+      )
       .single();
 
     if (upError || !updatedUser) {
-      return NextResponse.json({ error: upError?.message || "Failed to update user" }, { status: 500 });
+      return NextResponse.json(
+        { error: upError?.message || "Failed to update user" },
+        { status: 500 }
+      );
+    }
+
+    // Sync status, email, metadata, and password with Supabase Auth (auth.users)
+    try {
+      const adminSb = getSupabaseAdmin();
+      const { data: listData } = await adminSb.auth.admin.listUsers();
+      const authUser = listData?.users?.find(
+        (u) =>
+          u.email?.toLowerCase() === targetUser.email.toLowerCase() ||
+          u.email?.toLowerCase() === updatedEmail
+      );
+      if (authUser) {
+        await adminSb.auth.admin.updateUserById(authUser.id, {
+          email: updatedEmail,
+          email_confirm: true,
+          ...(cleanNewPassword ? { password: cleanNewPassword } : {}),
+          ban_duration: updatedStatus === "Inactive" ? "876000h" : "none",
+          user_metadata: {
+            app_user_id: updatedUser.id,
+            name: updatedUser.name,
+            role: updatedUser.role,
+            department_id: updatedUser.department_id,
+            designation: updatedUser.designation || "",
+          },
+        });
+      } else if (cleanNewPassword && updatedStatus === "Active") {
+        await adminSb.auth.admin.createUser({
+          email: updatedEmail,
+          password: cleanNewPassword,
+          email_confirm: true,
+          user_metadata: {
+            app_user_id: updatedUser.id,
+            name: updatedUser.name,
+            role: updatedUser.role,
+            department_id: updatedUser.department_id,
+            designation: updatedUser.designation || "",
+          },
+        });
+      }
+    } catch (syncErr) {
+      console.warn("Supabase Auth user update sync notice:", syncErr);
     }
 
     let action = "UPDATE_USER";
     let detailMsg = `Admin updated user details for ${updatedUser.name}`;
     if (targetUser.status !== updatedUser.status) {
-      action = updatedUser.status === "Active" ? "ACTIVATE_USER" : "DEACTIVATE_USER";
+      action =
+        updatedUser.status === "Active" ? "ACTIVATE_USER" : "DEACTIVATE_USER";
       detailMsg = `Admin set user ${updatedUser.name} status to ${updatedUser.status}`;
     }
 

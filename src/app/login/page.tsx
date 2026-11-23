@@ -114,7 +114,7 @@ const DEFAULT_ACCOUNTS: CredentialAccount[] = [
 
   // 9 Vertical Department Heads
   {
-    name: "To be hired",
+    name: "Mr. Kirankumar Doreswamy",
     role: "Department Head",
     email: "semicon.head@riasat.ac.in",
     pass: "Semicon@123",

@@ -1,186 +1,89 @@
 import { NextResponse } from "next/server";
-import { getSupabaseClient, logAudit, OFFICIAL_SEED_USERS } from "@/lib/db";
-import { verifyPassword, signToken, COOKIE_NAME } from "@/lib/auth";
+import {
+  getSupabaseClient,
+  createSupabaseAuthClient,
+  logAudit,
+} from "@/lib/db";
+import {
+  signToken,
+  getConfiguredSharedEmail,
+  COOKIE_NAME,
+  SB_ACCESS_COOKIE,
+  SB_REFRESH_COOKIE,
+} from "@/lib/auth";
 import { ROLES } from "@/lib/constants";
 
 export async function POST(req: Request) {
   try {
-    const { email, password } = await req.json();
+    const body = await req.json();
+    const email = String(body?.email || "").trim().toLowerCase();
+    const password = String(body?.password || "");
 
     if (!email || !password) {
-      return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
-    }
-
-    const trimmedEmail = email.trim().toLowerCase();
-    const sb = getSupabaseClient();
-    let user: any = null;
-
-    // 1. Lookup user directly in Supabase `users` table
-    const { data: sbUser, error: sbError } = await sb
-      .from("users")
-      .select("*")
-      .ilike("email", trimmedEmail)
-      .maybeSingle();
-
-    if (sbUser) {
-      user = sbUser;
-    }
-
-    // 2. If official institutional seed user is not yet in Supabase, auto-save into Supabase `users`
-    const seedMatch = OFFICIAL_SEED_USERS.find((u) => u.email.toLowerCase() === trimmedEmail);
-    if (!user && seedMatch) {
-      const { data: insertedUser } = await sb
-        .from("users")
-        .upsert(
-          {
-            name: seedMatch.name,
-            email: trimmedEmail,
-            password_hash: seedMatch.hash,
-            mobile: seedMatch.mobile,
-            designation: seedMatch.desig,
-            role: seedMatch.role,
-            department_id: seedMatch.deptId,
-            status: "Active",
-          },
-          { onConflict: "email" }
-        )
-        .select("*")
-        .maybeSingle();
-
-      user = insertedUser || {
-        id: seedMatch.id,
-        name: seedMatch.name,
-        email: trimmedEmail,
-        password_hash: seedMatch.hash,
-        role: seedMatch.role,
-        department_id: seedMatch.deptId,
-        designation: seedMatch.desig,
-        status: "Active",
-      };
-    }
-
-    if (!user) {
-      if (sbError) {
-        console.error("Supabase auth lookup error:", sbError.message);
-      }
       return NextResponse.json(
-        { error: "Invalid email or password. Please verify your credentials or click 'See Credentials'." },
+        { error: "Email address and password are required." },
+        { status: 400 }
+      );
+    }
+
+    // 1. If SHARED_LOGIN_EMAIL is configured in server environment variables,
+    //    restrict sign-in strictly to that single shared login email.
+    const configuredSharedEmail = getConfiguredSharedEmail();
+    if (configuredSharedEmail && email !== configuredSharedEmail) {
+      return NextResponse.json(
+        { error: "Invalid email address or password." },
         { status: 401 }
       );
     }
 
-    if (user.status !== "Active") {
-      return NextResponse.json(
-        { error: "Your account is deactivated. Please contact the administrator." },
-        { status: 403 }
-      );
-    }
-
-    let isValid = await verifyPassword(password, user.password_hash);
-    if (!isValid) {
-      const p = password.trim();
-      const pLower = p.toLowerCase();
-      const em = trimmedEmail;
-
-      if (seedMatch && p === seedMatch.pass) {
-        isValid = true;
-      } else if (
-        em === "admin@riasat.ac.in" &&
-        (p === "Admin@123" || p === "Admin123" || pLower === "admin123" || pLower === "admin" || pLower === "password" || p === "Welcome@RIASAT1")
-      ) {
-        isValid = true;
-      } else if (
-        (em === "vicechairman@riasat.ac.in" || em === "vc@riasat.ac.in" || em === "chairman@riasat.ac.in") &&
-        (p === "ViceChairman@123" || p === "ViceChairman123" || pLower === "vicechairman123" || pLower === "vc123" || p === "Vc@123" || p === "VC@123" || pLower === "password")
-      ) {
-        isValid = true;
-      } else if (
-        em === "executive@riasat.ac.in" &&
-        (p === "Exec@123" || p === "Exec123" || pLower === "exec123" || pLower === "executive123")
-      ) {
-        isValid = true;
-      } else if (
-        em === "forms.admin@riasat.ac.in" &&
-        (p === "Forms@123" || p === "Forms123" || pLower === "forms123" || pLower === "forms" || pLower === "password")
-      ) {
-        isValid = true;
-      } else if (
-        em === "users.admin@riasat.ac.in" &&
-        (p === "Users@123" || p === "Users123" || pLower === "users123" || pLower === "users" || pLower === "password")
-      ) {
-        isValid = true;
-      } else if (
-        em === "dept.admin@riasat.ac.in" &&
-        (p === "Dept@123" || p === "Dept123" || pLower === "dept123" || pLower === "dept" || pLower === "password")
-      ) {
-        isValid = true;
-      } else if (
-        em === "ops.head@riasat.ac.in" &&
-        (p === "Ops@123" || p === "Ops123" || pLower === "ops123" || p === "Strategy@123" || pLower === "strategy123")
-      ) {
-        isValid = true;
-      } else if (pLower.replace("@", "") === em.split("@")[0].split(".")[0] + "123") {
-        isValid = true;
-      }
-    }
-
-    if (!isValid) {
-      await logAudit({
-        userId: user.id,
-        userName: user.name,
-        action: "LOGIN_FAILED",
-        departmentId: user.department_id,
-        details: `Failed login attempt for ${trimmedEmail}.`,
+    // 2. Authenticate directly against Supabase Auth
+    const authClient = createSupabaseAuthClient();
+    const { data: authData, error: authError } =
+      await authClient.auth.signInWithPassword({
+        email,
+        password,
       });
+
+    if (authError || !authData?.session?.access_token) {
       return NextResponse.json(
-        { error: "Invalid email or password. Please verify your credentials or click 'See Credentials'." },
+        { error: "Invalid email address or password." },
         { status: 401 }
       );
     }
+
+    const sb = getSupabaseClient(authData.session.access_token);
+    const meta = authData.user?.user_metadata || {};
 
     const sessionUser = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      department_id: user.department_id,
-      designation: user.designation || "",
+      id: Number(meta.app_user_id) || 1,
+      name: meta.name || "RIASAT Executive Office",
+      email: authData.user?.email || email,
+      role: ROLES.VICE_CHAIRMAN,
+      department_id: null,
+      designation: meta.designation || "Authorised Dashboard Access",
+      auth_uid: authData.user?.id,
     };
 
     const token = signToken(sessionUser);
+    const redirectUrl = "/executive";
 
-    // Determine redirect destination based on user role
-    let redirectUrl = "/executive";
-    if (user.role === ROLES.FORM_ADMIN || user.role === "Form Admin") {
-      redirectUrl = "/admin?tab=form_config";
-    } else if (user.role === ROLES.USER_ADMIN || user.role === "User Admin") {
-      redirectUrl = "/admin?tab=users";
-    } else if (user.role === ROLES.DEPT_ADMIN || user.role === "Department Admin") {
-      redirectUrl = "/admin?tab=departments";
-    } else if (
-      user.role === ROLES.ADMIN ||
-      user.role === "Admin" ||
-      user.role === "System Administrator" ||
-      user.role === ROLES.VICE_CHAIRMAN ||
-      user.role === "Vice Chairman" ||
-      user.role === "Chairman" ||
-      user.role === ROLES.EXECUTIVE ||
-      user.role === "Executive"
-    ) {
-      redirectUrl = "/executive";
-    } else if (user.role === ROLES.DEPARTMENT_HEAD || user.role === "Department Head") {
-      redirectUrl = user.department_id ? `/department/${user.department_id}` : "/executive";
-    }
-
-    // Update `last_login` and record verified authentication entry in Supabase `audit_log`
+    // Log sign-in event (non-blocking and without requiring foreign key in public.users)
     await Promise.allSettled([
-      sb.from("users").update({ last_login: new Date().toISOString() }).eq("id", user.id),
+      sb.from("login_logs").insert({
+        user_id: null,
+        email: sessionUser.email,
+        user_name: sessionUser.name,
+        role: sessionUser.role,
+        department_id: null,
+        status: "SUCCESS",
+        details: `Shared account authenticated via Supabase Auth (${authData.user?.id || "session"})`,
+      }),
       logAudit({
-        userId: user.id,
-        userName: user.name,
+        userId: sessionUser.id,
+        userName: sessionUser.name,
         action: "USER_LOGIN",
-        departmentId: user.department_id,
-        details: `${user.name} (${user.role}) authenticated via Supabase and logged in to ${redirectUrl}.`,
+        departmentId: null,
+        details: `Authorised user signed in via shared Supabase Auth account (${sessionUser.email}).`,
       }),
     ]);
 
@@ -190,20 +93,37 @@ export async function POST(req: Request) {
       redirectUrl,
     });
 
-    const isHttps = req.headers.get("x-forwarded-proto") === "https" || req.url.startsWith("https://");
-    response.cookies.set(COOKIE_NAME, token, {
+    const isHttps =
+      req.headers.get("x-forwarded-proto") === "https" ||
+      req.url.startsWith("https://");
+
+    const cookieOptions = {
       httpOnly: true,
       secure: isHttps,
-      sameSite: "lax",
+      sameSite: "lax" as const,
       path: "/",
       maxAge: 60 * 60 * 24 * 7, // 7 days
-    });
+    };
+
+    response.cookies.set(COOKIE_NAME, token, cookieOptions);
+    response.cookies.set(
+      SB_ACCESS_COOKIE,
+      authData.session.access_token,
+      cookieOptions
+    );
+    if (authData.session.refresh_token) {
+      response.cookies.set(
+        SB_REFRESH_COOKIE,
+        authData.session.refresh_token,
+        cookieOptions
+      );
+    }
 
     return response;
   } catch (err: any) {
     console.error("Login error:", err);
     return NextResponse.json(
-      { error: err.message || "An unexpected error occurred during login" },
+      { error: "An unexpected error occurred during sign in." },
       { status: 500 }
     );
   }

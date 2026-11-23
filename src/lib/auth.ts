@@ -2,9 +2,12 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { ROLES } from "./constants";
+import { createSupabaseAuthClient } from "./supabase";
 
 const JWT_SECRET = process.env.JWT_SECRET || "riasat-control-tower-jwt-secret-key-2026-production";
 const COOKIE_NAME = "riasat_session";
+const SB_ACCESS_COOKIE = "sb-access-token";
+const SB_REFRESH_COOKIE = "sb-refresh-token";
 
 export interface SessionUser {
   id: number;
@@ -13,6 +16,12 @@ export interface SessionUser {
   role: string;
   department_id: number | null;
   designation: string;
+  auth_uid?: string;
+}
+
+export function getConfiguredSharedEmail(): string | null {
+  const raw = (process.env.SHARED_LOGIN_EMAIL || "").trim().replace(/^["']|["']$/g, "");
+  return raw ? raw.toLowerCase() : null;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -21,6 +30,7 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  if (!password || !hash) return false;
   return bcrypt.compare(password, hash);
 }
 
@@ -33,6 +43,7 @@ export function signToken(user: SessionUser): string {
       role: user.role,
       department_id: user.department_id,
       designation: user.designation,
+      auth_uid: user.auth_uid,
     },
     JWT_SECRET,
     { expiresIn: "7d" }
@@ -47,12 +58,50 @@ export function verifyToken(token: string): SessionUser | null {
   }
 }
 
+/**
+ * Validates the current request's session using Supabase Auth (`sb-access-token`).
+ * Designed for a single shared Supabase Auth login: any valid authenticated session
+ * for the authorised shared account receives full dashboard access without requiring
+ * individual user accounts in `public.users`.
+ */
 export async function getSessionUser(): Promise<SessionUser | null> {
   try {
     const cookieStore = cookies();
-    const token = cookieStore.get(COOKIE_NAME)?.value;
-    if (!token) return null;
-    return verifyToken(token);
+    const sbAccessToken = cookieStore.get(SB_ACCESS_COOKIE)?.value;
+    const sessionToken = cookieStore.get(COOKIE_NAME)?.value;
+
+    if (!sbAccessToken) {
+      return null;
+    }
+
+    // 1. Verify the access token directly against Supabase Auth
+    const authClient = createSupabaseAuthClient(sbAccessToken);
+    const { data: authData, error: authErr } = await authClient.auth.getUser(sbAccessToken);
+    if (authErr || !authData?.user?.email) {
+      return null;
+    }
+
+    const verifiedEmail = authData.user.email.toLowerCase();
+    const authUid = authData.user.id;
+
+    // 2. If a specific SHARED_LOGIN_EMAIL is configured in server env, enforce it strictly
+    const sharedEmail = getConfiguredSharedEmail();
+    if (sharedEmail && verifiedEmail !== sharedEmail) {
+      return null;
+    }
+
+    const decodedSession = sessionToken ? verifyToken(sessionToken) : null;
+    const meta = authData.user.user_metadata || {};
+
+    return {
+      id: decodedSession?.id || Number(meta.app_user_id) || 1,
+      name: decodedSession?.name || meta.name || "RIASAT Executive Office",
+      email: authData.user.email,
+      role: ROLES.VICE_CHAIRMAN,
+      department_id: null,
+      designation: decodedSession?.designation || meta.designation || "Authorised Dashboard Access",
+      auth_uid: authUid,
+    };
   } catch {
     return null;
   }
@@ -60,25 +109,16 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
 export function hasFullAccess(user: SessionUser | null): boolean {
   if (!user) return false;
-  return (
-    user.role === ROLES.ADMIN ||
-    user.role === "Admin" ||
-    user.role === "System Administrator" ||
-    user.role === ROLES.VICE_CHAIRMAN ||
-    user.role === "Vice Chairman" ||
-    user.role === "Chairman"
-  );
+  return true;
 }
 
 export function canEditDepartment(user: SessionUser | null, _departmentId?: number): boolean {
   if (!user) return false;
-  // Every authenticated user on the Riasat Executive Dashboard can edit actions and submit updates
   return true;
 }
 
 export function canViewDepartment(user: SessionUser | null, _departmentId?: number): boolean {
   if (!user) return false;
-  // Every authenticated user can view department registers and reports
   return true;
 }
 
@@ -89,12 +129,7 @@ export function canManageForms(user: SessionUser | null): boolean {
 
 export function canManageUsers(user: SessionUser | null): boolean {
   if (!user) return false;
-  return (
-    hasFullAccess(user) ||
-    user.role === ROLES.USER_ADMIN ||
-    user.role === "User Admin" ||
-    user.role === "Users Admin"
-  );
+  return true;
 }
 
 export function canManageDepartments(user: SessionUser | null): boolean {
@@ -104,12 +139,7 @@ export function canManageDepartments(user: SessionUser | null): boolean {
 
 export function canAccessAdmin(user: SessionUser | null): boolean {
   if (!user) return false;
-  return (
-    hasFullAccess(user) ||
-    canManageForms(user) ||
-    canManageUsers(user) ||
-    canManageDepartments(user)
-  );
+  return true;
 }
 
-export { COOKIE_NAME };
+export { COOKIE_NAME, SB_ACCESS_COOKIE, SB_REFRESH_COOKIE };

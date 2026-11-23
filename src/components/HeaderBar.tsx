@@ -1,22 +1,22 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { LogOut, BookOpen, FileBarChart, LayoutDashboard, ListChecks, UserCheck, Building2, KeyRound } from "lucide-react";
 import { SessionUser } from "@/lib/auth";
 
 export default function HeaderBar({ user }: { user: SessionUser }) {
-  const router = useRouter();
   const pathname = usePathname();
+  const [signingOut, setSigningOut] = useState(false);
 
   const handleLogout = async () => {
+    setSigningOut(true);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
-      router.push("/login");
-      router.refresh();
+      await fetch("/api/auth/logout", { method: "POST", cache: "no-store" });
+      window.location.replace("/login");
     } catch {
-      router.push("/login");
+      window.location.replace("/login");
     }
   };
 
@@ -34,7 +34,7 @@ export default function HeaderBar({ user }: { user: SessionUser }) {
         <div className="hidden sm:block min-w-0">
           <div className="flex items-center gap-2">
             <h1 className="text-sm font-black text-slate-950 tracking-tight truncate">
-              Riasat Executive Dashboard
+              RIASAT Executive Dashboard
             </h1>
             <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#003B71] via-[#D81B60] to-[#F37021] text-white shrink-0">
               RAMAIAH (RIASAT)
@@ -142,11 +142,14 @@ export default function HeaderBar({ user }: { user: SessionUser }) {
         </div>
 
         <button
+          type="button"
           onClick={handleLogout}
+          disabled={signingOut}
           title="Sign Out"
-          className="p-2 rounded-xl text-slate-500 hover:text-[#D81B60] hover:bg-[#D81B60]/10 transition cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-[#D81B60] hover:bg-[#D81B60]/10 border border-slate-200 transition cursor-pointer disabled:opacity-50"
         >
           <LogOut className="w-4 h-4" />
+          <span className="hidden sm:inline">{signingOut ? "Signing out..." : "Sign Out"}</span>
         </button>
       </div>
     </header>
