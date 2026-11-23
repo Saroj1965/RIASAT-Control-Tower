@@ -58,87 +58,80 @@ export function verifyToken(token: string): SessionUser | null {
   }
 }
 
+export const DEFAULT_EXECUTIVE_USER: SessionUser = {
+  id: 1,
+  name: "Mr. Venkatesh Valluri",
+  email: "vicechairman@riasat.ac.in",
+  role: ROLES.VICE_CHAIRMAN,
+  department_id: null,
+  designation: "Vice Chairman & Executive Director",
+};
+
 /**
- * Validates the current request's session using Supabase Auth (`sb-access-token`).
- * Designed for a single shared Supabase Auth login: any valid authenticated session
- * for the authorised shared account receives full dashboard access without requiring
- * individual user accounts in `public.users`.
+ * Validates the current request's session using cookies or defaults to Vice Chairman executive access.
+ * Login with passwords is removed so any visitor has instant, full executive access.
  */
-export async function getSessionUser(): Promise<SessionUser | null> {
+export async function getSessionUser(): Promise<SessionUser> {
   try {
     const cookieStore = cookies();
-    const sbAccessToken = cookieStore.get(SB_ACCESS_COOKIE)?.value;
     const sessionToken = cookieStore.get(COOKIE_NAME)?.value;
-
-    if (!sbAccessToken) {
-      return null;
+    if (sessionToken) {
+      const decoded = verifyToken(sessionToken);
+      if (decoded) {
+        return decoded;
+      }
     }
 
-    // 1. Verify the access token directly against Supabase Auth
-    const authClient = createSupabaseAuthClient(sbAccessToken);
-    const { data: authData, error: authErr } = await authClient.auth.getUser(sbAccessToken);
-    if (authErr || !authData?.user?.email) {
-      return null;
+    const sbAccessToken = cookieStore.get(SB_ACCESS_COOKIE)?.value;
+    if (sbAccessToken) {
+      const authClient = createSupabaseAuthClient(sbAccessToken);
+      const { data: authData, error: authErr } = await authClient.auth.getUser(sbAccessToken);
+      if (!authErr && authData?.user?.email) {
+        const meta = authData.user.user_metadata || {};
+        return {
+          id: Number(meta.app_user_id) || 1,
+          name: meta.name || "Mr. Venkatesh Valluri",
+          email: authData.user.email,
+          role: ROLES.VICE_CHAIRMAN,
+          department_id: null,
+          designation: meta.designation || "Vice Chairman & Executive Director",
+          auth_uid: authData.user.id,
+        };
+      }
     }
-
-    const verifiedEmail = authData.user.email.toLowerCase();
-    const authUid = authData.user.id;
-
-    // 2. If a specific SHARED_LOGIN_EMAIL is configured in server env, enforce it strictly
-    const sharedEmail = getConfiguredSharedEmail();
-    if (sharedEmail && verifiedEmail !== sharedEmail) {
-      return null;
-    }
-
-    const decodedSession = sessionToken ? verifyToken(sessionToken) : null;
-    const meta = authData.user.user_metadata || {};
-
-    return {
-      id: decodedSession?.id || Number(meta.app_user_id) || 1,
-      name: decodedSession?.name || meta.name || "RIASAT Executive Office",
-      email: authData.user.email,
-      role: ROLES.VICE_CHAIRMAN,
-      department_id: null,
-      designation: decodedSession?.designation || meta.designation || "Authorised Dashboard Access",
-      auth_uid: authUid,
-    };
   } catch {
-    return null;
+    // Ignore cookie/session errors
   }
+
+  // Password-free direct access: default to full Vice Chairman executive permissions
+  return DEFAULT_EXECUTIVE_USER;
 }
 
-export function hasFullAccess(user: SessionUser | null): boolean {
-  if (!user) return false;
+export function hasFullAccess(_user: SessionUser | null): boolean {
   return true;
 }
 
-export function canEditDepartment(user: SessionUser | null, _departmentId?: number): boolean {
-  if (!user) return false;
+export function canEditDepartment(_user: SessionUser | null, _departmentId?: number): boolean {
   return true;
 }
 
-export function canViewDepartment(user: SessionUser | null, _departmentId?: number): boolean {
-  if (!user) return false;
+export function canViewDepartment(_user: SessionUser | null, _departmentId?: number): boolean {
   return true;
 }
 
-export function canManageForms(user: SessionUser | null): boolean {
-  if (!user) return false;
+export function canManageForms(_user: SessionUser | null): boolean {
   return true;
 }
 
-export function canManageUsers(user: SessionUser | null): boolean {
-  if (!user) return false;
+export function canManageUsers(_user: SessionUser | null): boolean {
   return true;
 }
 
-export function canManageDepartments(user: SessionUser | null): boolean {
-  if (!user) return false;
+export function canManageDepartments(_user: SessionUser | null): boolean {
   return true;
 }
 
-export function canAccessAdmin(user: SessionUser | null): boolean {
-  if (!user) return false;
+export function canAccessAdmin(_user: SessionUser | null): boolean {
   return true;
 }
 
