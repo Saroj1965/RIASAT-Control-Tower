@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, History, CheckCircle2, Clock, AlertTriangle, FileText, ChevronDown, UserCheck, Calendar } from "lucide-react";
+import { X, History, CheckCircle2, Clock, AlertTriangle, FileText, ChevronDown, UserCheck, Calendar, Trash2 } from "lucide-react";
 import { getCurrentReviewMeetingDate, getReviewWeekLabel } from "@/lib/action-helpers";
 
 export const SUPPORT_OPTIONS = [
@@ -65,6 +65,7 @@ export interface ActionFormModalProps {
   nextCodePreview?: string;
   onClose: () => void;
   onSaved: (savedItem?: any) => void;
+  onDeleted?: (action: any) => Promise<void> | void;
 }
 
 function normalizeIsoDate(raw?: string | null, fallback = ""): string {
@@ -135,8 +136,10 @@ export function ActionFormModal({
   nextCodePreview = "ACT-16",
   onClose,
   onSaved,
+  onDeleted,
 }: ActionFormModalProps) {
   const todayIso = new Date().toISOString().slice(0, 10);
+  const [deleting, setDeleting] = useState(false);
 
   const existingCode =
     action?.item_id ||
@@ -1125,25 +1128,51 @@ export function ActionFormModal({
               </details>
             )}
 
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-md border border-slate-300 bg-white px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="rounded-md bg-slate-900 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-slate-800 disabled:opacity-50"
-              >
-                {submitting
-                  ? "Saving…"
-                  : mode === "create"
-                    ? "Add action"
-                    : "Save changes"}
-              </button>
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200">
+              <div>
+                {mode === "edit" && action && onDeleted && (
+                  <button
+                    type="button"
+                    disabled={submitting || deleting}
+                    onClick={async () => {
+                      if (onDeleted) {
+                        setDeleting(true);
+                        try {
+                          await onDeleted(action);
+                        } finally {
+                          setDeleting(false);
+                        }
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-rose-300 bg-rose-50 hover:bg-rose-600 px-3 py-2 text-xs font-bold text-rose-700 hover:text-white transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+                    title="Delete action item if duplicated or obsolete"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {deleting ? "Deleting…" : "Delete Action (Duplicate / Obsolete)"}
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || deleting}
+                  className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
+                >
+                  {submitting
+                    ? "Saving…"
+                    : mode === "create"
+                      ? "Add action"
+                      : "Save changes"}
+                </button>
+              </div>
             </div>
           </div>
         </form>

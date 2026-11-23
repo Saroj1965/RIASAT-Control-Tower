@@ -27,6 +27,7 @@ import {
   RefreshCw,
   Calendar,
   Filter,
+  Trash2,
 } from "lucide-react";
 import { ActionFormModal, ActionHistorySheet } from "@/components/ActionFormModal";
 import DepartmentsHodManager from "@/components/DepartmentsHodManager";
@@ -212,6 +213,38 @@ export default function ExecutiveControlTowerClient({
     setModalMode("edit");
     setEditingAction(item);
     setModalOpen(true);
+  };
+
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const handleDeleteAction = async (action: any) => {
+    const code = action.item_id || `#${action.id}`;
+    const title = action.action_point || action.deliverable || "Action Item";
+    if (
+      !window.confirm(
+        `Are you sure you want to delete action "${code}: ${title}"?\n\nUse this option if this action item is duplicated or obsolete. This will permanently remove it from the register.`
+      )
+    ) {
+      return;
+    }
+    setDeletingId(action.id);
+    try {
+      const res = await fetch(`/api/workstreams/${action.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to delete action");
+      }
+      setModalOpen(false);
+      setEditingAction(null);
+      await refreshLiveSummary();
+      router.refresh();
+    } catch (err: any) {
+      alert(err.message || "Failed to delete action item.");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const departments = data?.departments || [];
@@ -1545,6 +1578,16 @@ export default function ExecutiveControlTowerClient({
                                 <History className="w-3 h-3 text-slate-500" />
                                 ({updates.length})
                               </button>
+                              <button
+                                type="button"
+                                disabled={deletingId === item.id}
+                                onClick={() => handleDeleteAction(item)}
+                                className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50 hover:bg-rose-600 px-2 py-1.5 text-[11px] font-bold text-rose-700 hover:text-white transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+                                title="Delete action item if duplicated or obsolete"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                {deletingId === item.id ? "..." : "Delete"}
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -2279,6 +2322,7 @@ export default function ExecutiveControlTowerClient({
           refreshLiveSummary();
           router.refresh();
         }}
+        onDeleted={handleDeleteAction}
       />
 
       <ActionHistorySheet

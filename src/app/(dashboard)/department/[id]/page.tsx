@@ -1383,6 +1383,7 @@ export default function DepartmentWorkspacePage() {
         currentUserName={currentUser?.name || "Department Head"}
         onClose={() => setModalOpen(false)}
         onSaved={() => fetchDepartmentData()}
+        onDeleted={handleDeleteWorkstream}
       />
 
       <ActionHistorySheet

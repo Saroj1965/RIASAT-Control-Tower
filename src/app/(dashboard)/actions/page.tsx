@@ -901,6 +901,7 @@ export default function AllActionsPage() {
         onSaved={() => {
           fetchAllData();
         }}
+        onDeleted={handleDeleteAction}
       />
 
       {/* Action History Sheet */}
