@@ -1001,23 +1001,6 @@ export default function ExecutiveControlTowerClient({
                     {allActionsRaw.length}
                   </span>
                 </button>
-                {reviewDateTabs.map((rt) => (
-                  <button
-                    key={rt.date}
-                    type="button"
-                    onClick={() => setActionTab(rt.date)}
-                    className={`rounded-md px-3 py-1.5 font-semibold transition cursor-pointer ${
-                      actionTab === rt.date
-                        ? "bg-white text-slate-900 shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    {rt.date}
-                    <span className="ml-1.5 rounded bg-slate-200/80 px-1.5 py-0.5 font-mono text-[10px] text-slate-700">
-                      {rt.count}
-                    </span>
-                  </button>
-                ))}
               </div>
 
               {/* Distinct Quick Status Filter Pills (Open has distinct Sky-Blue color) */}
