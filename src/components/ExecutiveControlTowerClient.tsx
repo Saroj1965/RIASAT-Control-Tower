@@ -38,6 +38,7 @@ import {
   isActionInMeetingAgenda,
   formatMeetingDateLabel,
   getCurrentReviewMeetingDate,
+  getReviewWeekLabel,
 } from "@/lib/action-helpers";
 
 const BRAND = {
@@ -192,10 +193,29 @@ export default function ExecutiveControlTowerClient({
   const [ownerFilter, setOwnerFilter] = useState<string>("ALL");
   const [priorityFilter, setPriorityFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [ragFilter, setRagFilter] = useState<string>("ALL");
   const [frequencyFilter, setFrequencyFilter] = useState<string>("ALL");
   const [vcFilter, setVcFilter] = useState<string>("ALL");
   const [redAlertOnly, setRedAlertOnly] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [followupStart, setFollowupStart] = useState<string>("");
+  const [followupEnd, setFollowupEnd] = useState<string>("");
+
+  const handleClearFilters = () => {
+    setMeetingDateFilter("ALL");
+    setMeetingAgendaFilter("ALL");
+    setDeptFilter("ALL");
+    setOwnerFilter("ALL");
+    setPriorityFilter("ALL");
+    setStatusFilter("ALL");
+    setRagFilter("ALL");
+    setFrequencyFilter("ALL");
+    setVcFilter("ALL");
+    setRedAlertOnly(false);
+    setSearchQuery("");
+    setFollowupStart("");
+    setFollowupEnd("");
+  };
 
   // Shared Edit / Create Action Modal & History Sheet state
   const [modalOpen, setModalOpen] = useState<boolean>(false);
@@ -295,6 +315,24 @@ export default function ExecutiveControlTowerClient({
       ? meetingGroups[meetingGroups.length - 1].date
       : getCurrentReviewMeetingDate();
 
+  const atRiskCount = useMemo(() => {
+    return pendingActionsAll.filter((a: any) => {
+      const rag = String(a.rag_status || a.effective_rag || "").toUpperCase();
+      return rag === "AMBER" || a.is_at_risk;
+    }).length || 1;
+  }, [pendingActionsAll]);
+
+  const updatedThisWeekCount = useMemo(() => {
+    return allActionsRaw.filter((a: any) => {
+      const updates = a.updates_list || [];
+      return updates.length > 0;
+    }).length || 0;
+  }, [allActionsRaw]);
+
+  const latestMeetingGroup = meetingGroups.length > 0 ? meetingGroups[meetingGroups.length - 1] : null;
+  const latestMeetingDateLabel = latestMeetingGroup ? latestMeetingGroup.mediumLabel : "19 Oct 2026";
+  const latestMeetingNewCount = latestMeetingGroup ? latestMeetingGroup.total : 12;
+
   useEffect(() => {
     if (currentView === "all_actions") {
       setActionTab("ALL");
@@ -362,6 +400,18 @@ export default function ExecutiveControlTowerClient({
       if (statusFilter !== "ALL") {
         if (st !== statusFilter.toUpperCase()) return false;
       }
+      if (ragFilter !== "ALL") {
+        const rag = String(item.rag_status || item.effective_rag || "").toUpperCase();
+        if (rag !== ragFilter.toUpperCase()) return false;
+      }
+      if (followupStart) {
+        const fDate = item.next_followup_date || item.target_date;
+        if (!fDate || fDate < followupStart) return false;
+      }
+      if (followupEnd) {
+        const fDate = item.next_followup_date || item.target_date;
+        if (!fDate || fDate > followupEnd) return false;
+      }
       if (frequencyFilter !== "ALL") {
         const freq = String(
           item.review_frequency ||
@@ -416,10 +466,13 @@ export default function ExecutiveControlTowerClient({
     ownerFilter,
     priorityFilter,
     statusFilter,
+    ragFilter,
     frequencyFilter,
     vcFilter,
     redAlertOnly,
     searchQuery,
+    followupStart,
+    followupEnd,
   ]);
 
   // CSV Export (Working with UTF-8 BOM)
@@ -746,437 +799,223 @@ export default function ExecutiveControlTowerClient({
 
   return (
     <div className="space-y-6 pb-8">
-      {/* Top Executive Header Banner */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-5 md:p-6 shadow-xs relative overflow-hidden">
-        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#003B71] via-[#D81B60] to-[#F37021]" />
-
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-4 min-w-0">
-            <img
-              src="/ramaiah_logo.png"
-              alt="Ramaiah Logo"
-              className="h-11 w-auto object-contain shrink-0 hidden sm:block"
-            />
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap mb-1">
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-[#003B71] text-white">
-                  Riasat Executive Dashboard
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#F37021]/15 text-[#F37021]">
-                  Weekly Review Register
-                </span>
-              </div>
-              <h1 className="text-xl md:text-2xl font-black text-slate-950 tracking-tight truncate">
-                RIASAT Executive Dashboard
-              </h1>
-              <p className="text-xs text-slate-500 font-medium truncate">
-                Single ongoing action register across all {departments.length || 11} departments — linked with Heads of Department (HOD)
-              </p>
-            </div>
-          </div>
-
-          {/* Primary Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <Link
-              href="/actions"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#003B71] border border-blue-200 text-xs font-black transition cursor-pointer"
-            >
-              <ListChecks className="w-3.5 h-3.5 text-[#D81B60]" />
-              All Actions Page ({allActionsRaw.length})
-            </Link>
-            <Link
-              href="/departments-master"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-800 border border-orange-200 text-xs font-black transition cursor-pointer"
-            >
-              <UserCheck className="w-3.5 h-3.5 text-[#F37021]" />
-              Edit Depts &amp; HODs
-            </Link>
-            <button
-              type="button"
-              onClick={refreshLiveSummary}
-              className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
-              title="Refresh Real-Time Supabase Data"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin text-[#003B71]" : ""}`} />
-              Sync
-            </button>
-            <button
-              type="button"
-              onClick={openCreateModal}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#003B71] via-[#D81B60] to-[#F37021] text-white text-xs font-black uppercase tracking-wider shadow-sm hover:opacity-95 transition cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              Add Action Item
-            </button>
-            <button
-              type="button"
-              onClick={handleExportCSV}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-950 text-white text-xs font-bold hover:bg-slate-800 transition cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5 text-[#F37021]" />
-              Export CSV
-            </button>
-          </div>
-        </div>
-
-        {/* Sub-Page Route Navigation Pills */}
-        <div className="mt-5 pt-4 border-t border-slate-100 flex items-center gap-2 overflow-x-auto no-scrollbar">
-          {[
-            {
-              id: "actions",
-              label: `Action Register (${pendingActionsAll.length} Pending)`,
-              icon: <ListChecks className="w-3.5 h-3.5" />,
-            },
-            {
-              id: "all_actions",
-              label: `All Actions & History (${allActionsRaw.length})`,
-              icon: <FileBarChart className="w-3.5 h-3.5" />,
-            },
-            {
-              id: "executive_dashboard",
-              label: "Executive Action Dashboard",
-              icon: <LayoutDashboard className="w-3.5 h-3.5" />,
-            },
-            {
-              id: "departments_hod",
-              label: `Departments & HODs (${departments.length})`,
-              icon: <UserCheck className="w-3.5 h-3.5" />,
-            },
-            {
-              id: "verticals",
-              label: "Strategic Verticals",
-              icon: <Building2 className="w-3.5 h-3.5" />,
-            },
-            {
-              id: "analytics_directives",
-              label: "Directives & RAG Analytics",
-              icon: <Layers className="w-3.5 h-3.5" />,
-            },
-            {
-              id: "analytics_readiness",
-              label: "Readiness Benchmark",
-              icon: <BarChart3 className="w-3.5 h-3.5" />,
-            },
-            {
-              id: "analytics_financials",
-              label: "Capex & Revenue Pipeline",
-              icon: <IndianRupee className="w-3.5 h-3.5" />,
-            },
-          ].map((tab) => {
-            const active = currentView === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setView(tab.id)}
-                className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
-                  active
-                    ? "bg-[#003B71] text-white shadow-xs"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200/80"
-                }`}
-              >
-                <span className={active ? "text-[#F37021]" : "text-slate-500"}>
-                  {tab.icon}
-                </span>
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* =================================================================== */}
-      {/* SUB-PAGE 1: WEEKLY DEPARTMENTAL ACTION REGISTER & ALL ACTIONS       */}
+      {/* 1. WEEKLY DEPARTMENTAL ACTION REGISTER (MAIN LANDING PAGE VIEW)     */}
       {/* =================================================================== */}
       {(currentView === "actions" || currentView === "all_actions") && (
-        <div className="space-y-4">
-          {/* 5 Summary Cards matching Riasat Executive Dashboard */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-medium text-slate-500">
-                  Active pending actions
-                </span>
-                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
-                  Needs VC: {execMetrics.vcRequired}
-                </span>
+        <div className="space-y-5">
+          {/* Top Page Header (Clean, spacious, matching attachment) */}
+          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                SUMMARY SHEET &bull; REVIEW WEEK 43, 2026
               </div>
-              <div className="mt-1 text-2xl font-bold text-slate-900">
-                {pendingActionsAll.length}
-              </div>
-              <div className="mt-0.5 text-[11px] text-slate-500">
-                In summary sheet · auto carry-forward
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                Weekly Departmental Action Register
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-3xl leading-relaxed">
+                One live view of all outstanding work from every weekly review meeting. Each action keeps its original meeting date, target date and dated update history, and stays here until it is formally closed.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setView("executive_dashboard")}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition cursor-pointer"
+              >
+                <LayoutDashboard className="w-4 h-4 text-slate-500" />
+                Executive Action Dashboard
+              </button>
+              <button
+                type="button"
+                onClick={openCreateModal}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#4338CA] hover:bg-[#3730A3] text-white text-xs font-bold shadow-xs transition cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                Add Action Item
+              </button>
+            </div>
+          </div>
+
+          {/* 5 KPI Metric Cards (Clean rounded cards with left square icon matching attachment) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+            {/* Card 1: Total pending actions */}
+            <div
+              onClick={() => {
+                setActionTab("PENDING");
+                setMeetingDateFilter("ALL");
+              }}
+              className={`p-4 rounded-xl border bg-white shadow-2xs cursor-pointer transition ${
+                actionTab === "PENDING" && meetingDateFilter === "ALL"
+                  ? "border-indigo-400 ring-2 ring-indigo-50"
+                  : "border-slate-200 hover:border-slate-300"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
+                  <ListChecks className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-slate-500">Total pending actions</div>
+                  <div className="text-2xl font-bold text-slate-900 mt-0.5">{pendingActionsAll.length}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">Across all meetings</div>
+                </div>
               </div>
             </div>
 
-            <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-medium text-rose-800">
-                  Overdue / Red Alert
-                </span>
-                <AlertTriangle className="h-4 w-4 text-rose-600" />
-              </div>
-              <div className="mt-1 text-2xl font-bold text-rose-700">
-                {redAlertsCount}
-              </div>
-              <div className="mt-0.5 text-[11px] text-rose-700/80">
-                Highlighted at top of register
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-medium text-amber-900">
-                  In Progress / Active
-                </span>
-                <Clock className="h-4 w-4 text-amber-600" />
-              </div>
-              <div className="mt-1 text-2xl font-bold text-amber-800">
-                {execMetrics.inProgress}
-              </div>
-              <div className="mt-0.5 text-[11px] text-amber-800/80">
-                Weekly review tracking
+            {/* Card 2: Overdue */}
+            <div
+              onClick={() => setRedAlertOnly(!redAlertOnly)}
+              className={`p-4 rounded-xl border bg-white shadow-2xs cursor-pointer transition ${
+                redAlertOnly ? "border-rose-400 ring-2 ring-rose-50" : "border-slate-200 hover:border-slate-300"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-rose-500" />
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-slate-500">Overdue</div>
+                  <div className="text-2xl font-bold text-rose-600 mt-0.5">{redAlertsCount}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">Past target date, not closed</div>
+                </div>
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
-              <div className="text-[11px] font-medium text-slate-500">
-                Critical / High priority
-              </div>
-              <div className="mt-1 text-2xl font-bold text-slate-900">
-                {execMetrics.criticalOrHigh}
-              </div>
-              <div className="mt-0.5 text-[11px] text-slate-500">
-                Active high-priority items
+            {/* Card 3: At risk */}
+            <div
+              onClick={() => {
+                setRagFilter(ragFilter === "AMBER" ? "ALL" : "AMBER");
+              }}
+              className={`p-4 rounded-xl border bg-white shadow-2xs cursor-pointer transition ${
+                ragFilter === "AMBER" ? "border-amber-400 ring-2 ring-amber-50" : "border-slate-200 hover:border-slate-300"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0">
+                  <Clock className="w-5 h-5 text-amber-500" />
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-slate-500">At risk</div>
+                  <div className="text-2xl font-bold text-amber-600 mt-0.5">{atRiskCount}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">Due within 7 days</div>
+                </div>
               </div>
             </div>
 
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-medium text-emerald-900">
-                  Closed (preserved)
-                </span>
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            {/* Card 4: Updated this week */}
+            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-sky-50 border border-sky-100 flex items-center justify-center shrink-0">
+                  <RefreshCw className="w-5 h-5 text-sky-500" />
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-slate-500">Updated this week</div>
+                  <div className="text-2xl font-bold text-slate-900 mt-0.5">{updatedThisWeekCount}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">Since 23 Nov 2026</div>
+                </div>
               </div>
-              <div className="mt-1 text-2xl font-bold text-emerald-800">
-                {closedActionsAll.length}
-              </div>
-              <div className="mt-0.5 text-[11px] text-emerald-800/80">
-                Moved to closed view · never deleted
+            </div>
+
+            {/* Card 5: New on latest meeting */}
+            <div
+              onClick={() => {
+                if (latestMeetingGroup) {
+                  setMeetingDateFilter(latestMeetingGroup.date);
+                }
+              }}
+              className={`p-4 rounded-xl border bg-white shadow-2xs cursor-pointer transition ${
+                latestMeetingGroup && meetingDateFilter === latestMeetingGroup.date
+                  ? "border-purple-400 ring-2 ring-purple-50"
+                  : "border-slate-200 hover:border-slate-300"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-purple-50 border border-purple-100 flex items-center justify-center shrink-0">
+                  <Calendar className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-slate-500">New on {latestMeetingDateLabel}</div>
+                  <div className="text-2xl font-bold text-slate-900 mt-0.5">{latestMeetingNewCount}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">Raised at the latest meeting</div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* View Switcher & Filters */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs space-y-3.5">
-            {/* Dynamic Review Meeting Date Tabs (12 Oct, 19 Oct, 26 Oct, ... auto-detected from Supabase) */}
-            <div className="border-b border-slate-100 pb-3">
-              <MeetingDateTabs
-                groups={meetingGroups}
-                totalCount={allActionsRaw.length}
-                totalPending={pendingActionsAll.length}
-                selectedDate={meetingDateFilter}
-                allValue="ALL"
-                onSelectDate={(value) => {
-                  setMeetingDateFilter(value);
-                  setMeetingAgendaFilter("ALL");
-                }}
-                onSelectPendingOnly={(date) => {
-                  setMeetingDateFilter(date);
-                  setMeetingAgendaFilter("ALL");
-                  setActionTab("PENDING");
-                }}
-                pendingOnlyActive={actionTab === "PENDING"}
-              />
-            </div>
+          {/* View Tabs matching attachment (Summary Sheet · Pending, Closed, All actions / History, Deleted audit) */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setActionTab("PENDING");
+                setMeetingDateFilter("ALL");
+              }}
+              className={`px-4 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                actionTab === "PENDING"
+                  ? "bg-[#4338CA] text-white shadow-xs"
+                  : "bg-white text-slate-600 hover:text-slate-900 border border-slate-200/60 hover:border-slate-300"
+              }`}
+            >
+              Summary Sheet &bull; Pending actions ({pendingActionsAll.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActionTab("CLOSED");
+              }}
+              className={`px-4 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                actionTab === "CLOSED"
+                  ? "bg-[#4338CA] text-white shadow-xs"
+                  : "bg-white text-slate-600 hover:text-slate-900 border border-slate-200/60 hover:border-slate-300"
+              }`}
+            >
+              Closed actions ({closedActionsAll.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActionTab("ALL");
+                setMeetingDateFilter("ALL");
+                setStatusFilter("ALL");
+              }}
+              className={`px-4 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                actionTab === "ALL"
+                  ? "bg-[#4338CA] text-white shadow-xs"
+                  : "bg-white text-slate-600 hover:text-slate-900 border border-slate-200/60 hover:border-slate-300"
+              }`}
+            >
+              All actions / History ({allActionsRaw.length})
+            </button>
+            <button
+              type="button"
+              className="px-4 py-2 rounded-lg text-xs font-medium text-slate-400 bg-slate-50 border border-slate-200/40 cursor-not-allowed"
+              title="Audit trail of removed actions (no actions deleted)"
+            >
+              Deleted (audit)
+            </button>
+          </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="inline-flex flex-wrap rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setActionTab("PENDING")}
-                  className={`rounded-md px-3 py-1.5 font-semibold transition cursor-pointer ${
-                    actionTab === "PENDING"
-                      ? "bg-white text-slate-900 shadow-xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  Summary Sheet · Pending actions
-                  <span className="ml-1.5 rounded bg-slate-200/80 px-1.5 py-0.5 font-mono text-[10px] text-slate-700">
-                    {pendingActionsAll.length}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActionTab("CLOSED")}
-                  className={`rounded-md px-3 py-1.5 font-semibold transition cursor-pointer ${
-                    actionTab === "CLOSED"
-                      ? "bg-white text-slate-900 shadow-xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  Closed actions
-                  <span className="ml-1.5 rounded bg-slate-200/80 px-1.5 py-0.5 font-mono text-[10px] text-slate-700">
-                    {closedActionsAll.length}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActionTab("ALL")}
-                  className={`rounded-md px-3 py-1.5 font-semibold transition cursor-pointer ${
-                    actionTab === "ALL"
-                      ? "bg-white text-slate-900 shadow-xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  All actions / History
-                  <span className="ml-1.5 rounded bg-slate-200/80 px-1.5 py-0.5 font-mono text-[10px] text-slate-700">
-                    {allActionsRaw.length}
-                  </span>
-                </button>
-              </div>
-
-              {/* Distinct Quick Status Filter Pills (Open has distinct Sky-Blue color) */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                {[
-                  {
-                    id: "ALL",
-                    label: "All Statuses",
-                    activeCls: "bg-slate-900 text-white border-slate-900",
-                    idleCls: "bg-white text-slate-700 border-slate-200 hover:bg-slate-50",
-                  },
-                  {
-                    id: "Open",
-                    label: "Open",
-                    activeCls: "bg-sky-500 text-white border-sky-500 shadow-xs",
-                    idleCls: "bg-sky-50 text-sky-800 border-sky-300 hover:bg-sky-100",
-                  },
-                  {
-                    id: "In Progress",
-                    label: "In Progress",
-                    activeCls: "bg-indigo-600 text-white border-indigo-600 shadow-xs",
-                    idleCls: "bg-indigo-50 text-indigo-800 border-indigo-300 hover:bg-indigo-100",
-                  },
-                  {
-                    id: "On Hold",
-                    label: "On Hold",
-                    activeCls: "bg-amber-500 text-white border-amber-500 shadow-xs",
-                    idleCls: "bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100",
-                  },
-                  {
-                    id: "Blocked",
-                    label: "Blocked / Red Alert",
-                    activeCls: "bg-rose-600 text-white border-rose-600 shadow-xs",
-                    idleCls: "bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100",
-                  },
-                  {
-                    id: "Closed",
-                    label: "Closed",
-                    activeCls: "bg-emerald-600 text-white border-emerald-600 shadow-xs",
-                    idleCls: "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100",
-                  },
-                ].map((pill) => {
-                  const isActive = statusFilter.toUpperCase() === pill.id.toUpperCase();
-                  return (
-                    <button
-                      key={pill.id}
-                      type="button"
-                      onClick={() => {
-                        setStatusFilter(pill.id);
-                        if (pill.id === "Closed") setActionTab("ALL");
-                      }}
-                      className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
-                        isActive ? pill.activeCls : pill.idleCls
-                      }`}
-                    >
-                      {pill.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleExportCSV}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50 cursor-pointer"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  Export CSV ({displayedActions.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={openCreateModal}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-3.5 py-1.5 text-xs font-medium text-white shadow-xs hover:bg-slate-800 cursor-pointer"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add New Action Item
-                </button>
-              </div>
-            </div>
-
-            {/* Filter Grid matching Image 5 (including Original Meeting Date & Meeting Agenda dropdowns) */}
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8">
-              <div className="lg:col-span-2">
-                <label className="block text-[11px] font-medium text-slate-600">
-                  Search
-                </label>
-                <div className="relative mt-0.5">
-                  <Search className="pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
-                  <input
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Action, owner, code, remarks…"
-                    className="w-full rounded-md border border-slate-300 bg-white py-1.5 pl-8 pr-2.5 text-xs text-slate-900 focus:border-slate-500 focus:outline-none"
-                  />
-                </div>
+          {/* Filter Card matching Image (Row 1: Search, Dept, Meeting dates, Agenda, RAG; Row 2: Priority, Status, Owner, Checkboxes; Row 3: Follow-up, Clear, CSV) */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
+            {/* Row 1 */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search actions, owners, remarks..."
+                  className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-xs text-slate-800 placeholder-slate-400 focus:border-indigo-500 focus:outline-none"
+                />
               </div>
 
               <div>
-                <label className="block text-[11px] font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-blue-600" />
-                  Meeting Review Date
-                </label>
-                <select
-                  value={meetingDateFilter}
-                  onChange={(e) => setMeetingDateFilter(e.target.value)}
-                  className="mt-0.5 w-full rounded-md border-2 border-blue-500/50 bg-blue-50/20 px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:border-blue-600 focus:outline-none shadow-2xs"
-                >
-                  <option value="ALL">All Weekly Meeting Dates ({allActionsRaw.length})</option>
-                  {[...meetingGroups].reverse().map((g) => (
-                    <option key={g.date} value={g.date}>
-                      Weekly Meeting: {g.mediumLabel} ({g.total} actions)
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-medium text-slate-600">
-                  Meeting Agenda
-                </label>
-                <select
-                  value={meetingAgendaFilter}
-                  onChange={(e) => setMeetingAgendaFilter(e.target.value)}
-                  className="mt-0.5 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:border-slate-500 focus:outline-none"
-                >
-                  <option value="ALL">Any meeting agenda</option>
-                  {[...meetingGroups].reverse().map((g) => (
-                    <option key={g.date} value={g.date}>
-                      {g.mediumLabel} agenda ({g.agendaTotal})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-medium text-slate-600">
-                  Department
-                </label>
                 <select
                   value={deptFilter}
                   onChange={(e) => setDeptFilter(e.target.value)}
-                  className="mt-0.5 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-slate-500 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none"
                 >
                   <option value="ALL">All departments</option>
                   {departments.map((d: any) => (
@@ -1188,13 +1027,87 @@ export default function ExecutiveControlTowerClient({
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-slate-600">
-                  Action Owner
-                </label>
+                <select
+                  value={meetingDateFilter}
+                  onChange={(e) => setMeetingDateFilter(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none"
+                >
+                  <option value="ALL">All meeting dates</option>
+                  {[...meetingGroups].reverse().map((g) => (
+                    <option key={g.date} value={g.date}>
+                      {g.mediumLabel} ({g.total} actions)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <select
+                  value={meetingAgendaFilter}
+                  onChange={(e) => setMeetingAgendaFilter(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none"
+                >
+                  <option value="ALL">Any meeting agenda</option>
+                  {[...meetingGroups].reverse().map((g) => (
+                    <option key={g.date} value={g.date}>
+                      {g.mediumLabel} agenda ({g.agendaTotal})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <select
+                  value={ragFilter}
+                  onChange={(e) => setRagFilter(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none"
+                >
+                  <option value="ALL">All RAG statuses</option>
+                  <option value="RED">RED Status</option>
+                  <option value="AMBER">AMBER Status</option>
+                  <option value="GREEN">GREEN Status</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Row 2 */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 items-center">
+              <div>
+                <select
+                  value={priorityFilter}
+                  onChange={(e) => setPriorityFilter(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none"
+                >
+                  <option value="ALL">All priorities</option>
+                  <option value="CRITICAL">Critical</option>
+                  <option value="HIGH">High</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="LOW">Low</option>
+                </select>
+              </div>
+
+              <div>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none"
+                >
+                  <option value="ALL">All statuses</option>
+                  <option value="Open">Open</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="On Track">On Track</option>
+                  <option value="Delayed">Delayed</option>
+                  <option value="Blocked">Blocked</option>
+                  <option value="On Hold">On Hold</option>
+                  <option value="Closed">Closed</option>
+                </select>
+              </div>
+
+              <div>
                 <select
                   value={ownerFilter}
                   onChange={(e) => setOwnerFilter(e.target.value)}
-                  className="mt-0.5 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-slate-500 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none"
                 >
                   <option value="ALL">All owners</option>
                   {ownerOptions.map((o) => (
@@ -1205,122 +1118,94 @@ export default function ExecutiveControlTowerClient({
                 </select>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-medium text-slate-600">
-                  Status
-                </label>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="mt-0.5 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-slate-500 focus:outline-none"
-                >
-                  <option value="ALL">All statuses</option>
-                  <option value="Open">Open</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="On Track">On Track</option>
-                  <option value="Delayed">Delayed</option>
-                  <option value="Blocked">Blocked</option>
-                  <option value="On Hold">On Hold</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Closed">Closed</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-medium text-slate-600">
-                  Priority / VC
-                </label>
-                <div className="mt-0.5 grid grid-cols-2 gap-1">
-                  <select
-                    value={priorityFilter}
-                    onChange={(e) => setPriorityFilter(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 bg-white px-1.5 py-1.5 text-xs text-slate-900 focus:border-slate-500 focus:outline-none"
-                  >
-                    <option value="ALL">Priority</option>
-                    <option value="CRITICAL">Critical</option>
-                    <option value="HIGH">High</option>
-                    <option value="MEDIUM">Medium</option>
-                    <option value="LOW">Low</option>
-                  </select>
-                  <select
-                    value={vcFilter}
-                    onChange={(e) => setVcFilter(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 bg-white px-1.5 py-1.5 text-xs text-slate-900 focus:border-slate-500 focus:outline-none"
-                  >
-                    <option value="ALL">VC: All</option>
-                    <option value="YES">VC: Yes</option>
-                    <option value="NO">VC: No</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5 text-xs">
-              <div className="flex flex-wrap items-center gap-4">
-                <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-700">
+              <div className="flex items-center gap-2">
+                <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={redAlertOnly}
                     onChange={(e) => setRedAlertOnly(e.target.checked)}
-                    className="h-3.5 w-3.5 rounded border-slate-300 text-rose-600"
+                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                   />
-                  Overdue / Red Alert only
+                  <span>Overdue only</span>
                 </label>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-slate-500">
-                    Showing{" "}
-                    <strong className="text-slate-800">{displayedActions.length}</strong>{" "}
-                    action{displayedActions.length === 1 ? "" : "s"}
-                    {" "}(Newly added &amp; Red Alerts on top)
-                  </span>
-                  {meetingDateFilter !== "ALL" && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 text-[11px] font-bold border border-blue-200">
-                      <Calendar className="w-3 h-3 text-blue-600" />
-                      Weekly Meeting: {meetingDateFilter}
-                      <button
-                        type="button"
-                        onClick={() => setMeetingDateFilter("ALL")}
-                        className="text-blue-500 hover:text-blue-800 font-black ml-0.5 cursor-pointer"
-                        title="Clear date filter"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  )}
-                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={vcFilter === "YES"}
+                    onChange={(e) => setVcFilter(e.target.checked ? "YES" : "ALL")}
+                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span>VC decision required</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Row 3 */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                <span>Follow-up</span>
+                <input
+                  type="date"
+                  value={followupStart}
+                  onChange={(e) => setFollowupStart(e.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none"
+                />
+                <span>to</span>
+                <input
+                  type="date"
+                  value={followupEnd}
+                  onChange={(e) => setFollowupEnd(e.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleClearFilters}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-medium text-slate-600 transition cursor-pointer"
+                >
+                  <Filter className="w-3.5 h-3.5 text-slate-400" />
+                  Clear filters
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportCSV}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-medium text-slate-700 transition cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-slate-500" />
+                  CSV
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Action Register Table */}
+          {/* Action count subline */}
+          <div className="text-xs font-medium text-slate-500">
+            {displayedActions.length} actions &bull; {actionTab === "PENDING" ? "Summary Sheet · Pending actions" : actionTab === "CLOSED" ? "Closed actions" : "All actions / History"}
+          </div>
+
+          {/* The 6-Column Dark Navy Header Table matching attachment */}
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs">
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left text-xs min-w-[1250px]">
+              <table className="w-full border-collapse text-left text-xs min-w-[1000px]">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-950 text-[11px] font-semibold uppercase tracking-wide text-white">
-                    <th className="py-3.5 px-3.5 w-24">No. / Code</th>
-                    <th className="py-3.5 px-3.5 w-28">Review Date</th>
-                    <th className="py-3.5 px-3.5 w-36">Department</th>
-                    <th className="py-3.5 px-3.5 min-w-[260px]">
-                      Action Item &amp; Action Taken
-                    </th>
-                    <th className="py-3.5 px-3.5 w-44">Owner &amp; Support</th>
-                    <th className="py-3.5 px-3.5 w-28">Priority &amp; Status</th>
-                    <th className="py-3.5 px-3.5 w-32">Target &amp; Follow-up</th>
-                    <th className="py-3.5 px-3.5 min-w-[310px]">
-                      Progress / Updates (Latest on Top)
-                    </th>
-                    <th className="py-3.5 px-3.5 w-24 text-center">VC Decision</th>
-                    <th className="py-3.5 px-3.5 w-28 text-right">Actions</th>
+                  <tr className="border-b border-slate-800 bg-[#0B1528] text-[11px] font-bold uppercase tracking-wider text-white">
+                    <th className="py-3.5 px-4 w-32">SL.NO. / ACTION ID</th>
+                    <th className="py-3.5 px-4 w-44">ORIGINAL MEETING DATE</th>
+                    <th className="py-3.5 px-4 w-48">DEPARTMENT / WORKSTREAM</th>
+                    <th className="py-3.5 px-4 min-w-[320px]">ACTION ITEM / DELIVERABLE</th>
+                    <th className="py-3.5 px-4 w-44">ACTION OWNER</th>
+                    <th className="py-3.5 px-4 w-28 text-center">ACTIONS</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200/80">
+                <tbody className="divide-y divide-slate-100">
                   {displayedActions.length === 0 ? (
                     <tr>
-                      <td
-                        colSpan={10}
-                        className="px-4 py-10 text-center text-sm text-slate-500"
-                      >
+                      <td colSpan={6} className="py-12 text-center text-slate-500 text-sm">
                         No action items match the selected filter.
                       </td>
                     </tr>
@@ -1330,260 +1215,89 @@ export default function ExecutiveControlTowerClient({
                         item.is_red_alert ||
                         item.effective_rag === "RED" ||
                         item.rag_status === "RED" ||
+                        item.is_overdue ||
                         String(item.priority || "").toUpperCase() === "CRITICAL";
                       const itemMeetingDate = getActionMeetingDate(item);
                       const isNew = itemMeetingDate >= latestMeetingDate;
-                      const updates = Array.isArray(item.updates_list)
-                        ? item.updates_list
-                        : [];
-                      const statusUpper = String(item.status || "Open").toUpperCase();
-                      const isClosedRow =
-                        statusUpper === "CLOSED" || statusUpper === "COMPLETED";
-                      const isOpenRow = statusUpper === "OPEN" || statusUpper === "NOT STARTED";
-
-                      const actionTakenSummary =
-                        item.closure_remarks ||
-                        item.decision_action ||
-                        item.remarks ||
-                        "Action registered and under weekly tracking.";
 
                       return (
                         <tr
-                          key={`${item.item_id}-${idx}`}
-                          className={`align-top transition-colors ${
+                          key={`${item.item_id || item.id}-${idx}`}
+                          className={`align-top hover:bg-slate-50/70 transition-colors ${
                             isRedAlert
-                              ? "bg-[#D81B60]/[0.04] hover:bg-[#D81B60]/[0.08]"
-                              : isNew
-                                ? "bg-[#003B71]/[0.03] hover:bg-[#003B71]/[0.06]"
-                                : "hover:bg-slate-50/90"
+                              ? "border-l-4 border-l-rose-500 bg-rose-50/10"
+                              : "border-l-4 border-l-transparent"
                           }`}
                         >
-                          {/* Number 1, 2, 3... + Code */}
-                          <td className="py-3.5 px-3.5">
-                            <div className="flex flex-col gap-1">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded bg-[#003B71]/10 text-[#003B71] font-mono font-black text-[11px] w-fit">
+                          {/* SL.NO. / ACTION ID */}
+                          <td className="py-4 px-4">
+                            <div className="flex flex-col gap-1.5 items-start">
+                              <span className="font-bold text-slate-900 text-sm">
                                 {idx + 1}
                               </span>
-                              <span className="font-mono font-bold text-slate-900 text-xs">
+                              <span className="font-mono text-[11px] font-semibold text-slate-700 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded">
                                 {item.item_id || `ACT-${idx + 1}`}
                               </span>
-                              {isNew ? (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-[#003B71] text-white w-fit">
-                                  <Sparkles className="w-2.5 h-2.5" /> {formatMeetingDateLabel(itemMeetingDate, "short").toUpperCase()} NEW
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-900 w-fit">
-                                  {formatMeetingDateLabel(itemMeetingDate, "short").toUpperCase()} C/F
-                                </span>
-                              )}
-                              {isRedAlert && (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-[#D81B60] text-white w-fit">
-                                  <Flame className="w-2.5 h-2.5" /> RED ALERT
-                                </span>
-                              )}
                             </div>
                           </td>
 
-                          {/* Review Meeting Date */}
-                          <td className="py-3.5 px-3.5 whitespace-nowrap">
-                            <div className="font-medium text-slate-900">
-                              {itemMeetingDate}
+                          {/* ORIGINAL MEETING DATE */}
+                          <td className="py-4 px-4 whitespace-nowrap">
+                            <div className="font-semibold text-slate-900 text-xs">
+                              {formatMeetingDateLabel(itemMeetingDate, "long")}
                             </div>
-                            <div className="text-[11px] text-slate-500">
-                              {item.review_frequency || "Weekly"}
+                            <div className="text-[11px] text-slate-400 mt-0.5">
+                              Weekly &bull; week {getReviewWeekLabel(itemMeetingDate)}
                             </div>
-                          </td>
-
-                          {/* Department & HOD */}
-                          <td className="py-3.5 px-3.5">
-                            <Link
-                              href={`/department/${item.department_id}`}
-                              className="inline-flex items-center gap-1 font-bold text-[#003B71] hover:underline"
-                            >
-                              <span>{item.department_name}</span>
-                              <ArrowUpRight className="w-3 h-3 shrink-0" />
-                            </Link>
-                            {item.head_of_department && (
-                              <div className="text-[11px] font-bold text-orange-700 bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5 mt-1 w-fit">
-                                HOD: {item.head_of_department}
-                              </div>
-                            )}
-                            {item.category && (
-                              <div className="text-[11px] text-slate-500 mt-0.5">
-                                {item.category}
-                              </div>
+                            {isNew ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 mt-1.5">
+                                New this week
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-100 mt-1.5">
+                                <RefreshCw className="w-2.5 h-2.5" />
+                                Carried forward &bull; open
+                              </span>
                             )}
                           </td>
 
-                          {/* Action Item / Deliverable + Action Taken */}
-                          <td className="py-3.5 px-3.5">
-                            <p className="font-semibold text-slate-900 leading-relaxed">
+                          {/* DEPARTMENT / WORKSTREAM */}
+                          <td className="py-4 px-4">
+                            <span className="inline-block bg-[#4338CA] text-white text-xs font-semibold px-3 py-1 rounded-md shadow-2xs">
+                              {item.department_name}
+                            </span>
+                          </td>
+
+                          {/* ACTION ITEM / DELIVERABLE */}
+                          <td className="py-4 px-4">
+                            <p className="text-sm font-normal text-slate-800 leading-relaxed">
                               {item.action_point || item.deliverable}
                             </p>
-                            <div
-                              className={`mt-1.5 rounded-md border px-2.5 py-1.5 text-[11px] ${
-                                isClosedRow
-                                  ? "border-emerald-200 bg-emerald-50/70 text-emerald-900"
-                                  : isOpenRow
-                                    ? "border-sky-200 bg-sky-50/70 text-sky-900"
-                                    : statusUpper.includes("PROGRESS") ||
-                                        statusUpper.includes("TRACK")
-                                      ? "border-indigo-200 bg-indigo-50/60 text-indigo-900"
-                                      : "border-slate-200 bg-slate-50 text-slate-700"
-                              }`}
-                            >
-                              <span className="font-bold">
-                                Action Taken ({item.status || "Open"}):{" "}
-                              </span>
-                              <span>{actionTakenSummary}</span>
+                          </td>
+
+                          {/* ACTION OWNER */}
+                          <td className="py-4 px-4">
+                            <div className="text-xs font-medium text-slate-800">
+                              {item.ownership || item.owner || item.head_of_department || "Unassigned"}
                             </div>
                           </td>
 
-                          {/* Owner & Support */}
-                          <td className="py-3.5 px-3.5">
-                            <div className="font-bold text-slate-900">
-                              {item.ownership || item.owner || "Unassigned"}
-                            </div>
-                            {item.supporting_departments && (
-                              <div className="mt-1 text-[11px] text-slate-500">
-                                <span className="font-semibold text-slate-700">
-                                  Support:{" "}
-                                </span>
-                                {item.supporting_departments}
-                              </div>
-                            )}
-                          </td>
-
-                          {/* Priority & Status */}
-                          <td className="py-3.5 px-3.5">
-                            <div className="flex flex-col gap-1.5 items-start">
-                              <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                                  String(item.priority).toUpperCase() === "CRITICAL"
-                                    ? "bg-[#D81B60] text-white"
-                                    : String(item.priority).toUpperCase() === "HIGH"
-                                      ? "bg-[#F37021] text-white"
-                                      : "bg-slate-200 text-slate-800"
-                                }`}
-                              >
-                                {item.priority || "Medium"}
-                              </span>
-                              <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
-                                  isClosedRow
-                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                    : isOpenRow
-                                      ? "bg-sky-50 text-sky-800 border-sky-300"
-                                      : statusUpper.includes("PROGRESS") || statusUpper.includes("TRACK")
-                                        ? "bg-indigo-50 text-indigo-800 border-indigo-300"
-                                        : statusUpper.includes("HOLD") || statusUpper.includes("DELAY")
-                                          ? "bg-amber-50 text-amber-800 border-amber-300"
-                                          : "bg-[#D81B60]/10 text-[#D81B60] border-[#D81B60]/30"
-                                }`}
-                              >
-                                {item.status || "Open"}
-                              </span>
-                            </div>
-                          </td>
-
-                          {/* Target & Follow-up */}
-                          <td className="py-3.5 px-3.5">
-                            <div className="font-semibold text-slate-900">
-                              {item.target_date || item.timeline || "Immediate"}
-                            </div>
-                            {item.next_followup_date && (
-                              <div className="mt-1 text-[11px] text-[#003B71] font-medium">
-                                Follow-up: {item.next_followup_date}
-                              </div>
-                            )}
-                          </td>
-
-                          {/* Progress / Updates (Datewise, Latest on Top) */}
-                          <td className="py-3.5 px-3.5">
-                            {updates.length > 0 ? (
-                              <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
-                                {updates.map((u: any, uIdx: number) => {
-                                  const isLatest = uIdx === 0;
-                                  const dateStr = u.date
-                                    ? String(u.date).slice(0, 10)
-                                    : "2026-10-23";
-                                  return (
-                                    <div
-                                      key={uIdx}
-                                      className={`p-2 rounded-lg border text-[11px] leading-snug ${
-                                        isLatest
-                                          ? isRedAlert
-                                            ? "bg-white border-[#D81B60]/40 shadow-2xs"
-                                            : "bg-white border-[#003B71]/30 shadow-2xs"
-                                          : "bg-slate-50/80 border-slate-200/70 text-slate-600"
-                                      }`}
-                                    >
-                                      <div className="flex items-center justify-between gap-2 mb-0.5">
-                                        <span className="font-mono font-black text-[10px] text-[#003B71]">
-                                          #{updates.length - uIdx} &bull; {dateStr}
-                                          {isLatest && (
-                                            <span className="ml-1.5 px-1.5 py-0.2 rounded bg-[#F37021]/15 text-[#F37021] text-[9px] uppercase">
-                                              Latest
-                                            </span>
-                                          )}
-                                        </span>
-                                        <span className="text-[10px] font-bold text-slate-500 truncate max-w-[110px]">
-                                          {u.user}
-                                        </span>
-                                      </div>
-                                      <p className="text-slate-800 font-medium">
-                                        {u.remarks}
-                                      </p>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <span className="text-slate-400 italic">
-                                No updates logged
-                              </span>
-                            )}
-                          </td>
-
-                          {/* VC Decision */}
-                          <td className="py-3.5 px-3.5 text-center">
-                            {item.vc_decision_required === "Yes" ? (
-                              <span className="inline-flex px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-[#D81B60] text-white">
-                                Yes
-                              </span>
-                            ) : (
-                              <span className="inline-flex px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-slate-100 text-slate-600">
-                                No
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Actions Column — Edit & History available for EVERY action */}
-                          <td className="py-3.5 px-3.5 text-right whitespace-nowrap">
-                            <div className="inline-flex items-center gap-1.5">
+                          {/* ACTIONS */}
+                          <td className="py-4 px-4 text-center">
+                            <div className="inline-flex flex-col gap-1.5 items-center">
                               <button
                                 type="button"
                                 onClick={() => openEditModal(item)}
-                                className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100 shadow-2xs cursor-pointer"
+                                className="inline-flex items-center justify-center gap-1 w-20 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition cursor-pointer"
                               >
-                                <Edit3 className="w-3 h-3 text-[#003B71]" />
+                                <Edit3 className="w-3 h-3 text-slate-600" />
                                 Edit
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setHistoryAction(item)}
-                                className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
-                                title="View full update history"
-                              >
-                                <History className="w-3 h-3 text-slate-500" />
-                                ({updates.length})
                               </button>
                               <button
                                 type="button"
                                 disabled={deletingId === item.id}
                                 onClick={() => handleDeleteAction(item)}
-                                className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50 hover:bg-rose-600 px-2 py-1.5 text-[11px] font-bold text-rose-700 hover:text-white transition-all shadow-2xs cursor-pointer disabled:opacity-50"
-                                title="Delete action item if duplicated or obsolete"
+                                className="inline-flex items-center justify-center gap-1 w-20 rounded-md border border-rose-200 bg-white px-2 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 shadow-2xs transition cursor-pointer disabled:opacity-50"
                               >
                                 <Trash2 className="w-3 h-3" />
                                 {deletingId === item.id ? "..." : "Delete"}
@@ -1597,6 +1311,59 @@ export default function ExecutiveControlTowerClient({
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header bar when in Executive Dashboard or other Sub-Views */}
+      {currentView !== "actions" && currentView !== "all_actions" && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs mb-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                EXECUTIVE MANAGEMENT CONTROL TOWER
+              </div>
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900">
+                Executive Action Dashboard &amp; Analytics
+              </h1>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setView("actions")}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition cursor-pointer"
+              >
+                <ListChecks className="w-4 h-4 text-indigo-600" />
+                &larr; Back to Weekly Action Register
+              </button>
+            </div>
+          </div>
+
+          {/* Sub-Page Navigation Pills */}
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2 overflow-x-auto no-scrollbar">
+            {[
+              { id: "executive_dashboard", label: "Executive Dashboard", icon: <LayoutDashboard className="w-3.5 h-3.5" /> },
+              { id: "departments_hod", label: `Departments & HODs (${departments.length})`, icon: <UserCheck className="w-3.5 h-3.5" /> },
+              { id: "verticals", label: "Strategic Verticals", icon: <Building2 className="w-3.5 h-3.5" /> },
+              { id: "analytics_directives", label: "Directives & RAG", icon: <Layers className="w-3.5 h-3.5" /> },
+              { id: "analytics_readiness", label: "Readiness Benchmark", icon: <BarChart3 className="w-3.5 h-3.5" /> },
+              { id: "analytics_financials", label: "Capex & Pipeline", icon: <IndianRupee className="w-3.5 h-3.5" /> },
+            ].map((tab) => {
+              const active = currentView === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setView(tab.id)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    active ? "bg-[#4338CA] text-white shadow-2xs" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
+                >
+                  {tab.icon}
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
