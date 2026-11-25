@@ -210,8 +210,8 @@ export default function ExecutiveControlTowerClient({
     router.push(`/executive?view=${viewName}`);
   };
 
-  // Register filters
-  const [actionTab, setActionTab] = useState<string>("PENDING");
+  // Register filters (default to ALL so all 105 action items across all meetings are shown immediately)
+  const [actionTab, setActionTab] = useState<string>("ALL");
   const [meetingDateFilter, setMeetingDateFilter] = useState<string>("ALL");
   const [meetingAgendaFilter, setMeetingAgendaFilter] = useState<string>("ALL");
   const [deptFilter, setDeptFilter] = useState<string>("ALL");
@@ -979,6 +979,7 @@ export default function ExecutiveControlTowerClient({
               allValue="ALL"
               onSelectDate={(val) => {
                 setMeetingDateFilter(val);
+                setActionTab("ALL");
               }}
               onSelectPendingOnly={(val) => {
                 setMeetingDateFilter(val);
@@ -1229,8 +1230,18 @@ export default function ExecutiveControlTowerClient({
           </div>
 
           {/* Action count subline */}
-          <div className="text-xs font-medium text-slate-500">
-            {displayedActions.length} actions &bull; {actionTab === "PENDING" ? "Summary Sheet · Pending actions" : actionTab === "CLOSED" ? "Closed actions" : "All actions / History"}
+          <div className="text-xs font-semibold text-slate-700 flex items-center gap-2 flex-wrap">
+            <span className="px-2.5 py-1 rounded bg-indigo-50 border border-indigo-200 text-indigo-800 font-bold text-xs">
+              {displayedActions.length} actions shown
+            </span>
+            <span className="text-slate-500">
+              &bull; {meetingDateFilter !== "ALL" ? `Meeting Date: ${formatMeetingDateLabel(meetingDateFilter, "long")} · ` : "Across All Review Meetings · "}
+              {actionTab === "PENDING"
+                ? "Summary Sheet (Pending actions only)"
+                : actionTab === "CLOSED"
+                ? "Closed actions only"
+                : "All actions / History (Open, In Progress, Closed)"}
+            </span>
           </div>
 
           {/* The 6-Column Dark Navy Header Table matching attachment */}
@@ -1264,6 +1275,8 @@ export default function ExecutiveControlTowerClient({
                         String(item.priority || "").toUpperCase() === "CRITICAL";
                       const itemMeetingDate = getActionMeetingDate(item);
                       const isNew = itemMeetingDate >= latestMeetingDate;
+                      const stUpper = String(item.status || "Open").trim().toUpperCase();
+                      const isClosed = stUpper === "CLOSED" || stUpper === "COMPLETED" || stUpper === "JOINED";
 
                       return (
                         <tr
@@ -1271,6 +1284,8 @@ export default function ExecutiveControlTowerClient({
                           className={`align-top hover:bg-slate-50/70 transition-colors ${
                             isRedAlert
                               ? "border-l-4 border-l-rose-500 bg-rose-50/10"
+                              : isClosed
+                              ? "border-l-4 border-l-emerald-500 bg-emerald-50/10"
                               : "border-l-4 border-l-transparent"
                           }`}
                         >
@@ -1280,9 +1295,24 @@ export default function ExecutiveControlTowerClient({
                               <span className="font-bold text-slate-900 text-sm">
                                 {idx + 1}
                               </span>
-                              <span className="font-mono text-[11px] font-semibold text-slate-700 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded">
-                                {item.item_id || `ACT-${idx + 1}`}
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-mono text-[11px] font-semibold text-slate-700 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded">
+                                  {item.item_id || `ACT-${idx + 1}`}
+                                </span>
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                    isClosed
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : stUpper === "IN PROGRESS"
+                                      ? "bg-blue-100 text-blue-800"
+                                      : stUpper === "DELAYED" || stUpper === "BLOCKED"
+                                      ? "bg-rose-100 text-rose-800"
+                                      : "bg-slate-100 text-slate-700"
+                                  }`}
+                                >
+                                  {item.status || "Open"}
+                                </span>
+                              </div>
                             </div>
                           </td>
 
@@ -1294,7 +1324,12 @@ export default function ExecutiveControlTowerClient({
                             <div className="text-[11px] text-slate-400 mt-0.5">
                               Weekly &bull; week {getReviewWeekLabel(itemMeetingDate)}
                             </div>
-                            {isNew ? (
+                            {isClosed ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 mt-1.5">
+                                <CheckCircle2 className="w-2.5 h-2.5" />
+                                Closed &bull; Completed
+                              </span>
+                            ) : isNew ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 mt-1.5">
                                 New this week
                               </span>
