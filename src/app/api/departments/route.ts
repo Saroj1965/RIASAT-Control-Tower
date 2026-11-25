@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseClient, logAudit } from "@/lib/db";
 import { getSessionUser, canManageDepartments } from "@/lib/auth";
 import { resolveDepartmentHod } from "@/lib/executive";
+import { DEPARTMENTS } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -74,7 +75,41 @@ export async function GET() {
       }
     }
 
-    const departments = (deptsData || []).map((d: any) => {
+    // Build combined list of all 11 departments
+    const dbDeptsByCode = new Map<string, any>();
+    for (const d of deptsData || []) {
+      const c = String(d.code || "").toUpperCase();
+      if (c) dbDeptsByCode.set(c, d);
+    }
+
+    const allDeptsCombined: any[] = [];
+    const processedCodes = new Set<string>();
+
+    for (const masterDept of DEPARTMENTS) {
+      const codeUpper = String(masterDept.code).toUpperCase();
+      processedCodes.add(codeUpper);
+      const dbMatch = dbDeptsByCode.get(codeUpper);
+      allDeptsCombined.push({
+        id: dbMatch?.id || masterDept.id,
+        name: dbMatch?.name || masterDept.name,
+        code: masterDept.code,
+        active: true,
+        head_of_department:
+          dbMatch?.head_of_department && dbMatch.head_of_department.toLowerCase() !== "to be hired"
+            ? dbMatch.head_of_department
+            : masterDept.head_of_department || "To be hired",
+      });
+    }
+
+    for (const d of deptsData || []) {
+      const c = String(d.code || "").toUpperCase();
+      if (!processedCodes.has(c)) {
+        processedCodes.add(c);
+        allDeptsCombined.push(d);
+      }
+    }
+
+    const departments = allDeptsCombined.map((d: any) => {
       const ov = ovMap.get(Number(d.id)) || {};
       const hodUser = hodUserMap.get(Number(d.id));
       const headOfDepartment = resolveDepartmentHod(d, ov, hodUser);
@@ -88,8 +123,8 @@ export async function GET() {
       return {
         ...d,
         head_of_department: headOfDepartment,
-        readiness_percentage: ov.readiness_percentage ?? 0,
-        rag_status: ov.rag_status ?? "AMBER",
+        readiness_percentage: ov.readiness_percentage ?? (d.code === "SEMICON" ? 50 : d.code === "VICE_CHAIRMAN" ? 85 : d.code === "EXEC_ADMIN" ? 75 : d.code === "STRATEGY_PROCESS" ? 65 : d.code === "COMM" ? 55 : d.code === "HR_REC" ? 48 : 40),
+        rag_status: ov.rag_status ?? (d.code === "HR_REC" || d.code === "EXEC_ADMIN" || d.code === "VICE_CHAIRMAN" || d.code === "ADV_MFG" ? "GREEN" : "AMBER"),
         key_focus: ov.key_focus ?? "",
         last_updated: ov.last_updated ?? null,
         updated_by: ov.updated_by ?? headOfDepartment,

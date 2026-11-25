@@ -1,15 +1,44 @@
 "use client";
 
 import React from "react";
-import { Calendar, Sparkles, X, Filter, CheckCircle2 } from "lucide-react";
+import { Calendar, Sparkles, X, Filter } from "lucide-react";
 import type { MeetingDateGroup } from "@/lib/action-helpers";
 
 /**
- * Dynamic Review Meeting Date Dropdown.
+ * Dynamic Review Meeting Date Tabs matching Image 3.
  *
- * All weekly meeting dates are rendered in a sleek, accessible dropdown selector.
- * Selecting any meeting date instantly filters action items to that specific review week.
+ * Renders interactive tabs with counts for each meeting date:
+ * - "All Meeting Dates (105 Total · 86 Pending)"
+ * - "12 October 2026 Actions (14 Total · 9 Pending)"
+ * - "19 October 2026 Actions (11 Total · 6 Pending)"
+ * - ...
+ * Along with "<Date> Pending Only (<count>)" pills on the right,
+ * and a quick dropdown selector.
  */
+
+// Brand palette rotation matching Image 3: orange, pink, blue, slate
+const TAB_PALETTE = [
+  {
+    active: "bg-[#F37021] text-white border-[#F37021] shadow-xs",
+    idle: "bg-orange-50/80 text-orange-950 border-orange-200 hover:bg-orange-100",
+    pendingActive: "border-pink-500 text-pink-600 bg-pink-50 ring-1 ring-pink-500",
+  },
+  {
+    active: "bg-[#D81B60] text-white border-[#D81B60] shadow-xs",
+    idle: "bg-pink-50/80 text-pink-950 border-pink-200 hover:bg-pink-100",
+    pendingActive: "border-pink-500 text-pink-600 bg-pink-50 ring-1 ring-pink-500",
+  },
+  {
+    active: "bg-[#003B71] text-white border-[#003B71] shadow-xs",
+    idle: "bg-blue-50/80 text-[#003B71] border-blue-200 hover:bg-blue-100",
+    pendingActive: "border-blue-500 text-blue-700 bg-blue-50 ring-1 ring-blue-500",
+  },
+  {
+    active: "bg-slate-900 text-white border-slate-900 shadow-xs",
+    idle: "bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100",
+    pendingActive: "border-slate-800 text-slate-900 bg-slate-100 ring-1 ring-slate-800",
+  },
+];
 
 interface MeetingDateTabsProps {
   groups: MeetingDateGroup[];
@@ -39,98 +68,89 @@ export default function MeetingDateTabs({
   onSelectDate,
   onSelectPendingOnly,
   pendingOnlyActive = false,
-  title = "Review Meeting Date:",
+  title = "REVIEW MEETING DATE TABS:",
   size = "md",
+  labelStyle = "long",
 }: MeetingDateTabsProps) {
-  const isAllSelected = selectedDate === allValue || !selectedDate;
-  const selectedGroup = groups.find((g) => g.date === selectedDate);
-  const reversedGroups = [...groups].reverse();
+  const pad = size === "sm" ? "px-3 py-1.5" : "px-3.5 py-2";
 
   return (
-    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 w-full bg-gradient-to-r from-slate-50 via-white to-blue-50/30 p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-2xs">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1 min-w-0">
-        {/* Label with Calendar Icon */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          <div className="w-8 h-8 rounded-xl bg-[#003B71]/10 border border-[#003B71]/20 flex items-center justify-center text-[#003B71]">
-            <Calendar className="w-4 h-4" />
-          </div>
-          <div>
-            <label htmlFor="meeting-date-dropdown" className="text-xs font-black uppercase tracking-wider text-slate-900 block">
-              {title.replace(/:$/, "")}
-            </label>
-            <span className="text-[10px] text-slate-500 font-medium">Select a meeting week to inspect actions</span>
-          </div>
-        </div>
+    <div className="flex flex-col gap-3 w-full bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs">
+      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 w-full">
+        {/* Left: Review Meeting Date Tabs */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-700 mr-1 shrink-0">
+            <Calendar className="w-4 h-4 text-[#003B71]" />
+            {title}
+          </span>
 
-        {/* Meeting Dates Dropdown */}
-        <div className="relative flex-1 max-w-md">
-          <select
-            id="meeting-date-dropdown"
-            value={selectedDate}
-            onChange={(e) => onSelectDate(e.target.value)}
-            className="w-full pl-3.5 pr-8 py-2 rounded-xl border-2 border-blue-500/50 hover:border-blue-600 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs cursor-pointer transition-all"
-          >
-            <option value={allValue}>
-              📅 All Meeting Dates ({totalCount} Total Actions · {totalPending} Pending)
-            </option>
-            {reversedGroups.map((g) => (
-              <option key={g.date} value={g.date}>
-                Weekly Meeting: {g.mediumLabel} ({g.total} Total · {g.pending} Pending · {g.closed} Closed){g.isLatest ? " ★ LATEST" : ""}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Active Selection Badge */}
-        {selectedGroup ? (
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-100 text-[#003B71] border border-blue-200 text-xs font-bold">
-            <span className="truncate">{selectedGroup.mediumLabel}</span>
-            <span className="px-1.5 py-0.5 rounded bg-blue-200 text-blue-950 font-mono text-[10px] font-black shrink-0">
-              {selectedGroup.pending} Pending / {selectedGroup.total} Total
-            </span>
-            <button
-              type="button"
-              onClick={() => onSelectDate(allValue)}
-              className="text-blue-500 hover:text-rose-600 font-black ml-0.5 text-sm cursor-pointer shrink-0"
-              title="Reset to All Meeting Dates"
-            >
-              ×
-            </button>
-          </div>
-        ) : (
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold">
-            <span>All Weeks</span>
-            <span className="px-1.5 py-0.5 rounded bg-white text-slate-900 font-mono text-[10px] font-black shrink-0">
-              {totalPending} Pending / {totalCount} Total
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Quick Pending Filter & Reset Controls */}
-      {!isAllSelected && onSelectPendingOnly && (
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => onSelectPendingOnly(selectedDate)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-              pendingOnlyActive
-                ? "bg-[#D81B60] text-white border-[#D81B60] shadow-xs"
-                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-            }`}
-          >
-            <Filter className="w-3 h-3" />
-            Pending Only ({selectedGroup?.pending ?? totalPending})
-          </button>
+          {/* All Meeting Dates Tab */}
           <button
             type="button"
             onClick={() => onSelectDate(allValue)}
-            className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200/70 cursor-pointer"
+            className={`inline-flex items-center gap-2 ${pad} rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+              selectedDate === allValue || !selectedDate
+                ? "bg-[#003B71] text-white border-[#003B71] shadow-xs"
+                : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+            }`}
           >
-            Reset
+            <span>All Meeting Dates</span>
+            <span className="px-1.5 py-0.5 rounded bg-black/15 font-mono text-[10px] font-black whitespace-nowrap">
+              {totalCount} Total · {totalPending} Pending
+            </span>
           </button>
+
+          {/* Individual Meeting Date Tabs */}
+          {groups.map((g, idx) => {
+            const palette = TAB_PALETTE[idx % TAB_PALETTE.length];
+            const isActive = selectedDate === g.date;
+            return (
+              <button
+                key={g.date}
+                type="button"
+                onClick={() => onSelectDate(g.date)}
+                className={`inline-flex items-center gap-2 ${pad} rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                  isActive ? palette.active : palette.idle
+                }`}
+                title={`Actions raised in the ${g.label} review meeting`}
+              >
+                {g.isLatest && groups.length > 1 && (
+                  <Sparkles className="w-3 h-3 shrink-0" aria-label="Latest meeting" />
+                )}
+                <span className="whitespace-nowrap">
+                  {labelStyle === "medium" ? g.mediumLabel : g.label} Actions
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-black/15 font-mono text-[10px] font-black whitespace-nowrap">
+                  {g.total} Total · {g.pending} Pending
+                </span>
+              </button>
+            );
+          })}
         </div>
-      )}
+
+        {/* Right: "<Date> Pending Only" Quick Pill Buttons */}
+        {onSelectPendingOnly && groups.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-start xl:self-center">
+            {groups.map((g) => {
+              const isActive = pendingOnlyActive && selectedDate === g.date;
+              return (
+                <button
+                  key={`pending-${g.date}`}
+                  type="button"
+                  onClick={() => onSelectPendingOnly(g.date)}
+                  className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    isActive
+                      ? "border-pink-500 text-pink-600 bg-pink-50 ring-1 ring-pink-500 font-extrabold shadow-2xs"
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  {g.shortLabel} Pending Only ({g.pending})
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

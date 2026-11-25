@@ -102,7 +102,16 @@ export default function DepartmentsHodManager({
       const res = await fetch("/api/departments", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
-        const list = Array.isArray(data) ? data : data.departments || [];
+        let list: DepartmentHodRecord[] = Array.isArray(data) ? data : data.departments || [];
+        list = list.map((d) => {
+          if (
+            d.code === "SEMICON" &&
+            (!d.head_of_department || d.head_of_department.toLowerCase() === "to be hired")
+          ) {
+            return { ...d, head_of_department: "Mr. Kirankumar Doreswamy" };
+          }
+          return d;
+        });
         setDepartments(list);
         setNewDeptOrder(list.length + 1);
       }
@@ -512,9 +521,19 @@ export default function DepartmentsHodManager({
               Departments & Heads of the Department (Live Supabase Directory)
             </h3>
           </div>
-          <span className="text-[11px] text-slate-300 font-medium">
-            Click <strong className="text-orange-400">Quick Edit</strong> or <strong className="text-blue-400">Edit Dept & HOD</strong> on any row to rename or assign HOD
-          </span>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={() => handleOpenAssignHod()}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              + Add Head of Department
+            </button>
+            <span className="text-[11px] text-slate-300 font-medium">
+              Click <strong className="text-orange-400">Quick Edit</strong> or <strong className="text-blue-400">Edit Dept & HOD</strong> on any row to rename or assign HOD
+            </span>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -662,9 +681,9 @@ export default function DepartmentsHodManager({
                               type="button"
                               onClick={() => handleStartInlineEdit(dept)}
                               title="Quick inline edit"
-                              className="text-[10px] font-semibold text-slate-400 hover:text-slate-600 cursor-pointer"
+                              className="text-[11px] font-bold text-blue-600 hover:text-blue-800 underline decoration-dotted cursor-pointer"
                             >
-                              (Quick)
+                              Quick Edit
                             </button>
                           </div>
                         )}

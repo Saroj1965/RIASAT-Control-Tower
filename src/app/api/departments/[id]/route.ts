@@ -7,7 +7,7 @@ import {
   canManageDepartments,
   hasFullAccess,
 } from "@/lib/auth";
-import { ROLES } from "@/lib/constants";
+import { ROLES, DEPARTMENTS } from "@/lib/constants";
 import {
   calculateActionWeekStats,
   getCurrentReviewMeetingDate,
@@ -92,8 +92,26 @@ export async function GET(req: Request, { params }: Params) {
       sb.from("department_form_values").select("*").eq("department_id", deptId),
     ]);
 
-    if (!department) {
-      return NextResponse.json({ error: "Department not found" }, { status: 404 });
+    let deptRecord = department;
+    if (!deptRecord) {
+      const masterMatch = DEPARTMENTS.find(
+        (d) => d.id === deptId || (deptId === 12 && d.code === "SEMICON")
+      );
+      if (masterMatch) {
+        deptRecord = {
+          id: deptId,
+          name: masterMatch.name,
+          code: masterMatch.code,
+          head_of_department: masterMatch.head_of_department,
+          active: true,
+        };
+        // Background upsert into departments table
+        sb.from("departments")
+          .upsert(deptRecord, { onConflict: "id" })
+          .then(() => {});
+      } else {
+        return NextResponse.json({ error: "Department not found" }, { status: 404 });
+      }
     }
 
     const hodUserMap = new Map<number, any>();
@@ -293,15 +311,6 @@ export async function PUT(req: Request, { params }: Params) {
     }
 
     const sb = getSupabaseClient();
-    const { data: deptRow } = await sb
-      .from("departments")
-      .select("*")
-      .eq("id", deptId)
-      .maybeSingle();
-    if (!deptRow) {
-      return NextResponse.json({ error: "Department not found" }, { status: 404 });
-    }
-
     const body = await req.json();
     const {
       name,
@@ -312,10 +321,30 @@ export async function PUT(req: Request, { params }: Params) {
       key_focus,
     } = body;
 
+    let { data: deptRow } = await sb
+      .from("departments")
+      .select("*")
+      .eq("id", deptId)
+      .maybeSingle();
+
+    if (!deptRow) {
+      const masterMatch = DEPARTMENTS.find(
+        (d) => d.id === deptId || (code && d.code === code) || (deptId === 12 && d.code === "SEMICON")
+      );
+      deptRow = {
+        id: deptId,
+        name: name || masterMatch?.name || "Department",
+        code: code || masterMatch?.code || `DEPT_${deptId}`,
+        head_of_department: head_of_department || masterMatch?.head_of_department || "To be hired",
+        active: true,
+      };
+      await sb.from("departments").upsert(deptRow, { onConflict: "id" });
+    }
+
     const cleanHod =
       head_of_department !== undefined && String(head_of_department).trim()
         ? String(head_of_department).trim()
-        : (deptRow.head_of_department || "To be hired");
+        : (deptRow?.head_of_department || "To be hired");
 
     // 1. Update department name, code, and head_of_department in `departments` table
     let updatedDept = deptRow;
@@ -344,6 +373,12 @@ export async function PUT(req: Request, { params }: Params) {
         return NextResponse.json({ error: dErr.message }, { status: 500 });
       }
       if (dUp) updatedDept = dUp;
+      if (deptId === 1 || deptId === 12 || deptUpdatePayload.code === "SEMICON") {
+        const mirrorId = deptId === 1 ? 12 : 1;
+        sb.from("departments")
+          .upsert({ ...deptUpdatePayload, id: mirrorId, active: true }, { onConflict: "id" })
+          .then(() => {});
+      }
     }
 
     // 2. Update department_overview (including head_of_department in updated_by)

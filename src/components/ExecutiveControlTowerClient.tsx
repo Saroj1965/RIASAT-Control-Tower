@@ -158,9 +158,34 @@ export default function ExecutiveControlTowerClient({
       const res = await fetch("/api/executive/summary", { cache: "no-store" });
       if (res.ok) {
         const fresh = await res.json();
-        if (fresh && (Array.isArray(fresh.departments) || Array.isArray(fresh.allActions))) {
+        if (fresh && Array.isArray(fresh.allActions) && fresh.allActions.length > 0) {
           setLiveData(fresh);
+          return;
         }
+      }
+
+      // Fallback: fetch from /api/workstreams
+      try {
+        const wsRes = await fetch("/api/workstreams", { cache: "no-store" });
+        if (wsRes.ok) {
+          const wsJson = await wsRes.json();
+          if (Array.isArray(wsJson?.workstreams) && wsJson.workstreams.length > 0) {
+            setLiveData((prev: any) => ({
+              ...prev,
+              allActions: wsJson.workstreams,
+              departments: prev.departments?.length ? prev.departments : [],
+              summary: {
+                ...prev.summary,
+                total_actions: wsJson.workstreams.length,
+                open_actions: wsJson.workstreams.filter(
+                  (w: any) => !["CLOSED", "COMPLETED", "JOINED"].includes(String(w.status || "OPEN").toUpperCase())
+                ).length,
+              },
+            }));
+          }
+        }
+      } catch (e2) {
+        console.error("Fallback to /api/workstreams failed:", e2);
       }
     } catch (e) {
       console.error("Failed to fetch live executive summary:", e);
@@ -943,6 +968,26 @@ export default function ExecutiveControlTowerClient({
               </div>
             </div>
           </div>
+
+          {/* Review Meeting Date Tabs matching Image 3 */}
+          {meetingGroups.length > 0 && (
+            <MeetingDateTabs
+              groups={meetingGroups}
+              totalCount={allActionsRaw.length}
+              totalPending={pendingActionsAll.length}
+              selectedDate={meetingDateFilter}
+              allValue="ALL"
+              onSelectDate={(val) => {
+                setMeetingDateFilter(val);
+              }}
+              onSelectPendingOnly={(val) => {
+                setMeetingDateFilter(val);
+                setActionTab("PENDING");
+              }}
+              pendingOnlyActive={actionTab === "PENDING" && meetingDateFilter !== "ALL"}
+              title="REVIEW MEETING DATE TABS:"
+            />
+          )}
 
           {/* View Tabs matching attachment (Summary Sheet · Pending, Closed, All actions / History, Deleted audit) */}
           <div className="flex flex-wrap items-center gap-2">

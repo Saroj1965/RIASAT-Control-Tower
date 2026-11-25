@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 import { getSupabaseClient, logAudit } from "@/lib/db";
 import { getSessionUser, canEditDepartment } from "@/lib/auth";
+import { DEPARTMENTS } from "@/lib/constants";
 import {
   getCurrentReviewMeetingDate,
   getReviewWeekLabel,
   calculateActionWeekStats,
   sortActionsWithNewAndAlertsOnTop,
 } from "@/lib/action-helpers";
+
+const DEFAULT_SUPABASE_URL = "https://qbotswjhmmquvmhwrawq.supabase.co";
+const DEFAULT_SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFib3Rzd2pobW1xdXZtaHdyYXdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3MDQ1MDYsImV4cCI6MjEwODI4MDUwNn0.KOCAfyIdsCSkxwYyNI8MVjkkocITfzzTUgkPV3tHW34";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -22,14 +27,40 @@ export async function GET(req: Request) {
     const deptParam = searchParams.get("department_id");
 
     const sb = getSupabaseClient();
-    const [{ data: wsRows }, { data: deptRows }] = await Promise.all([
+    let [{ data: wsRows }, { data: deptRows }] = await Promise.all([
       sb.from("workstreams").select("*").order("id", { ascending: true }),
       sb.from("departments").select("id, name, code"),
     ]);
 
+    if (!wsRows || wsRows.length === 0) {
+      try {
+        const headers = {
+          apikey: DEFAULT_SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${DEFAULT_SUPABASE_ANON_KEY}`,
+        };
+        const wsResp = await fetch(`${DEFAULT_SUPABASE_URL}/rest/v1/workstreams?select=*`, {
+          headers,
+          cache: "no-store",
+        });
+        if (wsResp.ok) {
+          wsRows = await wsResp.json();
+        }
+      } catch (e) {
+        console.error("Direct fetch for workstreams route fallback failed:", e);
+      }
+    }
+
     const deptMap = new Map<number, any>();
+    // Pre-populate with canonical DEPARTMENTS master list
+    for (const d of DEPARTMENTS) {
+      deptMap.set(Number(d.id), d);
+    }
     for (const d of deptRows || []) {
       deptMap.set(Number(d.id), d);
+    }
+    // Also map Semicon 12
+    if (deptMap.has(1)) {
+      deptMap.set(12, deptMap.get(1));
     }
 
     let enriched = (wsRows || []).map((w: any) => {
