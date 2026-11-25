@@ -39,6 +39,10 @@ export default function HeaderBar({ user }: { user: SessionUser }) {
             <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#003B71] via-[#D81B60] to-[#F37021] text-white shrink-0">
               RAMAIAH (RIASAT)
             </span>
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Supabase Live Sync
+            </span>
           </div>
           <p className="text-[11px] text-slate-500 font-medium truncate">
             Weekly Departmental Action Register &amp; Executive Action Dashboard

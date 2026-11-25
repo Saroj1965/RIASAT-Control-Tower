@@ -832,8 +832,14 @@ export default function ExecutiveControlTowerClient({
           {/* Top Page Header (Clean, spacious, matching attachment) */}
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
             <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                SUMMARY SHEET &bull; REVIEW WEEK 43, 2026
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  SUMMARY SHEET &bull; REVIEW WEEK 43, 2026
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live Supabase Connected &bull; {allActionsRaw.length} Action Items Synced
+                </span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
                 Weekly Departmental Action Register
@@ -1443,8 +1449,14 @@ export default function ExecutiveControlTowerClient({
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs mb-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                EXECUTIVE MANAGEMENT CONTROL TOWER
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  EXECUTIVE MANAGEMENT CONTROL TOWER
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live Supabase Connected
+                </span>
               </div>
               <h1 className="text-xl sm:text-2xl font-black text-slate-900">
                 Executive Action Dashboard &amp; Analytics
