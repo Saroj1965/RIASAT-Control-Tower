@@ -948,6 +948,7 @@ export default function ExecutiveControlTowerClient({
               onClick={() => {
                 if (latestMeetingGroup) {
                   setMeetingDateFilter(latestMeetingGroup.date);
+                  setActionTab("ALL");
                 }
               }}
               className={`p-4 rounded-xl border bg-white shadow-2xs cursor-pointer transition ${
@@ -1010,6 +1011,7 @@ export default function ExecutiveControlTowerClient({
               type="button"
               onClick={() => {
                 setActionTab("CLOSED");
+                setMeetingDateFilter("ALL");
               }}
               className={`px-4 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
                 actionTab === "CLOSED"
@@ -1075,7 +1077,16 @@ export default function ExecutiveControlTowerClient({
               <div>
                 <select
                   value={meetingDateFilter}
-                  onChange={(e) => setMeetingDateFilter(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setMeetingDateFilter(val);
+                    if (val !== "ALL") {
+                      setMeetingAgendaFilter("ALL");
+                      if (actionTab === "CLOSED") {
+                        setActionTab("ALL");
+                      }
+                    }
+                  }}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none"
                 >
                   <option value="ALL">All meeting dates</option>
@@ -1090,7 +1101,16 @@ export default function ExecutiveControlTowerClient({
               <div>
                 <select
                   value={meetingAgendaFilter}
-                  onChange={(e) => setMeetingAgendaFilter(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setMeetingAgendaFilter(val);
+                    if (val !== "ALL") {
+                      setMeetingDateFilter("ALL");
+                      if (actionTab === "CLOSED") {
+                        setActionTab("ALL");
+                      }
+                    }
+                  }}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none"
                 >
                   <option value="ALL">Any meeting agenda</option>
@@ -1262,7 +1282,30 @@ export default function ExecutiveControlTowerClient({
                   {displayedActions.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-12 text-center text-slate-500 text-sm">
-                        No action items match the selected filter.
+                        <div className="font-medium">No action items match the selected filter.</div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActionTab("ALL");
+                            setMeetingDateFilter("ALL");
+                            setMeetingAgendaFilter("ALL");
+                            setDeptFilter("ALL");
+                            setOwnerFilter("ALL");
+                            setPriorityFilter("ALL");
+                            setStatusFilter("ALL");
+                            setRagFilter("ALL");
+                            setFrequencyFilter("ALL");
+                            setVcFilter("ALL");
+                            setRedAlertOnly(false);
+                            setSearchQuery("");
+                            setFollowupStart("");
+                            setFollowupEnd("");
+                          }}
+                          className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs cursor-pointer transition-all"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          Reset Filters (View All 105 Action Items)
+                        </button>
                       </td>
                     </tr>
                   ) : (

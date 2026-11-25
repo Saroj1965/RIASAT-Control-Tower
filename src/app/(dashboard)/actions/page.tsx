@@ -188,16 +188,6 @@ export default function AllActionsPage() {
       )
         return false;
       if (statusTab === "alerts" && !isActionRedAlert(a)) return false;
-      if (selectedMeetingDate !== "all") {
-        const itemDate = getActionMeetingDate(a);
-        if (itemDate !== selectedMeetingDate) return false;
-      }
-      if (
-        selectedAgenda !== "all" &&
-        !isActionInMeetingAgenda(a, selectedAgenda)
-      ) {
-        return false;
-      }
 
       if (selectedDeptId !== "all" && String(a.department_id) !== selectedDeptId) {
         return false;
@@ -402,8 +392,12 @@ export default function AllActionsPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 mt-6 pt-5 border-t border-slate-800/80">
           <button
             type="button"
-            onClick={() => setStatusTab("all")}
-            className={`text-left p-3 rounded-xl border transition-all ${
+            onClick={() => {
+              setStatusTab("all");
+              setSelectedMeetingDate("all");
+              setSelectedAgenda("all");
+            }}
+            className={`text-left p-3 rounded-xl border transition-all cursor-pointer ${
               statusTab === "all"
                 ? "bg-blue-600 text-white border-blue-400 shadow-md"
                 : "bg-slate-900/90 text-slate-300 border-slate-800 hover:border-slate-700"
@@ -417,8 +411,12 @@ export default function AllActionsPage() {
 
           <button
             type="button"
-            onClick={() => setStatusTab("pending")}
-            className={`text-left p-3 rounded-xl border transition-all ${
+            onClick={() => {
+              setStatusTab("pending");
+              setSelectedMeetingDate("all");
+              setSelectedAgenda("all");
+            }}
+            className={`text-left p-3 rounded-xl border transition-all cursor-pointer ${
               statusTab === "pending"
                 ? "bg-orange-500 text-white border-orange-300 shadow-md"
                 : "bg-slate-900/90 text-slate-300 border-slate-800 hover:border-slate-700"
@@ -432,8 +430,12 @@ export default function AllActionsPage() {
 
           <button
             type="button"
-            onClick={() => setStatusTab("open")}
-            className={`text-left p-3 rounded-xl border transition-all ${
+            onClick={() => {
+              setStatusTab("open");
+              setSelectedMeetingDate("all");
+              setSelectedAgenda("all");
+            }}
+            className={`text-left p-3 rounded-xl border transition-all cursor-pointer ${
               statusTab === "open"
                 ? "bg-sky-500 text-white border-sky-300 shadow-md"
                 : "bg-sky-950/70 text-sky-300 border-sky-800 hover:border-sky-600"
@@ -447,8 +449,12 @@ export default function AllActionsPage() {
 
           <button
             type="button"
-            onClick={() => setStatusTab("in_progress")}
-            className={`text-left p-3 rounded-xl border transition-all ${
+            onClick={() => {
+              setStatusTab("in_progress");
+              setSelectedMeetingDate("all");
+              setSelectedAgenda("all");
+            }}
+            className={`text-left p-3 rounded-xl border transition-all cursor-pointer ${
               statusTab === "in_progress"
                 ? "bg-indigo-600 text-white border-indigo-400 shadow-md"
                 : "bg-slate-900/90 text-slate-300 border-slate-800 hover:border-slate-700"
@@ -462,8 +468,12 @@ export default function AllActionsPage() {
 
           <button
             type="button"
-            onClick={() => setStatusTab("closed")}
-            className={`text-left p-3 rounded-xl border transition-all ${
+            onClick={() => {
+              setStatusTab("closed");
+              setSelectedMeetingDate("all");
+              setSelectedAgenda("all");
+            }}
+            className={`text-left p-3 rounded-xl border transition-all cursor-pointer ${
               statusTab === "closed"
                 ? "bg-emerald-600 text-white border-emerald-400 shadow-md"
                 : "bg-slate-900/90 text-slate-300 border-slate-800 hover:border-slate-700"
@@ -477,8 +487,12 @@ export default function AllActionsPage() {
 
           <button
             type="button"
-            onClick={() => setStatusTab("updated")}
-            className={`text-left p-3 rounded-xl border transition-all ${
+            onClick={() => {
+              setStatusTab("updated");
+              setSelectedMeetingDate("all");
+              setSelectedAgenda("all");
+            }}
+            className={`text-left p-3 rounded-xl border transition-all cursor-pointer ${
               statusTab === "updated"
                 ? "bg-pink-600 text-white border-pink-400 shadow-md"
                 : "bg-slate-900/90 text-slate-300 border-slate-800 hover:border-slate-700"
@@ -492,8 +506,12 @@ export default function AllActionsPage() {
 
           <button
             type="button"
-            onClick={() => setStatusTab("alerts")}
-            className={`text-left p-3 rounded-xl border transition-all ${
+            onClick={() => {
+              setStatusTab("alerts");
+              setSelectedMeetingDate("all");
+              setSelectedAgenda("all");
+            }}
+            className={`text-left p-3 rounded-xl border transition-all cursor-pointer ${
               statusTab === "alerts"
                 ? "bg-red-600 text-white border-red-400 shadow-md"
                 : "bg-slate-900/90 text-slate-300 border-slate-800 hover:border-slate-700"
@@ -519,13 +537,14 @@ export default function AllActionsPage() {
             onSelectDate={(value) => {
               setSelectedMeetingDate(value);
               setSelectedAgenda("all");
+              setStatusTab("all");
             }}
             onSelectPendingOnly={(date) => {
               setSelectedMeetingDate(date);
               setSelectedAgenda("all");
               setStatusTab("pending");
             }}
-            pendingOnlyActive={statusTab === "pending"}
+            pendingOnlyActive={statusTab === "pending" && selectedMeetingDate !== "all"}
           />
         </div>
 
@@ -546,7 +565,11 @@ export default function AllActionsPage() {
           <div>
             <select
               value={selectedMeetingDate}
-              onChange={(e) => setSelectedMeetingDate(e.target.value)}
+              onChange={(e) => {
+                setSelectedMeetingDate(e.target.value);
+                setSelectedAgenda("all");
+                setStatusTab("all");
+              }}
               className="w-full px-3 py-2 text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All Meeting Dates ({counts.all})</option>
@@ -562,7 +585,11 @@ export default function AllActionsPage() {
           <div>
             <select
               value={selectedAgenda}
-              onChange={(e) => setSelectedAgenda(e.target.value)}
+              onChange={(e) => {
+                setSelectedAgenda(e.target.value);
+                setSelectedMeetingDate("all");
+                setStatusTab("all");
+              }}
               className="w-full px-3 py-2 text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">Any Meeting Agenda</option>
@@ -688,7 +715,23 @@ export default function AllActionsPage() {
               ) : filteredActions.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-14 text-center text-slate-500 font-semibold">
-                    No actions match your current filter. Click &ldquo;Reset&rdquo; to view all {counts.all} actions.
+                    <div className="text-sm">No actions match your current filter combination.</div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStatusTab("all");
+                        setSelectedMeetingDate("all");
+                        setSelectedAgenda("all");
+                        setSelectedDeptId("all");
+                        setSelectedOwner("all");
+                        setSelectedPriority("all");
+                        setSearchQuery("");
+                      }}
+                      className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs cursor-pointer transition-all"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Reset All Filters (View all {counts.all} actions)
+                    </button>
                   </td>
                 </tr>
               ) : (
