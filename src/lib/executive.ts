@@ -14,7 +14,7 @@ const DEFAULT_SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFib3Rzd2pobW1xdXZtaHdyYXdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3MDQ1MDYsImV4cCI6MjEwODI4MDUwNn0.KOCAfyIdsCSkxwYyNI8MVjkkocITfzzTUgkPV3tHW34";
 
 const DEFAULT_HOD_BY_CODE: Record<string, string> = {
-  SEMICON: "Mr. Kirankumar Doreswamy",
+  SEMICON: "To be hired",
   AERO_DEFENCE: "To be hired",
   SPACE: "To be hired",
   CYBER: "To be hired",
@@ -34,10 +34,12 @@ export function resolveDepartmentHod(
   deptHeadUser?: any
 ): string {
   const code = String(dept?.code || "").toUpperCase();
-  const rawHod = dept?.head_of_department ? String(dept.head_of_department).trim() : "";
+  const rawHod = dept?.head_of_department !== undefined && dept?.head_of_department !== null
+    ? String(dept.head_of_department).trim()
+    : "";
 
-  // 1. If explicit HOD is set and is not "To be hired", return it
-  if (rawHod && rawHod.toLowerCase() !== "to be hired") {
+  // 1. If explicit HOD is set in the department record (including "To be hired"), return it
+  if (rawHod) {
     return rawHod;
   }
 
@@ -45,7 +47,6 @@ export function resolveDepartmentHod(
   if (
     overview?.updated_by &&
     String(overview.updated_by).trim() &&
-    String(overview.updated_by).trim().toLowerCase() !== "to be hired" &&
     !["System Administrator", "Executive Secretariat", "System Migration"].includes(
       String(overview.updated_by).trim()
     )
@@ -56,23 +57,17 @@ export function resolveDepartmentHod(
   // 3. Check user assigned as department head in users table
   if (
     deptHeadUser?.name &&
-    String(deptHeadUser.name).trim() &&
-    String(deptHeadUser.name).trim().toLowerCase() !== "to be hired"
+    String(deptHeadUser.name).trim()
   ) {
     return String(deptHeadUser.name).trim();
   }
 
   // 4. Check DEFAULT_HOD_BY_CODE
-  if (DEFAULT_HOD_BY_CODE[code] && DEFAULT_HOD_BY_CODE[code].toLowerCase() !== "to be hired") {
+  if (DEFAULT_HOD_BY_CODE[code]) {
     return DEFAULT_HOD_BY_CODE[code];
   }
 
-  // 5. If rawHod is set (even if "To be hired"), return it
-  if (rawHod) {
-    return rawHod;
-  }
-
-  return DEFAULT_HOD_BY_CODE[code] || "To be hired";
+  return "To be hired";
 }
 
 export interface ExecutiveSummary {
@@ -289,8 +284,8 @@ export async function getExecutiveSummaryData(): Promise<ExecutiveDashboardData>
       code: masterDept.code,
       active: true,
       head_of_department:
-        dbMatch?.head_of_department && dbMatch.head_of_department.toLowerCase() !== "to be hired"
-          ? dbMatch.head_of_department
+        dbMatch?.head_of_department !== undefined && dbMatch?.head_of_department !== null && String(dbMatch.head_of_department).trim()
+          ? String(dbMatch.head_of_department).trim()
           : masterDept.head_of_department || DEFAULT_HOD_BY_CODE[codeUpper] || "To be hired",
     });
   }

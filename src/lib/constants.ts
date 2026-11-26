@@ -1,5 +1,5 @@
 export const DEPARTMENTS = [
-  { id: 1, name: "Semicon", code: "SEMICON", type: "technical", head_of_department: "Mr. Kirankumar Doreswamy" },
+  { id: 1, name: "Semicon", code: "SEMICON", type: "technical", head_of_department: "To be hired" },
   { id: 2, name: "Aerospace & Defence", code: "AERO_DEFENCE", type: "technical", head_of_department: "To be hired" },
   { id: 3, name: "Space", code: "SPACE", type: "technical", head_of_department: "To be hired" },
   { id: 4, name: "Cybersecurity", code: "CYBER", type: "technical", head_of_department: "To be hired" },

@@ -342,8 +342,8 @@ export async function PUT(req: Request, { params }: Params) {
     }
 
     const cleanHod =
-      head_of_department !== undefined && String(head_of_department).trim()
-        ? String(head_of_department).trim()
+      head_of_department !== undefined
+        ? (String(head_of_department).trim() || "To be hired")
         : (deptRow?.head_of_department || "To be hired");
 
     // 1. Update department name, code, and head_of_department in `departments` table

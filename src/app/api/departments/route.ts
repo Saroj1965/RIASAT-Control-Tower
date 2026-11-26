@@ -95,8 +95,8 @@ export async function GET() {
         code: masterDept.code,
         active: true,
         head_of_department:
-          dbMatch?.head_of_department && dbMatch.head_of_department.toLowerCase() !== "to be hired"
-            ? dbMatch.head_of_department
+          dbMatch?.head_of_department !== undefined && dbMatch?.head_of_department !== null && String(dbMatch.head_of_department).trim()
+            ? String(dbMatch.head_of_department).trim()
             : masterDept.head_of_department || "To be hired",
       });
     }
